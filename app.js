@@ -271,6 +271,8 @@ function bindUI() {
   const loadPreset = document.getElementById('loadPreset');
   const dropZone = document.getElementById('dropZone');
   const recomputeBtn = document.getElementById('recompute');
+  const toggleSettings = document.getElementById('toggleSettings');
+  const settingsBody = document.getElementById('settingsBody');
 
   playBtn.addEventListener('click', async () => {
     ensureAudio();
@@ -403,10 +405,11 @@ function bindUI() {
   });
 
   ;['dragenter','dragover','dragleave','drop'].forEach(ev => {
-    dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+    dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); if (ev !== 'dragleave') dropZone.classList.add('drag-hover'); if (ev === 'dragleave') dropZone.classList.remove('drag-hover'); });
   });
   dropZone.addEventListener('drop', async e => {
     const dt = e.dataTransfer;
+    dropZone.classList.remove('drag-hover');
     if (!dt) return;
     if (dt.files && dt.files.length) {
       const f = dt.files[0];
@@ -450,6 +453,13 @@ function bindUI() {
   });
 
   window.addEventListener('resize', () => drawWaveform());
+  window.addEventListener('orientationchange', () => setTimeout(drawWaveform, 250));
+
+  toggleSettings.addEventListener('click', () => {
+    const hidden = settingsBody.classList.toggle('hidden');
+    toggleSettings.textContent = hidden ? 'SHOW' : 'HIDE';
+    toggleSettings.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+  });
 }
 
 window.addEventListener('load', () => {

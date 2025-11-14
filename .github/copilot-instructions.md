@@ -48,6 +48,9 @@ Enable fast, accurate changes to the gapless loop player with iOS-friendly backg
 - Keep patches surgical; avoid unrelated refactors.
 - No direct connection to `audioCtx.destination` when `MediaStreamDestination` is in use.
 - Prefer descriptive function names; avoid large inline comments; document behavior in `README.md`.
+- UI styling: mobile-first with `style.css` using CSS variables (`--accent`, `--bg`, etc.), avoid introducing frameworks unless requested.
+- Accessibility: maintain `aria-label`, `aria-live` for status elements; preserve large tap targets (≥44px height) on buttons.
+- Responsive redraw: call `drawWaveform()` on resize/orientation change to keep waveform crisp on iPhone retina.
 
 ## Typical Changes (Examples)
 - Add a new control: implement handler in `index.html`, wire in `bindUI()` in `app.js`.
