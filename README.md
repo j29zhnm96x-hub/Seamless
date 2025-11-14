@@ -40,6 +40,12 @@ Open http://localhost:5173 in your browser.
 - A user gesture is required before audio can play. Use the Play button first.
 - Background persistence still depends on iOS policies; this setup maximizes the chance it keeps playing.
 
+## Add to Home Screen / Favicon
+This project includes a simple `manifest.json` and placeholder `favicon.png` and `apple-touch-icon.png`.
+- For best results on Safari / iOS Add to Home Screen, replace `apple-touch-icon.png` with a 180x180 PNG of your app icon.
+- Replace `favicon.png` with a 48x48 (or multi-size) icon for browsers.
+- After replacing the files, serve the site over HTTPS (some platforms require secure context) and use Safari's "Add to Home Screen" to pin the web app.
+
 ## Structure
 - `index.html` — UI (Play/Stop/Volume), hidden audio element.
 - `app.js` — AudioContext + Gain graph, buffer decode, loop point computation (tunable), play/stop, imports, Media Session, waveform.
