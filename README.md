@@ -46,6 +46,21 @@ This project includes a simple `manifest.json` and placeholder `favicon.png` and
 - Replace `favicon.png` with a 48x48 (or multi-size) icon for browsers.
 - After replacing the files, serve the site over HTTPS (some platforms require secure context) and use Safari's "Add to Home Screen" to pin the web app.
 
+### Generate icons from a single source image (recommended)
+If you have a single high-resolution PNG (e.g. 1024x1024) you can generate all needed icons automatically.
+
+1. Install `sharp` (Node >=12 recommended):
+```powershell
+npm install sharp
+```
+2. Run the generator (replace `icon-source.png` with your image path):
+```powershell
+node scripts/generate-icons.js icon-source.png .
+```
+This will write `apple-touch-icon.png`, `favicon.png` and other size variants into the repository root. Overwrite the placeholder files and re-serve the site.
+
+Note: iOS prefers `apple-touch-icon.png` at 180×180. Use HTTPS when testing Add to Home Screen.
+
 ## Structure
 - `index.html` — UI (Play/Stop/Volume), hidden audio element.
 - `app.js` — AudioContext + Gain graph, buffer decode, loop point computation (tunable), play/stop, imports, Media Session, waveform.
