@@ -286,9 +286,9 @@ function bindUI() {
       return;
     }
     try {
-      const buf = await loadBufferFromUrl('audio/your_loop.mp3');
+      const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
       currentBuffer = buf;
-      currentSourceLabel = 'your_loop.mp3';
+      currentSourceLabel = 'ambientalsynth.mp3';
       await startLoopFromBuffer(buf, 0.5, 0.03);
     } catch (e) {
       setStatus('No buffer loaded. Choose a file.');
@@ -394,12 +394,12 @@ function bindUI() {
   loadPreset.addEventListener('click', async () => {
     try {
       setStatus('Loading preset...');
-      const buf = await loadBufferFromUrl('audio/your_loop.mp3');
+      const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
       currentBuffer = buf;
-      currentSourceLabel = 'your_loop.mp3';
+      currentSourceLabel = 'ambientalsynth.mp3';
       await startLoopFromBuffer(buf, 0.5, 0.03);
     } catch (e) {
-      setStatus('Preset not found. Place a file at audio/your_loop.mp3');
+      setStatus('Preset not found. Place a file at audio/ambientalsynth.mp3');
     }
   });
 

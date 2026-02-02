@@ -29,7 +29,7 @@ npx serve -l 5173 .
 Open http://localhost:5173 in your browser.
 
 ## Usage
-- Click "Play" to start. If no file loaded, it tries `audio/your_loop.mp3`.
+- Click "Play" to start. If no file loaded, it tries `audio/ambientalsynth.mp3`.
 - Use the file picker, drag-and-drop, or "Paste From Clipboard" to import audio.
 - Enter a URL and click "Load URL" or paste/drop a link.
 - Volume slider adjusts the master output.
@@ -64,7 +64,7 @@ Note: iOS prefers `apple-touch-icon.png` at 180×180. Use HTTPS when testing Add
 ## Structure
 - `index.html` — UI (Play/Stop/Volume), hidden audio element.
 - `app.js` — AudioContext + Gain graph, buffer decode, loop point computation (tunable), play/stop, imports, Media Session, waveform.
-- `audio/` — Place your audio files here (e.g., `your_loop.mp3`).
+- `audio/` — Place your audio files here (e.g., `ambientalsynth.mp3`).
 
 ## Implementation Highlights
 - Loop points are computed by threshold scanning head/tail, margining edges, and choosing low-amplitude samples within ~10ms windows near boundaries.
