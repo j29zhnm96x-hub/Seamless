@@ -41,7 +41,9 @@ function startOutputIfNeeded() {
 async function loadBufferFromUrl(url) {
   ensureAudio();
   if (bufferCache.has(url)) return bufferCache.get(url);
-  const ab = await fetch(url).then(r => r.arrayBuffer());
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ab = await res.arrayBuffer();
   const buf = await new Promise((resolve, reject) => {
     audioCtx.decodeAudioData(ab, resolve, reject);
   });
@@ -62,6 +64,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   const len = buffer.length;
   const threshold = Math.max(0, Number(opts.threshold) || defaultSettings.threshold);
   const maxScan = Math.min(len - 1, Math.floor(sr * 2));
+  const channels = Array.from({ length: ch }, (_, i) => buffer.getChannelData(i));
 
   let start = 0, end = len - 1;
 
@@ -69,7 +72,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   for (let i = 0; i < maxScan; i++) {
     let above = false;
     for (let c = 0; c < ch; c++) {
-      if (Math.abs(buffer.getChannelData(c)[i]) > threshold) { above = true; break; }
+      if (Math.abs(channels[c][i]) > threshold) { above = true; break; }
     }
     if (above) { start = i; sFound = true; break; }
   }
@@ -80,7 +83,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   for (let j = len - 1; j >= minEnd; j--) {
     let aboveE = false;
     for (let c = 0; c < ch; c++) {
-      if (Math.abs(buffer.getChannelData(c)[j]) > threshold) { aboveE = true; break; }
+      if (Math.abs(channels[c][j]) > threshold) { aboveE = true; break; }
     }
     if (aboveE) { end = j; eFound = true; break; }
   }
@@ -97,7 +100,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   let bestS = start, bestSA = 1;
   for (let si = s0; si <= s1; si++) {
     let acc = 0;
-    for (let c = 0; c < ch; c++) acc += Math.abs(buffer.getChannelData(c)[si]);
+    for (let c = 0; c < ch; c++) acc += Math.abs(channels[c][si]);
     acc /= Math.max(1, ch);
     if (acc < bestSA) { bestSA = acc; bestS = si; if (acc === 0) break; }
   }
@@ -107,7 +110,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   let bestE = end, bestEA = 1;
   for (let ei = e0; ei <= e1; ei++) {
     let acc2 = 0;
-    for (let c = 0; c < ch; c++) acc2 += Math.abs(buffer.getChannelData(c)[ei]);
+    for (let c = 0; c < ch; c++) acc2 += Math.abs(channels[c][ei]);
     acc2 /= Math.max(1, ch);
     if (acc2 < bestEA) { bestEA = acc2; bestE = ei; if (acc2 === 0) break; }
   }
@@ -153,7 +156,7 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
 }
 
 function stopLoop(rampOut = 0.05) {
-  if (!loopSource) {
+  if (!loopSource || !audioCtx) {
     setStatus('Stopped');
     return;
   }
@@ -195,7 +198,7 @@ function drawWaveform() {
   if (!cvs || !currentBuffer) return;
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(10, Math.floor(cvs.clientWidth * dpr));
-  const h = Math.max(50, Math.floor(cvs.height * dpr));
+  const h = Math.max(50, Math.floor((cvs.clientHeight || cvs.height) * dpr));
   if (cvs.width !== w) cvs.width = w;
   if (cvs.height !== h) cvs.height = h;
   const ctx = cvs.getContext('2d');
@@ -273,6 +276,7 @@ function bindUI() {
   const recomputeBtn = document.getElementById('recompute');
   const toggleSettings = document.getElementById('toggleSettings');
   const settingsBody = document.getElementById('settingsBody');
+  let dragCounter = 0;
 
   playBtn.addEventListener('click', async () => {
     ensureAudio();
@@ -405,7 +409,22 @@ function bindUI() {
   });
 
   ;['dragenter','dragover','dragleave','drop'].forEach(ev => {
-    dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); if (ev !== 'dragleave') dropZone.classList.add('drag-hover'); if (ev === 'dragleave') dropZone.classList.remove('drag-hover'); });
+    dropZone.addEventListener(ev, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (ev === 'dragenter') {
+        dragCounter++;
+        dropZone.classList.add('drag-hover');
+      } else if (ev === 'dragleave') {
+        dragCounter = Math.max(0, dragCounter - 1);
+        if (dragCounter === 0) dropZone.classList.remove('drag-hover');
+      } else if (ev === 'drop') {
+        dragCounter = 0;
+        dropZone.classList.remove('drag-hover');
+      } else {
+        dropZone.classList.add('drag-hover');
+      }
+    });
   });
   dropZone.addEventListener('drop', async e => {
     const dt = e.dataTransfer;
