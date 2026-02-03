@@ -2,6 +2,12 @@ let audioCtx, master, mediaDest, audioOut;
 let volumeVal = 0.5;
 let loopSource = null;
 let loopGain = null;
+// session user-imported presets
+const userPresets = [];
+const builtinPresets = [
+  { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
+  { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3' }
+];
 let currentBuffer = null;
 let currentSourceLabel = null;
 const bufferCache = new Map();
@@ -9,6 +15,9 @@ const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
 let currentSettings = { ...defaultSettings };
 let lastLoopPoints = null;
 let mediaSessionHandlersSet = false;
+let stopCleanupToken = 0;
+
+let activeTab = 'player';
 
 function setStatus(msg) {
   const el = document.getElementById('status');
@@ -155,27 +164,140 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   updateMediaSession('playing');
 }
 
+function switchTab(tab) {
+  activeTab = tab;
+  const pages = {
+    player: document.getElementById('page-player'),
+    loops: document.getElementById('page-loops'),
+    settings: document.getElementById('page-settings')
+  };
+  Object.entries(pages).forEach(([k, el]) => {
+    if (!el) return;
+    el.classList.toggle('active', k === tab);
+  });
+
+  const tabs = document.querySelectorAll('.tabbar .tab');
+  tabs.forEach(btn => {
+    const isActive = btn.getAttribute('data-tab') === tab;
+    btn.classList.toggle('active', isActive);
+    if (isActive) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
+
+  if (tab === 'loops') renderLoopsPage();
+  if (tab === 'player') setTimeout(drawWaveform, 0);
+}
+
+function renderLoopsPage() {
+  const bl = document.getElementById('builtinListPage');
+  const ul = document.getElementById('uploadsListPage');
+  if (!bl || !ul) return;
+  bl.innerHTML = '';
+  ul.innerHTML = '';
+
+  const mkBtn = (label, onClick) => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    li.appendChild(btn);
+    return li;
+  };
+
+  builtinPresets.forEach(p => {
+    bl.appendChild(mkBtn(p.name, async () => {
+      try {
+        setStatus(`Loading ${p.name}...`);
+        const buf = await loadBufferFromUrl(p.path);
+        currentBuffer = buf;
+        currentSourceLabel = p.name;
+        await startLoopFromBuffer(buf, 0.5, 0.03);
+        switchTab('player');
+      } catch {
+        setStatus(`Failed to load ${p.name}`);
+      }
+    }));
+  });
+
+  userPresets.forEach(p => {
+    ul.appendChild(mkBtn(p.name, async () => {
+      try {
+        setStatus(`Loading ${p.name}...`);
+        let buf = null;
+        if (p.blob) {
+          const ab = await p.blob.arrayBuffer();
+          buf = await decodeArrayBuffer(ab);
+        } else if (p.url) {
+          buf = await loadBufferFromUrl(p.url);
+        }
+        if (!buf) { setStatus('Failed to decode.'); return; }
+        currentBuffer = buf;
+        currentSourceLabel = p.name;
+        await startLoopFromBuffer(buf, 0.5, 0.03);
+        switchTab('player');
+      } catch {
+        setStatus(`Failed to load ${p.name}`);
+      }
+    }));
+  });
+}
+
 function stopLoop(rampOut = 0.05) {
-  if (!loopSource || !audioCtx) {
+  stopCleanupToken++;
+  const token = stopCleanupToken;
+
+  if (!audioCtx) { setStatus('Stopped'); return; }
+  const now = audioCtx.currentTime;
+  const sourceToStop = loopSource;
+  const gainToStop = loopGain;
+
+  // Nothing playing: just ensure output is quiet.
+  if (!sourceToStop) {
+    try {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0, now + Math.max(0, rampOut));
+    } catch {}
     setStatus('Stopped');
+    updateMediaSession('paused');
     return;
   }
-  const now = audioCtx.currentTime;
+
+  // Fast-path for internal stop/start (startLoopFromBuffer calls stopLoop(0)).
+  if (!rampOut || rampOut <= 0) {
+    try { if (gainToStop) { try { gainToStop.disconnect(); } catch {} } } catch {}
+    try { sourceToStop.stop(now); } catch {}
+    try { sourceToStop.disconnect(); } catch {}
+    if (loopSource === sourceToStop) loopSource = null;
+    if (loopGain === gainToStop) loopGain = null;
+    try {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0, now + 0.005);
+    } catch {}
+    setStatus('Stopped');
+    updateMediaSession('paused');
+    return;
+  }
+
   try {
-    if (loopGain) {
-      loopGain.gain.cancelScheduledValues(now);
-      loopGain.gain.setValueAtTime(loopGain.gain.value, now);
-      loopGain.gain.linearRampToValueAtTime(0, now + rampOut);
+    if (gainToStop) {
+      gainToStop.gain.cancelScheduledValues(now);
+      gainToStop.gain.setValueAtTime(gainToStop.gain.value, now);
+      gainToStop.gain.linearRampToValueAtTime(0, now + rampOut);
     }
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
     master.gain.linearRampToValueAtTime(0, now + rampOut);
-    loopSource.stop(now + rampOut + 0.001);
+    try { sourceToStop.stop(now + rampOut + 0.001); } catch {}
   } finally {
     setTimeout(() => {
-      try { if (loopSource) loopSource.disconnect(); } catch {}
-      loopSource = null;
-      loopGain = null;
+      if (stopCleanupToken !== token) return;
+      try { sourceToStop.disconnect(); } catch {}
+      try { if (gainToStop) gainToStop.disconnect(); } catch {}
+      if (loopSource === sourceToStop) loopSource = null;
+      if (loopGain === gainToStop) loopGain = null;
       setStatus('Stopped');
     }, Math.ceil((rampOut + 0.01) * 1000));
   }
@@ -278,6 +400,13 @@ function bindUI() {
   const settingsBody = document.getElementById('settingsBody');
   let dragCounter = 0;
 
+  document.querySelectorAll('.tabbar .tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      if (tab) switchTab(tab);
+    });
+  });
+
   playBtn.addEventListener('click', async () => {
     ensureAudio();
     startOutputIfNeeded();
@@ -315,6 +444,7 @@ function bindUI() {
       currentBuffer = buf;
       currentSourceLabel = f.name || 'File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
+      try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
     } catch (err) {
       setStatus('Decode failed.');
     }
@@ -333,6 +463,7 @@ function bindUI() {
               currentBuffer = buf;
               currentSourceLabel = `Clipboard ${type}`;
               await startLoopFromBuffer(buf, 0.5, 0.03);
+              try { userPresets.unshift({ name: `Clipboard ${type}`, blob }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
               return;
             }
           }
@@ -372,6 +503,7 @@ function bindUI() {
       currentBuffer = buf;
       currentSourceLabel = f.name || 'Pasted File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
+      try { userPresets.unshift({ name: f.name || 'Pasted File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
     } catch (err) {
       setStatus('Decode failed.');
     }
@@ -386,22 +518,13 @@ function bindUI() {
       currentBuffer = buf;
       currentSourceLabel = url;
       await startLoopFromBuffer(buf, 0.5, 0.03);
+      try { userPresets.unshift({ name: url, url }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
     } catch (e) {
       setStatus('Failed to load URL. Check CORS/format.');
     }
   });
 
-  loadPreset.addEventListener('click', async () => {
-    try {
-      setStatus('Loading preset...');
-      const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
-      currentBuffer = buf;
-      currentSourceLabel = 'ambientalsynth.mp3';
-      await startLoopFromBuffer(buf, 0.5, 0.03);
-    } catch (e) {
-      setStatus('Preset not found. Place a file at audio/ambientalsynth.mp3');
-    }
-  });
+  loadPreset.addEventListener('click', () => switchTab('loops'));
 
   document.addEventListener('visibilitychange', () => {
     try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch {}
@@ -440,6 +563,7 @@ function bindUI() {
         currentBuffer = buf;
         currentSourceLabel = f.name || 'Dropped File';
         await startLoopFromBuffer(buf, 0.5, 0.03);
+        try { userPresets.unshift({ name: f.name || 'Dropped File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
       } catch (err) {
         setStatus('Decode failed.');
       }
@@ -455,6 +579,7 @@ function bindUI() {
         currentBuffer = buf;
         currentSourceLabel = maybeUrl;
         await startLoopFromBuffer(buf, 0.5, 0.03);
+        try { userPresets.unshift({ name: maybeUrl, url: maybeUrl }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
       } catch {
         setStatus('Failed to load dropped URL');
       }
@@ -486,4 +611,5 @@ window.addEventListener('load', () => {
   bindUI();
   setStatus('Ready');
   drawWaveform();
+  switchTab('player');
 });

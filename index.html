@@ -3,69 +3,94 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0d1117" />
+  
   <title>Seamless Loop Player</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="/favicon.png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" href="img/favicon.PNG" />
+  <link rel="apple-touch-icon" href="img/favicon.PNG" />
   <link rel="manifest" href="/manifest.json" />
 </head>
 <body>
-  <div class="app-shell fade" role="application" aria-label="Seamless Loop Player">
-    <header>
-      <h1>Seamless Loop Player</h1>
+  <div class="app-shell" role="application" aria-label="Seamless Loop Player">
+    <header class="topbar">
+      <h1>Seamless</h1>
+      <div id="status" class="status" aria-live="polite">Idle</div>
     </header>
-    <section class="controls" aria-label="Playback Controls">
-      <button id="play" aria-label="Play loop">Play</button>
-      <button id="stop" class="secondary" aria-label="Stop loop">Stop</button>
-      <div class="range-wrap" aria-label="Volume slider">
-        <span style="font-size:.75rem; letter-spacing:.7px;">VOL</span>
-        <input id="volume" type="range" min="0" max="100" value="50" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
-      </div>
-    </section>
-    <section class="imports" aria-label="Load Sources">
-      <input id="fileInput" type="file" accept="audio/*" aria-label="Select audio file" />
-      <button id="pasteBtn" class="secondary" aria-label="Paste audio from clipboard">Paste</button>
-      <input id="urlInput" class="url-input" type="url" placeholder="https://example.com/loop.mp3" aria-label="Audio URL" />
-      <button id="loadUrl" aria-label="Load audio from URL">Load URL</button>
-      <button id="loadPreset" aria-label="Load preset loop">Preset</button>
-    </section>
 
-    <div id="dropZone" aria-label="Drop Zone" tabindex="0">Drop audio file or URL here.</div>
+    <main class="pages" aria-label="Pages">
+      <section id="page-player" class="page active" aria-label="Player Page">
+        <section class="controls" aria-label="Playback Controls">
+          <button id="play" aria-label="Play loop">Play</button>
+          <button id="stop" class="secondary" aria-label="Stop loop">Stop</button>
+          <div class="range-wrap" aria-label="Volume slider">
+            <label for="volume" class="range-label">VOL</label>
+            <input id="volume" type="range" min="0" max="100" value="50" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
+          </div>
+        </section>
 
-    <div class="settings-wave-wrap" aria-label="Waveform and Settings">
-      <div style="flex:1 1 420px; min-width:260px;">
-        <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
-      </div>
-      <fieldset class="settings" aria-label="Loop Settings">
-        <legend>Loop Settings</legend>
-        <button type="button" id="toggleSettings" class="toggle-panel-btn" aria-expanded="true">HIDE</button>
-        <div id="settingsBody" class="settings-grid">
-          <div class="row">
-            <label for="s-threshold">Threshold</label>
-            <input id="s-threshold" type="number" step="0.0001" min="0" max="0.1" value="0.001" />
+        <section class="imports" aria-label="Load Sources">
+          <input id="fileInput" type="file" accept="audio/*" aria-label="Select audio file" />
+          <button id="pasteBtn" class="secondary" aria-label="Paste audio from clipboard">Paste</button>
+          <input id="urlInput" class="url-input" type="url" placeholder="https://example.com/loop.mp3" aria-label="Audio URL" />
+          <button id="loadUrl" aria-label="Load audio from URL">Load URL</button>
+          <button id="loadPreset" class="secondary" aria-label="Open audio loops">Audio Loops</button>
+        </section>
+
+        <div id="dropZone" aria-label="Drop Zone" tabindex="0">Drop audio file or URL here.</div>
+
+        <div class="card">
+          <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
+          <div id="loopInfo" class="loop-info" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="page-loops" class="page" aria-label="Audio Loops Page">
+        <div class="card">
+          <h2>Audio Loops</h2>
+          <p class="hint">Built-ins and anything you imported during this session.</p>
+          <div class="list-section">
+            <h3>Built-in</h3>
+            <ul id="builtinListPage" class="list"></ul>
           </div>
-          <div class="row">
-            <label for="s-margin">Margin (ms)</label>
-            <input id="s-margin" type="number" step="0.5" min="0" max="50" value="2" />
-          </div>
-            <div class="row">
-            <label for="s-window">Window (ms)</label>
-            <input id="s-window" type="number" step="1" min="1" max="50" value="10" />
-          </div>
-          <div class="row">
-            <button id="recompute">Recompute Loop</button>
+          <div class="list-section">
+            <h3>Uploads (this session)</h3>
+            <ul id="uploadsListPage" class="list"></ul>
           </div>
         </div>
-      </fieldset>
-    </div>
+      </section>
 
-    <div id="status" aria-live="polite">Idle</div>
-    <div id="loopInfo" aria-live="polite"></div>
+      <section id="page-settings" class="page" aria-label="Settings Page">
+        <fieldset class="settings" aria-label="Loop Settings">
+          <legend>Loop Settings</legend>
+          <button type="button" id="toggleSettings" class="toggle-panel-btn" aria-expanded="true">HIDE</button>
+          <div id="settingsBody" class="settings-grid">
+            <div class="row">
+              <label for="s-threshold">Threshold</label>
+              <input id="s-threshold" type="number" step="0.0001" min="0" max="0.1" value="0.001" />
+            </div>
+            <div class="row">
+              <label for="s-margin">Margin (ms)</label>
+              <input id="s-margin" type="number" step="0.5" min="0" max="50" value="2" />
+            </div>
+            <div class="row">
+              <label for="s-window">Window (ms)</label>
+              <input id="s-window" type="number" step="1" min="1" max="50" value="10" />
+            </div>
+            <div class="row">
+              <button id="recompute">Recompute Loop</button>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+    </main>
 
-    <footer class="footer-note" aria-label="Footer">Seamless • Gapless Web Audio Loops</footer>
+    <nav class="tabbar" aria-label="Bottom Navigation">
+      <button class="tab active" data-tab="player" aria-label="Player" aria-current="page">Player</button>
+      <button class="tab" data-tab="loops" aria-label="Audio Loops">Audio Loops</button>
+      <button class="tab" data-tab="settings" aria-label="Settings">Settings</button>
+    </nav>
   </div>
-  <audio id="audioOut" playsinline style="display:none"></audio>
+  <audio id="audioOut" playsinline></audio>
   <script src="app.js"></script>
 </body>
 </html>

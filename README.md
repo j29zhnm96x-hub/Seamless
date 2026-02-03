@@ -33,7 +33,8 @@ Open http://localhost:5173 in your browser.
 - Use the file picker, drag-and-drop, or "Paste From Clipboard" to import audio.
 - Enter a URL and click "Load URL" or paste/drop a link.
 - Volume slider adjusts the master output.
-- Use the Settings panel to tweak loop detection and click "Recompute".
+- Open the "Audio Loops" tab to browse built-in loops and session imports.
+- Use the Settings tab to tweak loop detection and click "Recompute".
 
 ## iOS Notes
 - Audio is routed to a hidden `<audio id="audioOut" playsinline>` to increase resilience when backgrounded/locked.
@@ -41,9 +42,9 @@ Open http://localhost:5173 in your browser.
 - Background persistence still depends on iOS policies; this setup maximizes the chance it keeps playing.
 
 ## Add to Home Screen / Favicon
-This project includes a simple `manifest.json` and placeholder `favicon.png` and `apple-touch-icon.png`.
-- For best results on Safari / iOS Add to Home Screen, replace `apple-touch-icon.png` with a 180x180 PNG of your app icon.
-- Replace `favicon.png` with a 48x48 (or multi-size) icon for browsers.
+This project includes a simple `manifest.json`.
+- The iOS Add to Home Screen icon is served via `<link rel="apple-touch-icon">` and currently points at `img/favicon.PNG`.
+- The browser favicon is served via `<link rel="icon">` and currently points at `img/favicon.PNG`.
 - After replacing the files, serve the site over HTTPS (some platforms require secure context) and use Safari's "Add to Home Screen" to pin the web app.
 
 ### Generate icons from a single source image (recommended)
