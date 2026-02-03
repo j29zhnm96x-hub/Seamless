@@ -1,0 +1,29 @@
+{
+  "name": "seamless-electron",
+  "version": "0.1.0",
+  "description": "Wrap Seamless static app in Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.example.seamless",
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      "audio",
+      "img"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
