@@ -136,6 +136,8 @@ button.danger { background: var(--danger); }
 
 #wave {
   width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 1;
   background: var(--wave-bg);
   border: 1px solid #1e2730;
   border-radius: var(--radius-sm);

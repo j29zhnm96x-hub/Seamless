@@ -266,6 +266,8 @@ function stopLoop(rampOut = 0.05) {
 
   // Fast-path for internal stop/start (startLoopFromBuffer calls stopLoop(0)).
   if (!rampOut || rampOut <= 0) {
+    // If this is a looping source, turning off looping avoids an audible wrap.
+    try { sourceToStop.loop = false; } catch {}
     try { if (gainToStop) { try { gainToStop.disconnect(); } catch {} } } catch {}
     try { sourceToStop.stop(now); } catch {}
     try { sourceToStop.disconnect(); } catch {}
@@ -273,8 +275,7 @@ function stopLoop(rampOut = 0.05) {
     if (loopGain === gainToStop) loopGain = null;
     try {
       master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(0, now + 0.005);
+      master.gain.setValueAtTime(0, now);
     } catch {}
     setStatus('Stopped');
     updateMediaSession('paused');
@@ -282,6 +283,8 @@ function stopLoop(rampOut = 0.05) {
   }
 
   try {
+    // Avoid hearing a loop wrap during the fade-out window.
+    try { sourceToStop.loop = false; } catch {}
     if (gainToStop) {
       gainToStop.gain.cancelScheduledValues(now);
       gainToStop.gain.setValueAtTime(gainToStop.gain.value, now);
@@ -377,8 +380,8 @@ function updateMediaSession(state) {
       ms.setActionHandler('play', async () => {
         if (currentBuffer) await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
       });
-      ms.setActionHandler('pause', () => stopLoop(0.05));
-      ms.setActionHandler('stop', () => stopLoop(0.05));
+      ms.setActionHandler('pause', () => stopLoop(0));
+      ms.setActionHandler('stop', () => stopLoop(0));
       mediaSessionHandlersSet = true;
     }
     ms.playbackState = state || (loopSource ? 'playing' : 'paused');
@@ -424,7 +427,7 @@ function bindUI() {
     }
   });
 
-  stopBtn.addEventListener('click', () => stopLoop(0.05));
+  stopBtn.addEventListener('click', () => stopLoop(0));
 
   volume.addEventListener('input', e => {
     volumeVal = Number(e.target.value) / 100;
