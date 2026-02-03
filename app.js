@@ -277,6 +277,10 @@ function stopLoop(rampOut = 0.05) {
       master.gain.cancelScheduledValues(now);
       master.gain.setValueAtTime(0, now);
     } catch {}
+
+    // iOS/Safari can have a small MediaStream-><audio> buffer; pausing flushes audible tail.
+    try { if (audioOut) audioOut.pause(); } catch {}
+
     setStatus('Stopped');
     updateMediaSession('paused');
     return;
@@ -301,6 +305,7 @@ function stopLoop(rampOut = 0.05) {
       try { if (gainToStop) gainToStop.disconnect(); } catch {}
       if (loopSource === sourceToStop) loopSource = null;
       if (loopGain === gainToStop) loopGain = null;
+      try { if (audioOut) audioOut.pause(); } catch {}
       setStatus('Stopped');
     }, Math.ceil((rampOut + 0.01) * 1000));
   }
