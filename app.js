@@ -547,7 +547,8 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
 
-  stopLoop(0);
+  // Internal switch: stop old source, but keep HTMLAudio element playing.
+  stopLoop(0, false);
 
   const { start, end } = computeLoopPoints(buffer);
   lastLoopPoints = { start, end };
@@ -571,6 +572,9 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   loopGain.gain.linearRampToValueAtTime(targetVolume, audioCtx.currentTime + rampIn);
 
   loopSource.start(audioCtx.currentTime);
+
+  // iOS can end up with <audio> paused after rapid actions; nudge playback.
+  startOutputIfNeeded();
 
   setLoopInfo(`Loop: ${start.toFixed(3)}s → ${end.toFixed(3)}s | dur ${buffer.duration.toFixed(2)}s`);
   setStatus('Playing');
@@ -690,7 +694,7 @@ function renderLoopsPage() {
   setTimeout(updateScrollState, 50);
 }
 
-function stopLoop(rampOut = 0.05) {
+function stopLoop(rampOut = 0.05, pauseOutput = true) {
   stopCleanupToken++;
   const token = stopCleanupToken;
 
@@ -726,7 +730,10 @@ function stopLoop(rampOut = 0.05) {
     } catch {}
 
     // iOS/Safari can have a small MediaStream-><audio> buffer; pausing flushes audible tail.
-    try { if (audioOut) audioOut.pause(); } catch {}
+    // But during an internal switch we must NOT pause the element (it can stay silent until user gesture).
+    if (pauseOutput) {
+      try { if (audioOut) audioOut.pause(); } catch {}
+    }
 
     setStatus('Stopped');
     updateMediaSession('paused');
@@ -752,7 +759,9 @@ function stopLoop(rampOut = 0.05) {
       try { if (gainToStop) gainToStop.disconnect(); } catch {}
       if (loopSource === sourceToStop) loopSource = null;
       if (loopGain === gainToStop) loopGain = null;
-      try { if (audioOut) audioOut.pause(); } catch {}
+      if (pauseOutput) {
+        try { if (audioOut) audioOut.pause(); } catch {}
+      }
       setStatus('Stopped');
     }, Math.ceil((rampOut + 0.01) * 1000));
   }
