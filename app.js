@@ -73,6 +73,13 @@ function isLandscape() {
 function updateLandscapeVizState() {
   const landscape = isLandscape();
   document.documentElement.classList.toggle('landscape', landscape);
+  try {
+    const shell = document.querySelector('.app-shell');
+    if (shell) {
+      if (landscape) shell.setAttribute('aria-hidden', 'true');
+      else shell.removeAttribute('aria-hidden');
+    }
+  } catch {}
   if (landscape) startViz();
   else stopViz();
 }

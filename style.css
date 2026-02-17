@@ -36,6 +36,21 @@ body {
   user-select: none;
 }
 
+/* Prevent long-press text selection across UI (iOS can ignore body-scoped user-select) */
+.app-shell, .app-shell * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Keep text selection/editing where it matters */
+.app-shell input,
+.app-shell textarea,
+.app-shell [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 button, input, a, .tab {
   touch-action: manipulation;
 }
@@ -167,13 +182,17 @@ html.landscape body {
   overflow: hidden;
 }
 
+html.landscape .app-shell {
+  display: none !important;
+}
+
 html.landscape #viz {
   display: block;
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 1;
+  z-index: 9999;
   pointer-events: none;
 }
 
