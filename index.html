@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   
   <title>Seamless Loop Player</title>
   <link rel="stylesheet" href="style.css" />
@@ -95,6 +95,7 @@
       <button class="tab" data-tab="settings" aria-label="Settings">Settings</button>
     </nav>
   </div>
+  <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>
   <script src="app.js"></script>
 </body>

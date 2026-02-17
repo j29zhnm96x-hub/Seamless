@@ -19,6 +19,10 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   font-family: var(--font-stack);
@@ -26,6 +30,14 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button, input, a, .tab {
+  touch-action: manipulation;
 }
 
 h1 {
@@ -44,6 +56,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  position: relative;
+  z-index: 10;
 }
 
 .topbar {
@@ -142,6 +156,25 @@ button.danger { background: var(--danger); }
   border: 1px solid #1e2730;
   border-radius: var(--radius-sm);
   display: block;
+}
+
+/* Landscape visualization overlay */
+#viz {
+  display: none;
+}
+
+html.landscape body {
+  overflow: hidden;
+}
+
+html.landscape #viz {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
 }
 
 fieldset.settings {

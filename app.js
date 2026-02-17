@@ -19,6 +19,24 @@ let stopCleanupToken = 0;
 
 let activeTab = 'player';
 
+let analyser = null;
+let vizCanvas = null;
+let vizCtx = null;
+let vizRafId = 0;
+let vizFreqData = null;
+let vizTimeData = null;
+let lastTouchEndAt = 0;
+
+const VIEWPORT_LOCK_CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+
+function lockViewportScale() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  if (meta.getAttribute('content') !== VIEWPORT_LOCK_CONTENT) {
+    meta.setAttribute('content', VIEWPORT_LOCK_CONTENT);
+  }
+}
+
 function setStatus(msg) {
   const el = document.getElementById('status');
   if (el) el.textContent = msg;
@@ -36,8 +54,123 @@ function ensureAudio() {
     master.gain.value = 0;
     mediaDest = audioCtx.createMediaStreamDestination();
     master.connect(mediaDest);
+    // For visualization only (parallel tap). Do NOT connect to audioCtx.destination.
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    try { master.connect(analyser); } catch {}
     audioOut = document.getElementById('audioOut');
     if (audioOut) audioOut.srcObject = mediaDest.stream;
+  }
+}
+
+function isLandscape() {
+  try {
+    if (window.matchMedia) return window.matchMedia('(orientation: landscape)').matches;
+  } catch {}
+  return window.innerWidth > window.innerHeight;
+}
+
+function updateLandscapeVizState() {
+  const landscape = isLandscape();
+  document.documentElement.classList.toggle('landscape', landscape);
+  if (landscape) startViz();
+  else stopViz();
+}
+
+function ensureVizCanvas() {
+  if (!vizCanvas) vizCanvas = document.getElementById('viz');
+  if (vizCanvas && !vizCtx) vizCtx = vizCanvas.getContext('2d');
+}
+
+function resizeVizCanvas() {
+  ensureVizCanvas();
+  if (!vizCanvas || !vizCtx) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+  const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+  if (vizCanvas.width !== w) vizCanvas.width = w;
+  if (vizCanvas.height !== h) vizCanvas.height = h;
+  vizCtx.setTransform(1, 0, 0, 1, 0, 0);
+  vizCtx.scale(dpr, dpr);
+}
+
+function startViz() {
+  ensureAudio();
+  ensureVizCanvas();
+  if (!vizCanvas || !vizCtx || !analyser) return;
+  if (vizRafId) return;
+
+  const freqBins = analyser.frequencyBinCount;
+  vizFreqData = new Uint8Array(freqBins);
+  vizTimeData = new Uint8Array(freqBins);
+
+  const rootStyles = getComputedStyle(document.documentElement);
+  const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#4a90e2';
+  const danger = (rootStyles.getPropertyValue('--danger') || '').trim() || '#e24a6a';
+  const text = (rootStyles.getPropertyValue('--text') || '').trim() || '#e6edf3';
+
+  const draw = () => {
+    vizRafId = requestAnimationFrame(draw);
+    if (!isLandscape()) return;
+    resizeVizCanvas();
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    if (!w || !h) return;
+
+    analyser.getByteFrequencyData(vizFreqData);
+    analyser.getByteTimeDomainData(vizTimeData);
+
+    // Clear (keep UI readable; viz acts like an overlay)
+    vizCtx.clearRect(0, 0, w, h);
+
+    // Frequency bars
+    const bars = Math.min(96, vizFreqData.length);
+    const barW = w / bars;
+    const grad = vizCtx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, accent);
+    grad.addColorStop(1, danger);
+    vizCtx.fillStyle = grad;
+
+    for (let i = 0; i < bars; i++) {
+      const idx = Math.floor((i / bars) * vizFreqData.length);
+      const v = vizFreqData[idx] / 255;
+      const bh = Math.max(2, v * (h * 0.55));
+      const x = i * barW;
+      const y = h - bh - 18;
+      vizCtx.globalAlpha = 0.35 + v * 0.65;
+      vizCtx.fillRect(x + barW * 0.12, y, Math.max(1, barW * 0.76), bh);
+    }
+    vizCtx.globalAlpha = 1;
+
+    // Time-domain line
+    vizCtx.lineWidth = 2;
+    vizCtx.strokeStyle = text;
+    vizCtx.globalAlpha = 0.65;
+    vizCtx.beginPath();
+    const step = Math.max(1, Math.floor(vizTimeData.length / w));
+    for (let x = 0; x < w; x++) {
+      const ti = Math.min(vizTimeData.length - 1, x * step);
+      const t = (vizTimeData[ti] - 128) / 128;
+      const y = (h * 0.35) + t * (h * 0.12);
+      if (x === 0) vizCtx.moveTo(x, y);
+      else vizCtx.lineTo(x, y);
+    }
+    vizCtx.stroke();
+    vizCtx.globalAlpha = 1;
+  };
+
+  draw();
+}
+
+function stopViz() {
+  if (vizRafId) {
+    cancelAnimationFrame(vizRafId);
+    vizRafId = 0;
+  }
+  ensureVizCanvas();
+  if (vizCanvas && vizCtx) {
+    vizCtx.clearRect(0, 0, vizCanvas.width, vizCanvas.height);
   }
 }
 
@@ -326,6 +459,10 @@ function getSettingsFromUI() {
 function drawWaveform() {
   const cvs = document.getElementById('wave');
   if (!cvs || !currentBuffer) return;
+  const rootStyles = getComputedStyle(document.documentElement);
+  const waveBg = (rootStyles.getPropertyValue('--wave-bg') || '').trim() || '#0f141b';
+  const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#4a90e2';
+  const danger = (rootStyles.getPropertyValue('--danger') || '').trim() || '#e24a6a';
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(10, Math.floor(cvs.clientWidth * dpr));
   const h = Math.max(50, Math.floor((cvs.clientHeight || cvs.height) * dpr));
@@ -333,13 +470,13 @@ function drawWaveform() {
   if (cvs.height !== h) cvs.height = h;
   const ctx = cvs.getContext('2d');
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#fafafa';
+  ctx.fillStyle = waveBg;
   ctx.fillRect(0, 0, w, h);
   const ch = currentBuffer.numberOfChannels;
   const len = currentBuffer.length;
   const mid = h / 2;
   const step = Math.ceil(len / w);
-  ctx.strokeStyle = '#4a90e2';
+  ctx.strokeStyle = accent;
   ctx.lineWidth = Math.max(1, dpr);
   ctx.beginPath();
   for (let x = 0; x < w; x++) {
@@ -364,7 +501,7 @@ function drawWaveform() {
     const dur = currentBuffer.duration || 1;
     const xs = Math.floor((start / dur) * w);
     const xe = Math.floor((end / dur) * w);
-    ctx.strokeStyle = '#e24a6a';
+    ctx.strokeStyle = danger;
     ctx.lineWidth = Math.max(1, dpr);
     ctx.beginPath();
     ctx.moveTo(xs + 0.5, 0);
@@ -413,6 +550,23 @@ function bindUI() {
       const tab = btn.getAttribute('data-tab');
       if (tab) switchTab(tab);
     });
+  });
+
+  // Prevent iOS/Safari rotate-zoom by re-locking viewport scale.
+  lockViewportScale();
+
+  // Prevent iOS double-tap zoom and gesture zoom.
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEndAt <= 300) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    lastTouchEndAt = now;
+  }, { passive: false });
+  document.addEventListener('dblclick', (e) => { e.preventDefault(); }, { passive: false });
+  ;['gesturestart','gesturechange','gestureend'].forEach(ev => {
+    document.addEventListener(ev, (e) => { e.preventDefault(); }, { passive: false });
   });
 
   playBtn.addEventListener('click', async () => {
@@ -606,6 +760,13 @@ function bindUI() {
 
   window.addEventListener('resize', () => drawWaveform());
   window.addEventListener('orientationchange', () => setTimeout(drawWaveform, 250));
+  window.addEventListener('resize', () => updateLandscapeVizState());
+  window.addEventListener('orientationchange', () => setTimeout(updateLandscapeVizState, 50));
+  window.addEventListener('resize', () => lockViewportScale());
+  window.addEventListener('orientationchange', () => {
+    lockViewportScale();
+    setTimeout(lockViewportScale, 250);
+  });
 
   toggleSettings.addEventListener('click', () => {
     const hidden = settingsBody.classList.toggle('hidden');
@@ -616,8 +777,11 @@ function bindUI() {
 
 window.addEventListener('load', () => {
   ensureAudio();
+  lockViewportScale();
   bindUI();
   setStatus('Ready');
   drawWaveform();
   switchTab('player');
+  try { document.body.style.touchAction = 'manipulation'; } catch {}
+  updateLandscapeVizState();
 });
