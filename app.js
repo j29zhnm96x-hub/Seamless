@@ -51,6 +51,20 @@ function makeUploadId() {
   return `u_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function addUserPresetFromBlob({ name, blob, saved }) {
+  const presetObj = {
+    id: (saved && saved.id) || makeUploadId(),
+    name: name || 'Audio',
+    blob,
+    persisted: !!(saved && saved.id),
+    createdAt: (saved && saved.createdAt) || Date.now()
+  };
+  userPresets.unshift(presetObj);
+  currentPresetId = presetObj.id || null;
+  currentPresetRef = presetObj;
+  return presetObj;
+}
+
 async function listPersistedUploads() {
   const db = await openUploadsDb();
   const items = await idbTx(db, 'readonly', (store) => {
@@ -115,18 +129,22 @@ async function hydratePersistedUploadsIntoUserPresets() {
   } catch {}
 }
 
-async function confirmDeleteUserPreset(preset) {
+async function deleteUserPresetNow(preset) {
   if (!preset) return;
   const name = preset.name || 'Audio';
-  const ok = confirm(`Delete "${name}"?`);
-  if (!ok) return;
 
   try {
-    if (currentPresetId && preset.id && currentPresetId === preset.id) {
-      stopLoop(0);
+    const isDeletingCurrent = (currentPresetRef && preset === currentPresetRef)
+      || (currentPresetId && preset.id && currentPresetId === preset.id);
+
+    if (isDeletingCurrent) {
+      stopLoop(0, true);
       currentBuffer = null;
       currentSourceLabel = null;
       currentPresetId = null;
+      currentPresetRef = null;
+      try { setLoopInfo(''); } catch {}
+      try { drawWaveform(); } catch {}
     }
   } catch {}
 
@@ -139,11 +157,18 @@ async function confirmDeleteUserPreset(preset) {
     }
   } catch {}
 
-  try { if (preset.id) await deletePersistedUpload(preset.id); } catch {}
+  const idToDelete = preset && preset.id;
 
   try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
   try { updateScrollState(); } catch {}
   setStatus(`Deleted: ${name}`);
+
+  // Defer IndexedDB work to reduce the chance of audio glitches on iOS.
+  if (idToDelete) {
+    setTimeout(() => {
+      deletePersistedUpload(idToDelete).catch(() => {});
+    }, 0);
+  }
 }
 const builtinPresets = [
   { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
@@ -152,6 +177,7 @@ const builtinPresets = [
 let currentBuffer = null;
 let currentSourceLabel = null;
 let currentPresetId = null;
+let currentPresetRef = null;
 const bufferCache = new Map();
 const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
 let currentSettings = { ...defaultSettings };
@@ -305,6 +331,11 @@ function attachSwipeHandlers(row) {
 
     const shouldOpen = lastDx < -OPEN_THRESHOLD;
     if (shouldOpen) {
+      // Only stop playback if the swiped row is the one currently playing.
+      try {
+        const rowId = row && row.dataset && row.dataset.id;
+        if (rowId && currentPresetId && rowId === currentPresetId) stopLoop(0, true);
+      } catch {}
       if (openSwipeRow && openSwipeRow !== row) closeSwipeRow(openSwipeRow);
       openSwipeRow = row;
       row.classList.add('open');
@@ -633,6 +664,7 @@ function renderLoopsPage() {
         currentBuffer = buf;
         currentSourceLabel = p.name;
         currentPresetId = null;
+        currentPresetRef = null;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         switchTab('player');
       } catch {
@@ -667,6 +699,7 @@ function renderLoopsPage() {
         currentBuffer = buf;
         currentSourceLabel = p.name;
         currentPresetId = p.id || null;
+        currentPresetRef = p;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         switchTab('player');
       } catch {
@@ -681,7 +714,12 @@ function renderLoopsPage() {
     delBtn.textContent = 'Delete';
     delBtn.setAttribute('aria-label', `Delete ${p.name}`);
     delBtn.addEventListener('click', () => {
-      confirmDeleteUserPreset(p);
+      // One tap deletes (swipe-to-reveal is the confirmation step).
+      try {
+        delBtn.disabled = true;
+        delBtn.textContent = 'Deleting…';
+      } catch {}
+      deleteUserPresetNow(p);
     });
 
     row.appendChild(content);
@@ -781,7 +819,7 @@ function getSettingsFromUI() {
 
 function drawWaveform() {
   const cvs = document.getElementById('wave');
-  if (!cvs || !currentBuffer) return;
+  if (!cvs) return;
   const rootStyles = getComputedStyle(document.documentElement);
   const waveBg = (rootStyles.getPropertyValue('--wave-bg') || '').trim() || '#0f141b';
   const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#4a90e2';
@@ -795,6 +833,12 @@ function drawWaveform() {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = waveBg;
   ctx.fillRect(0, 0, w, h);
+
+  // No buffer loaded: keep an empty/cleared waveform area.
+  if (!currentBuffer) {
+    updateScrollState();
+    return;
+  }
   const ch = currentBuffer.numberOfChannels;
   const len = currentBuffer.length;
   const mid = h / 2;
@@ -857,8 +901,8 @@ function updateMediaSession(state) {
 function bindUI() {
   const playBtn = document.getElementById('play');
   const stopBtn = document.getElementById('stop');
-  const volume = document.getElementById('volume');
   const fileInput = document.getElementById('fileInput');
+  const importLoop = document.getElementById('importLoop');
   const pasteBtn = document.getElementById('pasteBtn');
   const urlInput = document.getElementById('urlInput');
   const loadUrl = document.getElementById('loadUrl');
@@ -902,7 +946,7 @@ function bindUI() {
     document.addEventListener(ev, (e) => { e.preventDefault(); }, { passive: false });
   });
 
-  playBtn.addEventListener('click', async () => {
+  playBtn && playBtn.addEventListener('click', async () => {
     ensureAudio();
     startOutputIfNeeded();
     if (currentBuffer) {
@@ -913,29 +957,28 @@ function bindUI() {
       const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
       currentBuffer = buf;
       currentSourceLabel = 'ambientalsynth.mp3';
+      currentPresetId = null;
+      currentPresetRef = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
     } catch (e) {
       setStatus('No buffer loaded. Choose a file.');
     }
   });
 
-  stopBtn.addEventListener('click', () => stopLoop(0));
+  stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
 
-  volume.addEventListener('input', e => {
-    volumeVal = Number(e.target.value) / 100;
-    if (!audioCtx || !master) return;
-    const now = audioCtx.currentTime;
-    master.gain.cancelScheduledValues(now);
-    master.gain.setTargetAtTime(volumeVal, now, 0.02);
+  // Import Loop button (Audio Loops page)
+  importLoop && importLoop.addEventListener('click', () => {
+    try { fileInput && fileInput.click(); } catch {}
   });
 
-  fileInput.addEventListener('click', () => {
+  fileInput && fileInput.addEventListener('click', () => {
     if (isIOS() && isStandaloneDisplayMode()) {
       setStatus('If your Files items are greyed out, open this site in Safari to import.');
     }
   });
 
-  fileInput.addEventListener('change', async e => {
+  fileInput && fileInput.addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
     setStatus(`Decoding ${f.name}...`);
@@ -947,10 +990,13 @@ function bindUI() {
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try {
         const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
-        userPresets.unshift({ id: saved && saved.id, name: f.name || 'File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
-        if (activeTab === 'loops') renderLoopsPage();
+        addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
+        try { renderLoopsPage(); } catch {}
       } catch {
-        try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        try {
+          addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
+          try { renderLoopsPage(); } catch {}
+        } catch {}
       }
     } catch (err) {
       // Fallback for some iOS exports: decode via object URL -> fetch -> arrayBuffer
@@ -965,10 +1011,13 @@ function bindUI() {
         await startLoopFromBuffer(buf2, 0.5, 0.03);
         try {
           const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
-          userPresets.unshift({ id: saved && saved.id, name: f.name || 'File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
-          if (activeTab === 'loops') renderLoopsPage();
+          addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
+          try { renderLoopsPage(); } catch {}
         } catch {
-          try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+          try {
+            addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
+            try { renderLoopsPage(); } catch {}
+          } catch {}
         }
       } catch {
         setStatus('Decode failed. Try a different file or open in Safari for import.');
@@ -978,7 +1027,7 @@ function bindUI() {
     try { fileInput.value = ''; } catch {}
   });
 
-  pasteBtn.addEventListener('click', async () => {
+  pasteBtn && pasteBtn.addEventListener('click', async () => {
     try {
       if (navigator.clipboard && navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
@@ -993,10 +1042,13 @@ function bindUI() {
               await startLoopFromBuffer(buf, 0.5, 0.03);
               try {
                 const saved = await savePersistedUpload({ name: `Clipboard ${type}`, blob });
-                userPresets.unshift({ id: saved && saved.id, name: `Clipboard ${type}`, blob, persisted: !!saved, createdAt: saved && saved.createdAt });
-                if (activeTab === 'loops') renderLoopsPage();
+                addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved });
+                try { renderLoopsPage(); } catch {}
               } catch {
-                try { userPresets.unshift({ name: `Clipboard ${type}`, blob }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+                try {
+                  addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved: null });
+                  try { renderLoopsPage(); } catch {}
+                } catch {}
               }
               return;
             }
@@ -1039,17 +1091,20 @@ function bindUI() {
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try {
         const saved = await savePersistedUpload({ name: f.name || 'Pasted File', blob: f });
-        userPresets.unshift({ id: saved && saved.id, name: f.name || 'Pasted File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
-        if (activeTab === 'loops') renderLoopsPage();
+        addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved });
+        try { renderLoopsPage(); } catch {}
       } catch {
-        try { userPresets.unshift({ name: f.name || 'Pasted File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        try {
+          addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved: null });
+          try { renderLoopsPage(); } catch {}
+        } catch {}
       }
     } catch (err) {
       setStatus('Decode failed.');
     }
   });
 
-  loadUrl.addEventListener('click', async () => {
+  loadUrl && loadUrl.addEventListener('click', async () => {
     const url = (urlInput && urlInput.value || '').trim();
     if (!url) { setStatus('Enter a URL to load.'); return; }
     try {
@@ -1064,32 +1119,34 @@ function bindUI() {
     }
   });
 
-  loadPreset.addEventListener('click', () => switchTab('loops'));
+  loadPreset && loadPreset.addEventListener('click', () => switchTab('loops'));
 
   document.addEventListener('visibilitychange', () => {
     try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch {}
     startOutputIfNeeded();
   });
 
-  ;['dragenter','dragover','dragleave','drop'].forEach(ev => {
-    dropZone.addEventListener(ev, e => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (ev === 'dragenter') {
-        dragCounter++;
-        dropZone.classList.add('drag-hover');
-      } else if (ev === 'dragleave') {
-        dragCounter = Math.max(0, dragCounter - 1);
-        if (dragCounter === 0) dropZone.classList.remove('drag-hover');
-      } else if (ev === 'drop') {
-        dragCounter = 0;
-        dropZone.classList.remove('drag-hover');
-      } else {
-        dropZone.classList.add('drag-hover');
-      }
+  if (dropZone) {
+    ['dragenter','dragover','dragleave','drop'].forEach(ev => {
+      dropZone.addEventListener(ev, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (ev === 'dragenter') {
+          dragCounter++;
+          dropZone.classList.add('drag-hover');
+        } else if (ev === 'dragleave') {
+          dragCounter = Math.max(0, dragCounter - 1);
+          if (dragCounter === 0) dropZone.classList.remove('drag-hover');
+        } else if (ev === 'drop') {
+          dragCounter = 0;
+          dropZone.classList.remove('drag-hover');
+        } else {
+          dropZone.classList.add('drag-hover');
+        }
+      });
     });
-  });
-  dropZone.addEventListener('drop', async e => {
+
+    dropZone.addEventListener('drop', async e => {
     const dt = e.dataTransfer;
     dropZone.classList.remove('drag-hover');
     if (!dt) return;
@@ -1105,10 +1162,13 @@ function bindUI() {
         await startLoopFromBuffer(buf, 0.5, 0.03);
         try {
           const saved = await savePersistedUpload({ name: f.name || 'Dropped File', blob: f });
-          userPresets.unshift({ id: saved && saved.id, name: f.name || 'Dropped File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
-          if (activeTab === 'loops') renderLoopsPage();
+          addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved });
+          try { renderLoopsPage(); } catch {}
         } catch {
-          try { userPresets.unshift({ name: f.name || 'Dropped File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+          try {
+            addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved: null });
+            try { renderLoopsPage(); } catch {}
+          } catch {}
         }
       } catch (err) {
         setStatus('Decode failed.');
@@ -1130,9 +1190,10 @@ function bindUI() {
         setStatus('Failed to load dropped URL');
       }
     }
-  });
+    });
+  }
 
-  recomputeBtn.addEventListener('click', async () => {
+  recomputeBtn && recomputeBtn.addEventListener('click', async () => {
     currentSettings = getSettingsFromUI();
     if (!currentBuffer) { setStatus('No buffer to analyze.'); return; }
     const pts = computeLoopPoints(currentBuffer, currentSettings);
@@ -1152,7 +1213,7 @@ function bindUI() {
     setTimeout(lockViewportScale, 250);
   });
 
-  toggleSettings.addEventListener('click', () => {
+  toggleSettings && toggleSettings.addEventListener('click', () => {
     const hidden = settingsBody.classList.toggle('hidden');
     toggleSettings.textContent = hidden ? 'SHOW' : 'HIDE';
     toggleSettings.setAttribute('aria-expanded', hidden ? 'false' : 'true');

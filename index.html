@@ -27,25 +27,10 @@
         <section class="controls" aria-label="Playback Controls">
           <button id="play" aria-label="Play loop">Play</button>
           <button id="stop" class="secondary" aria-label="Stop loop">Stop</button>
-          <div class="range-wrap" aria-label="Volume slider">
-            <label for="volume" class="range-label">VOL</label>
-            <input id="volume" type="range" min="0" max="100" value="50" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" />
-          </div>
         </section>
-
-        <section class="imports" aria-label="Load Sources">
-          <input id="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg" aria-label="Select audio file" />
-          <button id="pasteBtn" class="secondary" aria-label="Paste audio from clipboard">Paste</button>
-          <input id="urlInput" class="url-input" type="url" placeholder="https://example.com/loop.mp3" aria-label="Audio URL" />
-          <button id="loadUrl" aria-label="Load audio from URL">Load URL</button>
-          <button id="loadPreset" class="secondary" aria-label="Open audio loops">Audio Loops</button>
-        </section>
-
-        <div id="dropZone" aria-label="Drop Zone" tabindex="0">Drop audio file or URL here.</div>
 
         <div class="card">
           <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
-          <div id="loopInfo" class="loop-info" aria-live="polite"></div>
         </div>
       </section>
 
@@ -53,12 +38,18 @@
         <div class="card">
           <h2>Audio Loops</h2>
           <p class="hint">Built-ins and anything you imported during this session.</p>
+
+          <div class="imports" aria-label="Import Loop">
+            <button id="importLoop" aria-label="Import audio loop">Import Loop</button>
+            <input id="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg" aria-label="Select audio file" class="hidden" />
+          </div>
+
           <div class="list-section">
             <h3>Built-in</h3>
             <ul id="builtinListPage" class="list"></ul>
           </div>
           <div class="list-section">
-            <h3>Uploads (this session)</h3>
+            <h3>IMPORTED</h3>
             <ul id="uploadsListPage" class="list"></ul>
           </div>
         </div>
