@@ -7,6 +7,7 @@ A minimal web-based loop player that produces gapless background loops with smoo
 - Micro fade-in/out on start/stop via GainNode ramps.
 - iOS background/lock-friendly: routes audio through a hidden `<audio>` via `MediaStreamDestination`.
 - Load audio from file picker, drag-and-drop, or clipboard (when supported).
+- Imported audio is saved locally (IndexedDB) when supported.
 - Simple volume control.
 - Media Session metadata + lock screen play/pause (where supported).
 - URL loading (input, paste, or drop a link).
@@ -44,6 +45,9 @@ Open http://localhost:5173 in your browser.
 ### iPhone Files import note
 - If audio files show up greyed out in the iOS Files picker (especially when running from the Home Screen / standalone PWA), open the site in Safari and import from there.
 - Some iOS versions are picky about file type metadata (UTI/MIME). The app attempts to accept common extensions and decode even if `file.type` is empty.
+
+### Persistence note
+- Imported files are stored locally in your browser using IndexedDB. Clearing website data will remove them.
 
 ## Add to Home Screen / Favicon
 This project includes a simple `manifest.json`.

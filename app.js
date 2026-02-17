@@ -2,8 +2,111 @@ let audioCtx, master, mediaDest, audioOut;
 let volumeVal = 0.5;
 let loopSource = null;
 let loopGain = null;
-// session user-imported presets
+// User-imported presets (persisted when possible)
 const userPresets = [];
+
+// Persist imported audio blobs across restarts via IndexedDB.
+const UPLOAD_DB_NAME = 'seamless-uploads';
+const UPLOAD_DB_VERSION = 1;
+const UPLOAD_STORE = 'uploads';
+const MAX_PERSISTED_UPLOADS = 25;
+
+function openUploadsDb() {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(UPLOAD_DB_NAME, UPLOAD_DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(UPLOAD_STORE)) {
+          const store = db.createObjectStore(UPLOAD_STORE, { keyPath: 'id' });
+          store.createIndex('createdAt', 'createdAt');
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function idbTx(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction(UPLOAD_STORE, mode);
+      const store = tx.objectStore(UPLOAD_STORE);
+      let result;
+      try { result = fn(store); } catch (e) { tx.abort(); return reject(e); }
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function makeUploadId() {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+  return `u_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+async function listPersistedUploads() {
+  const db = await openUploadsDb();
+  const items = await idbTx(db, 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  });
+  try { db.close(); } catch {}
+  return items;
+}
+
+async function savePersistedUpload({ name, blob }) {
+  if (!blob) return null;
+  const record = { id: makeUploadId(), name: name || 'Audio', blob, createdAt: Date.now() };
+  const db = await openUploadsDb();
+
+  await idbTx(db, 'readwrite', (store) => store.put(record));
+
+  // Enforce a simple cap to reduce quota risk.
+  try {
+    const all = await idbTx(db, 'readonly', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    });
+    if (Array.isArray(all) && all.length > MAX_PERSISTED_UPLOADS) {
+      all.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const toDelete = all.slice(0, Math.max(0, all.length - MAX_PERSISTED_UPLOADS));
+      await idbTx(db, 'readwrite', (store) => {
+        toDelete.forEach(r => { try { store.delete(r.id); } catch {} });
+      });
+    }
+  } catch {}
+
+  try { db.close(); } catch {}
+  return record;
+}
+
+async function hydratePersistedUploadsIntoUserPresets() {
+  try {
+    const items = await listPersistedUploads();
+    if (!Array.isArray(items) || !items.length) return;
+    items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const existingIds = new Set(userPresets.map(p => p && p.id).filter(Boolean));
+    for (const it of items) {
+      if (!it || !it.blob) continue;
+      if (it.id && existingIds.has(it.id)) continue;
+      userPresets.unshift({ id: it.id, name: it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 });
+    }
+  } catch {}
+}
 const builtinPresets = [
   { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
   { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3' }
@@ -667,7 +770,13 @@ function bindUI() {
       currentBuffer = buf;
       currentSourceLabel = f.name || 'File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
-      try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+      try {
+        const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
+        userPresets.unshift({ id: saved && saved.id, name: f.name || 'File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
+        if (activeTab === 'loops') renderLoopsPage();
+      } catch {
+        try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+      }
     } catch (err) {
       // Fallback for some iOS exports: decode via object URL -> fetch -> arrayBuffer
       try {
@@ -679,7 +788,13 @@ function bindUI() {
         currentBuffer = buf2;
         currentSourceLabel = f.name || 'File';
         await startLoopFromBuffer(buf2, 0.5, 0.03);
-        try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        try {
+          const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
+          userPresets.unshift({ id: saved && saved.id, name: f.name || 'File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
+          if (activeTab === 'loops') renderLoopsPage();
+        } catch {
+          try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        }
       } catch {
         setStatus('Decode failed. Try a different file or open in Safari for import.');
       }
@@ -701,7 +816,13 @@ function bindUI() {
               currentBuffer = buf;
               currentSourceLabel = `Clipboard ${type}`;
               await startLoopFromBuffer(buf, 0.5, 0.03);
-              try { userPresets.unshift({ name: `Clipboard ${type}`, blob }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+              try {
+                const saved = await savePersistedUpload({ name: `Clipboard ${type}`, blob });
+                userPresets.unshift({ id: saved && saved.id, name: `Clipboard ${type}`, blob, persisted: !!saved, createdAt: saved && saved.createdAt });
+                if (activeTab === 'loops') renderLoopsPage();
+              } catch {
+                try { userPresets.unshift({ name: `Clipboard ${type}`, blob }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+              }
               return;
             }
           }
@@ -741,7 +862,13 @@ function bindUI() {
       currentBuffer = buf;
       currentSourceLabel = f.name || 'Pasted File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
-      try { userPresets.unshift({ name: f.name || 'Pasted File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+      try {
+        const saved = await savePersistedUpload({ name: f.name || 'Pasted File', blob: f });
+        userPresets.unshift({ id: saved && saved.id, name: f.name || 'Pasted File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
+        if (activeTab === 'loops') renderLoopsPage();
+      } catch {
+        try { userPresets.unshift({ name: f.name || 'Pasted File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+      }
     } catch (err) {
       setStatus('Decode failed.');
     }
@@ -801,7 +928,13 @@ function bindUI() {
         currentBuffer = buf;
         currentSourceLabel = f.name || 'Dropped File';
         await startLoopFromBuffer(buf, 0.5, 0.03);
-        try { userPresets.unshift({ name: f.name || 'Dropped File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        try {
+          const saved = await savePersistedUpload({ name: f.name || 'Dropped File', blob: f });
+          userPresets.unshift({ id: saved && saved.id, name: f.name || 'Dropped File', blob: f, persisted: !!saved, createdAt: saved && saved.createdAt });
+          if (activeTab === 'loops') renderLoopsPage();
+        } catch {
+          try { userPresets.unshift({ name: f.name || 'Dropped File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+        }
       } catch (err) {
         setStatus('Decode failed.');
       }
@@ -861,6 +994,12 @@ window.addEventListener('load', () => {
   try { document.body.style.touchAction = 'manipulation'; } catch {}
   updateLandscapeVizState();
   updateScrollState();
+
+  // Load persisted imports (if IndexedDB is available).
+  hydratePersistedUploadsIntoUserPresets().then(() => {
+    try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
+    try { updateScrollState(); } catch {}
+  });
 });
 
 window.addEventListener('resize', () => setTimeout(updateScrollState, 50));
