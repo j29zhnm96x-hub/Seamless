@@ -93,6 +93,13 @@ async function savePersistedUpload({ name, blob }) {
   return record;
 }
 
+async function deletePersistedUpload(id) {
+  if (!id) return;
+  const db = await openUploadsDb();
+  await idbTx(db, 'readwrite', (store) => store.delete(id));
+  try { db.close(); } catch {}
+}
+
 async function hydratePersistedUploadsIntoUserPresets() {
   try {
     const items = await listPersistedUploads();
@@ -107,12 +114,44 @@ async function hydratePersistedUploadsIntoUserPresets() {
     }
   } catch {}
 }
+
+async function confirmDeleteUserPreset(preset) {
+  if (!preset) return;
+  const name = preset.name || 'Audio';
+  const ok = confirm(`Delete "${name}"?`);
+  if (!ok) return;
+
+  try {
+    if (currentPresetId && preset.id && currentPresetId === preset.id) {
+      stopLoop(0);
+      currentBuffer = null;
+      currentSourceLabel = null;
+      currentPresetId = null;
+    }
+  } catch {}
+
+  try {
+    const idx = userPresets.indexOf(preset);
+    if (idx >= 0) userPresets.splice(idx, 1);
+    else if (preset.id) {
+      const idx2 = userPresets.findIndex(p => p && p.id === preset.id);
+      if (idx2 >= 0) userPresets.splice(idx2, 1);
+    }
+  } catch {}
+
+  try { if (preset.id) await deletePersistedUpload(preset.id); } catch {}
+
+  try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
+  try { updateScrollState(); } catch {}
+  setStatus(`Deleted: ${name}`);
+}
 const builtinPresets = [
   { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
   { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3' }
 ];
 let currentBuffer = null;
 let currentSourceLabel = null;
+let currentPresetId = null;
 const bufferCache = new Map();
 const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
 let currentSettings = { ...defaultSettings };
@@ -183,6 +222,103 @@ function updateScrollState() {
     document.documentElement.classList.toggle('no-scroll', !needScroll);
     document.body.classList.toggle('no-scroll', !needScroll);
   } catch (e) {}
+}
+
+let openSwipeRow = null;
+
+function closeSwipeRow(row) {
+  if (!row) return;
+  row.classList.remove('open');
+  row.classList.remove('swiping');
+  const content = row.querySelector('.preset-content');
+  if (content) content.style.transform = '';
+}
+
+function attachSwipeHandlers(row) {
+  if (!row) return;
+  const content = row.querySelector('.preset-content');
+  if (!content) return;
+
+  const DELETE_W = 84;
+  const OPEN_THRESHOLD = 40;
+  const MAX_SLOP = 10;
+
+  let active = false;
+  let startX = 0;
+  let startY = 0;
+  let lastDx = 0;
+  let raf = 0;
+  let pointerId = null;
+
+  const isEditableTarget = (t) => !!(t && t.closest && t.closest('input, textarea, [contenteditable="true"]'));
+
+  const setDx = (dx) => {
+    lastDx = Math.max(-DELETE_W, Math.min(0, dx));
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      content.style.transform = lastDx ? `translateX(${lastDx}px)` : '';
+    });
+  };
+
+  const onDown = (e) => {
+    // Only swipe on touch/pen to avoid fighting desktop selection.
+    if (e.pointerType === 'mouse') return;
+    if (isEditableTarget(e.target)) return;
+    if (e.target && e.target.closest && e.target.closest('.preset-delete')) return;
+
+    active = true;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    lastDx = 0;
+    row.classList.add('swiping');
+    try { row.setPointerCapture(pointerId); } catch {}
+  };
+
+  const onMove = (e) => {
+    if (!active) return;
+    if (pointerId != null && e.pointerId !== pointerId) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // If user is scrolling vertically, bail.
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > MAX_SLOP) {
+      active = false;
+      row.classList.remove('swiping');
+      setDx(0);
+      return;
+    }
+
+    if (dx > 0) {
+      setDx(0);
+      return;
+    }
+    setDx(dx);
+  };
+
+  const onUp = () => {
+    if (!active) return;
+    active = false;
+    row.classList.remove('swiping');
+
+    const shouldOpen = lastDx < -OPEN_THRESHOLD;
+    if (shouldOpen) {
+      if (openSwipeRow && openSwipeRow !== row) closeSwipeRow(openSwipeRow);
+      openSwipeRow = row;
+      row.classList.add('open');
+      content.style.transform = '';
+    } else {
+      if (openSwipeRow === row) openSwipeRow = null;
+      closeSwipeRow(row);
+    }
+  };
+
+  row.addEventListener('pointerdown', onDown);
+  row.addEventListener('pointermove', onMove);
+  row.addEventListener('pointerup', onUp);
+  row.addEventListener('pointercancel', onUp);
 }
 
 function ensureAudio() {
@@ -492,6 +628,7 @@ function renderLoopsPage() {
         const buf = await loadBufferFromUrl(p.path);
         currentBuffer = buf;
         currentSourceLabel = p.name;
+        currentPresetId = null;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         switchTab('player');
       } catch {
@@ -501,7 +638,18 @@ function renderLoopsPage() {
   });
 
   userPresets.forEach(p => {
-    ul.appendChild(mkBtn(p.name, async () => {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'preset-item';
+    if (p.id) row.dataset.id = p.id;
+
+    const content = document.createElement('div');
+    content.className = 'preset-content';
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.textContent = p.name;
+    playBtn.addEventListener('click', async () => {
       try {
         setStatus(`Loading ${p.name}...`);
         let buf = null;
@@ -514,12 +662,30 @@ function renderLoopsPage() {
         if (!buf) { setStatus('Failed to decode.'); return; }
         currentBuffer = buf;
         currentSourceLabel = p.name;
+        currentPresetId = p.id || null;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         switchTab('player');
       } catch {
         setStatus(`Failed to load ${p.name}`);
       }
-    }));
+    });
+    content.appendChild(playBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'preset-delete';
+    delBtn.textContent = 'Delete';
+    delBtn.setAttribute('aria-label', `Delete ${p.name}`);
+    delBtn.addEventListener('click', () => {
+      confirmDeleteUserPreset(p);
+    });
+
+    row.appendChild(content);
+    row.appendChild(delBtn);
+    li.appendChild(row);
+    ul.appendChild(li);
+
+    attachSwipeHandlers(row);
   });
   setTimeout(updateScrollState, 50);
 }
