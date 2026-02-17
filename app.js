@@ -47,6 +47,31 @@ function setLoopInfo(info) {
   if (el) el.textContent = info || '';
 }
 
+function isIOS() {
+  const ua = navigator.userAgent || '';
+  const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
+  const isMacTouch = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return isAppleMobile || isMacTouch;
+}
+
+function isStandaloneDisplayMode() {
+  try {
+    // iOS Safari legacy
+    if ('standalone' in navigator && navigator.standalone) return true;
+    // PWA display-mode
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+  } catch {}
+  return false;
+}
+
+function looksLikeAudioFile(file) {
+  if (!file) return false;
+  const type = (file.type || '').toLowerCase();
+  if (type.startsWith('audio/')) return true;
+  const name = (file.name || '').toLowerCase();
+  return /\.(mp3|wav|m4a|aac|aif|aiff|caf|flac|ogg)$/i.test(name);
+}
+
 // Disable page scrolling when content fits within the viewport.
 function updateScrollState() {
   try {
@@ -566,6 +591,15 @@ function bindUI() {
   const settingsBody = document.getElementById('settingsBody');
   let dragCounter = 0;
 
+  // iOS Files app can be picky about MIME/UTI; broaden accept at runtime (especially in standalone).
+  try {
+    if (fileInput) {
+      const baseAccept = 'audio/*,.mp3,.wav,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg';
+      const accept = (isIOS() && isStandaloneDisplayMode()) ? `${baseAccept},*/*` : baseAccept;
+      fileInput.setAttribute('accept', accept);
+    }
+  } catch {}
+
   document.querySelectorAll('.tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.getAttribute('data-tab');
@@ -617,6 +651,12 @@ function bindUI() {
     master.gain.setTargetAtTime(volumeVal, now, 0.02);
   });
 
+  fileInput.addEventListener('click', () => {
+    if (isIOS() && isStandaloneDisplayMode()) {
+      setStatus('If your Files items are greyed out, open this site in Safari to import.');
+    }
+  });
+
   fileInput.addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -629,8 +669,23 @@ function bindUI() {
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
     } catch (err) {
-      setStatus('Decode failed.');
+      // Fallback for some iOS exports: decode via object URL -> fetch -> arrayBuffer
+      try {
+        const url = URL.createObjectURL(f);
+        const res = await fetch(url);
+        const ab2 = await res.arrayBuffer();
+        URL.revokeObjectURL(url);
+        const buf2 = await decodeArrayBuffer(ab2);
+        currentBuffer = buf2;
+        currentSourceLabel = f.name || 'File';
+        await startLoopFromBuffer(buf2, 0.5, 0.03);
+        try { userPresets.unshift({ name: f.name || 'File', blob: f }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
+      } catch {
+        setStatus('Decode failed. Try a different file or open in Safari for import.');
+      }
     }
+    // Allow selecting the same file again to retrigger change.
+    try { fileInput.value = ''; } catch {}
   });
 
   pasteBtn.addEventListener('click', async () => {
@@ -678,7 +733,7 @@ function bindUI() {
       return;
     }
     const f = files[0];
-    if (!f.type.startsWith('audio/')) return;
+    if (!looksLikeAudioFile(f)) return;
     setStatus(`Decoding pasted ${f.name || f.type}...`);
     const ab = await f.arrayBuffer();
     try {
@@ -738,7 +793,7 @@ function bindUI() {
     if (!dt) return;
     if (dt.files && dt.files.length) {
       const f = dt.files[0];
-      if (!f.type.startsWith('audio/')) { setStatus('Not an audio file.'); return; }
+      if (!looksLikeAudioFile(f)) { setStatus('Not an audio file.'); return; }
       setStatus(`Decoding ${f.name}...`);
       const ab = await f.arrayBuffer();
       try {

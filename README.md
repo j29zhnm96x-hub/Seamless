@@ -41,6 +41,10 @@ Open http://localhost:5173 in your browser.
 - A user gesture is required before audio can play. Use the Play button first.
 - Background persistence still depends on iOS policies; this setup maximizes the chance it keeps playing.
 
+### iPhone Files import note
+- If audio files show up greyed out in the iOS Files picker (especially when running from the Home Screen / standalone PWA), open the site in Safari and import from there.
+- Some iOS versions are picky about file type metadata (UTI/MIME). The app attempts to accept common extensions and decode even if `file.type` is empty.
+
 ## Add to Home Screen / Favicon
 This project includes a simple `manifest.json`.
 - The iOS Add to Home Screen icon is served via `<link rel="apple-touch-icon">` and currently points at `img/favicon.PNG`.
