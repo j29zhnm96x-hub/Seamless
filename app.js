@@ -47,6 +47,16 @@ function setLoopInfo(info) {
   if (el) el.textContent = info || '';
 }
 
+// Disable page scrolling when content fits within the viewport.
+function updateScrollState() {
+  try {
+    const ui = document.querySelector('.app-shell') || document.body;
+    const needScroll = ui.scrollHeight > window.innerHeight + 1;
+    document.documentElement.classList.toggle('no-scroll', !needScroll);
+    document.body.classList.toggle('no-scroll', !needScroll);
+  } catch (e) {}
+}
+
 function ensureAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -301,6 +311,7 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   setLoopInfo(`Loop: ${start.toFixed(3)}s → ${end.toFixed(3)}s | dur ${buffer.duration.toFixed(2)}s`);
   setStatus('Playing');
   drawWaveform();
+  updateScrollState();
   updateMediaSession('playing');
 }
 
@@ -326,6 +337,7 @@ function switchTab(tab) {
 
   if (tab === 'loops') renderLoopsPage();
   if (tab === 'player') setTimeout(drawWaveform, 0);
+  setTimeout(updateScrollState, 50);
 }
 
 function renderLoopsPage() {
@@ -381,6 +393,7 @@ function renderLoopsPage() {
       }
     }));
   });
+  setTimeout(updateScrollState, 50);
 }
 
 function stopLoop(rampOut = 0.05) {
@@ -517,6 +530,7 @@ function drawWaveform() {
     ctx.lineTo(xe + 0.5, h);
     ctx.stroke();
   }
+  updateScrollState();
 }
 
 function updateMediaSession(state) {
@@ -791,4 +805,8 @@ window.addEventListener('load', () => {
   switchTab('player');
   try { document.body.style.touchAction = 'manipulation'; } catch {}
   updateLandscapeVizState();
+  updateScrollState();
 });
+
+window.addEventListener('resize', () => setTimeout(updateScrollState, 50));
+window.addEventListener('orientationchange', () => setTimeout(updateScrollState, 150));

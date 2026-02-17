@@ -287,6 +287,16 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
 /* Scroll behavior for safe-area long pages */
 html { scroll-behavior: smooth; }
 
+/* When the document has no need to scroll, hide scrollbars and prevent scrolling. */
+html.no-scroll, body.no-scroll {
+  overflow: hidden !important;
+}
+
+/* Ensure interactive form controls still allow selection and scrolling if focused. */
+.no-scroll input:focus, .no-scroll textarea:focus, .no-scroll [contenteditable="true"]:focus {
+  outline: none;
+}
+
 /* Dark and high-contrast considerations */
 @media (prefers-color-scheme: light) {
   :root { --bg: #f4f7fa; --bg-alt:#e8edf3; --panel:#ffffff; --text:#1d242b; --text-dim:#5a6672; --wave-bg:#ffffff; }
