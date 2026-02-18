@@ -30,7 +30,10 @@
         </section>
 
         <div class="card">
-          <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
+          <div class="wave-wrap" aria-label="Waveform container">
+            <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
+            <div id="nowPlayingName" class="wave-nowplaying hidden" aria-hidden="true"></div>
+          </div>
         </div>
 
         <div class="card" aria-label="Playback rate">
@@ -56,10 +59,6 @@
             </div>
             <p class="hint">Drag left/right, then release to apply. Double-tap to reset.</p>
           </div>
-        </div>
-
-        <div class="card">
-          <button id="openPlaylistCreator" aria-label="Open playlist creator">Playlist Creator</button>
         </div>
       </section>
 
@@ -172,6 +171,18 @@
       <div class="overlay-actions">
         <button id="confirmDeletePlaylist" class="danger" aria-label="Confirm delete playlist">Delete</button>
         <button id="cancelDeletePlaylist" class="secondary" aria-label="Cancel delete playlist">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="playlistActionsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Playlist actions">
+    <div class="overlay-card">
+      <h2 id="playlistActionsTitle">Playlist</h2>
+      <p class="hint">Choose an action.</p>
+      <div class="overlay-actions">
+        <button id="playlistActionsEdit" class="secondary" aria-label="Edit playlist">Edit</button>
+        <button id="playlistActionsDelete" class="danger" aria-label="Delete playlist">Delete</button>
+        <button id="playlistActionsCancel" class="secondary" aria-label="Close">Close</button>
       </div>
     </div>
   </div>

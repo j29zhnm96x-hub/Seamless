@@ -272,6 +272,22 @@ let currentBuffer = null;
 let currentSourceLabel = null;
 let currentPresetId = null;
 let currentPresetRef = null;
+
+function updateNowPlayingNameUI() {
+  const el = document.getElementById('nowPlayingName');
+  if (!el) return;
+  const isPlaying = !!loopSource;
+  const label = (currentSourceLabel || '').trim();
+  if (isPlaying && label) {
+    el.textContent = label;
+    el.classList.remove('hidden');
+    el.setAttribute('aria-hidden', 'false');
+  } else {
+    el.textContent = '';
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+  }
+}
 const bufferCache = new Map();
 const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
 let currentSettings = { ...defaultSettings };
@@ -286,6 +302,8 @@ let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
 let pendingDeletePlaylistId = null;
+let pendingActionsPlaylistId = null;
+let pendingActionsPlaylistName = '';
 
 // Exposed by bindUI so the Playlists page can open the editor.
 let openPlaylistCreateOverlay = null;
@@ -845,6 +863,10 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   setStatus('Playing');
   drawWaveform();
   updateScrollState();
+  try {
+    if (!currentSourceLabel) currentSourceLabel = 'Loaded Loop';
+    updateNowPlayingNameUI();
+  } catch {}
   updateMediaSession('playing');
 }
 
@@ -895,30 +917,38 @@ async function renderPlaylistsPage() {
     return;
   }
 
+  const openDeleteConfirm = (id, name) => {
+    pendingDeletePlaylistId = id;
+    const txt = document.getElementById('playlistDeleteText');
+    if (txt) txt.textContent = `Delete "${name || 'Playlist'}"?`;
+    const ov = document.getElementById('playlistDeleteOverlay');
+    if (ov) ov.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
+  };
+
+  const openActions = (id, name) => {
+    pendingActionsPlaylistId = id;
+    pendingActionsPlaylistName = name || 'Playlist';
+    const title = document.getElementById('playlistActionsTitle');
+    if (title) title.textContent = pendingActionsPlaylistName;
+    const ov = document.getElementById('playlistActionsOverlay');
+    if (ov) ov.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
+  };
+
   for (const pl of items) {
     const li = document.createElement('li');
-    const row = document.createElement('div');
-    row.className = 'plst-item';
+    const card = document.createElement('div');
+    card.className = 'playlist-card';
 
-    const nameBtn = document.createElement('button');
-    nameBtn.type = 'button';
-    nameBtn.textContent = pl && pl.name ? pl.name : 'Playlist';
-    nameBtn.addEventListener('click', async () => {
-      try {
-        const rec = await loadPlaylistRecord(pl.id);
-        if (rec) {
-          activePlaylist = rec;
-          if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
-        }
-      } catch {}
-    });
-
-    const actions = document.createElement('div');
-    actions.className = 'plst-actions';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'playlist-card-name';
+    nameEl.textContent = (pl && pl.name) ? pl.name : 'Playlist';
 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.textContent = 'Play';
+    playBtn.className = 'playlist-card-play';
     playBtn.addEventListener('click', async () => {
       try {
         const rec = await loadPlaylistRecord(pl.id);
@@ -929,39 +959,19 @@ async function renderPlaylistsPage() {
       } catch {}
     });
 
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.textContent = 'Edit';
-    editBtn.className = 'secondary';
-    editBtn.addEventListener('click', async () => {
-      try {
-        const rec = await loadPlaylistRecord(pl.id);
-        if (!rec) return;
-        activePlaylist = rec;
-        if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
-      } catch {}
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'playlist-card-menu';
+    menuBtn.textContent = '⋮';
+    menuBtn.setAttribute('aria-label', `Playlist actions for ${(pl && pl.name) ? pl.name : 'Playlist'}`);
+    menuBtn.addEventListener('click', () => {
+      openActions(pl && pl.id, (pl && pl.name) ? pl.name : 'Playlist');
     });
 
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.textContent = 'Delete';
-    delBtn.className = 'danger';
-    delBtn.addEventListener('click', () => {
-      pendingDeletePlaylistId = pl && pl.id;
-      const txt = document.getElementById('playlistDeleteText');
-      if (txt) txt.textContent = `Delete "${(pl && pl.name) || 'Playlist'}"?`;
-      const ov = document.getElementById('playlistDeleteOverlay');
-      if (ov) ov.classList.remove('hidden');
-      try { updateScrollState(); } catch {}
-    });
-
-    actions.appendChild(playBtn);
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-
-    row.appendChild(nameBtn);
-    row.appendChild(actions);
-    li.appendChild(row);
+    card.appendChild(nameEl);
+    card.appendChild(playBtn);
+    card.appendChild(menuBtn);
+    li.appendChild(card);
     listEl.appendChild(li);
   }
   try { setTimeout(updateScrollState, 50); } catch {}
@@ -1234,7 +1244,6 @@ function bindUI() {
   const rateReadout = document.getElementById('rateReadout');
   const fileInput = document.getElementById('fileInput');
   const importLoop = document.getElementById('importLoop');
-  const openPlaylistCreator = document.getElementById('openPlaylistCreator');
   const playlistOverlay = document.getElementById('playlistOverlay');
   const playlistCreateView = document.getElementById('playlistCreateView');
   const playlistEditView = document.getElementById('playlistEditView');
@@ -1251,6 +1260,11 @@ function bindUI() {
   const playlistDeleteOverlay = document.getElementById('playlistDeleteOverlay');
   const confirmDeletePlaylist = document.getElementById('confirmDeletePlaylist');
   const cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
+
+  const playlistActionsOverlay = document.getElementById('playlistActionsOverlay');
+  const playlistActionsEdit = document.getElementById('playlistActionsEdit');
+  const playlistActionsDelete = document.getElementById('playlistActionsDelete');
+  const playlistActionsCancel = document.getElementById('playlistActionsCancel');
 
   const loopPickerOverlay = document.getElementById('loopPickerOverlay');
   const loopPickerList = document.getElementById('loopPickerList');
@@ -1316,6 +1330,9 @@ function bindUI() {
       setStatus('No buffer loaded. Choose a file.');
     }
   });
+
+  // Initialize now-playing label state.
+  try { updateNowPlayingNameUI(); } catch {}
 
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
 
@@ -1747,9 +1764,47 @@ function bindUI() {
     showOverlay(loopPickerOverlay);
   };
 
-  openPlaylistCreator && openPlaylistCreator.addEventListener('click', openPlaylistCreate);
   newPlaylistFromPage && newPlaylistFromPage.addEventListener('click', () => {
     if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();
+  });
+
+  const hidePlaylistActions = () => {
+    pendingActionsPlaylistId = null;
+    pendingActionsPlaylistName = '';
+    hideOverlay(playlistActionsOverlay);
+  };
+
+  // Close actions modal when tapping outside the card.
+  playlistActionsOverlay && playlistActionsOverlay.addEventListener('click', (e) => {
+    if (!e || !e.target) return;
+    if (e.target === playlistActionsOverlay) hidePlaylistActions();
+  });
+
+  playlistActionsCancel && playlistActionsCancel.addEventListener('click', () => {
+    hidePlaylistActions();
+  });
+
+  playlistActionsEdit && playlistActionsEdit.addEventListener('click', async () => {
+    const id = pendingActionsPlaylistId;
+    hidePlaylistActions();
+    if (!id) return;
+    try {
+      const rec = await loadPlaylistRecord(id);
+      if (!rec) return;
+      activePlaylist = rec;
+      if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
+    } catch {}
+  });
+
+  playlistActionsDelete && playlistActionsDelete.addEventListener('click', () => {
+    const id = pendingActionsPlaylistId;
+    const name = pendingActionsPlaylistName || 'Playlist';
+    hidePlaylistActions();
+    if (!id) return;
+    pendingDeletePlaylistId = id;
+    const txt = document.getElementById('playlistDeleteText');
+    if (txt) txt.textContent = `Delete "${name}"?`;
+    showOverlay(playlistDeleteOverlay);
   });
   closePlaylistOverlay && closePlaylistOverlay.addEventListener('click', closePlaylist);
   playlistClose && playlistClose.addEventListener('click', closePlaylist);
