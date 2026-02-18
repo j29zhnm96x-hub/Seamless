@@ -201,6 +201,8 @@ button.secondary { background: var(--panel); color: var(--text); }
 button.secondary:hover { background: #242b35; }
 button.danger { background: var(--danger); }
 
+.danger { background: var(--danger); }
+
 .range-wrap { display: flex; align-items: center; gap: 8px; }
 .range-wrap input[type=range] { width: 180px; accent-color: var(--accent); }
 
@@ -347,6 +349,37 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
   background: var(--panel);
 }
 
+.pl-row.dragging {
+  opacity: 0.85;
+  outline: 1px solid rgba(74,144,226,0.55);
+}
+
+.pl-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pl-handle {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: #10171f;
+  border: 1px solid #2a3542;
+  color: var(--text-dim);
+  font-weight: 800;
+  letter-spacing: .6px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.pl-row.dragging .pl-handle { cursor: grabbing; }
+
 .pl-name {
   display: block;
   padding: 10px 12px;
@@ -409,6 +442,24 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
   padding: 0;
   display: grid;
   gap: 10px;
+}
+
+.plst-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.plst-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plst-actions button {
+  padding: 10px 12px;
+  font-size: 14px;
 }
 
 /* Swipe-left to delete (uploads only) */

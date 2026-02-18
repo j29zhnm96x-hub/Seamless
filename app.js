@@ -59,6 +59,11 @@ function makePlaylistId() {
   return `pl_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function makePlaylistItemId() {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+  return `pli_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
 async function savePlaylistRecord(record) {
   if (!record || !record.id) return;
   const db = await openPlaylistsDb();
@@ -78,6 +83,26 @@ async function loadPlaylistRecord(id) {
   });
   try { db.close(); } catch {}
   return rec;
+}
+
+async function listPlaylistRecords() {
+  const db = await openPlaylistsDb();
+  const items = await playlistTx(db, 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  });
+  try { db.close(); } catch {}
+  return items;
+}
+
+async function deletePlaylistRecord(id) {
+  if (!id) return;
+  const db = await openPlaylistsDb();
+  await playlistTx(db, 'readwrite', (store) => store.delete(id));
+  try { db.close(); } catch {}
 }
 
 function openUploadsDb() {
@@ -260,6 +285,11 @@ let activePlaylist = null; // {id,name,items:[{presetKey,label,reps}]}
 let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
+let pendingDeletePlaylistId = null;
+
+// Exposed by bindUI so the Playlists page can open the editor.
+let openPlaylistCreateOverlay = null;
+let openPlaylistEditOverlay = null;
 
 let activeTab = 'player';
 
@@ -822,6 +852,7 @@ function switchTab(tab) {
   activeTab = tab;
   const pages = {
     player: document.getElementById('page-player'),
+    playlists: document.getElementById('page-playlists'),
     loops: document.getElementById('page-loops'),
     settings: document.getElementById('page-settings')
   };
@@ -839,8 +870,101 @@ function switchTab(tab) {
   });
 
   if (tab === 'loops') renderLoopsPage();
+  if (tab === 'playlists') renderPlaylistsPage();
   if (tab === 'player') setTimeout(drawWaveform, 0);
   setTimeout(updateScrollState, 50);
+}
+
+async function renderPlaylistsPage() {
+  const listEl = document.getElementById('playlistsList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  let items = [];
+  try { items = await listPlaylistRecords(); } catch { items = []; }
+  if (!Array.isArray(items)) items = [];
+  items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  if (!items.length) {
+    const li = document.createElement('li');
+    const div = document.createElement('div');
+    div.className = 'hint';
+    div.textContent = 'No playlists yet. Tap New Playlist to create one.';
+    li.appendChild(div);
+    listEl.appendChild(li);
+    return;
+  }
+
+  for (const pl of items) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'plst-item';
+
+    const nameBtn = document.createElement('button');
+    nameBtn.type = 'button';
+    nameBtn.textContent = pl && pl.name ? pl.name : 'Playlist';
+    nameBtn.addEventListener('click', async () => {
+      try {
+        const rec = await loadPlaylistRecord(pl.id);
+        if (rec) {
+          activePlaylist = rec;
+          if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
+        }
+      } catch {}
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'plst-actions';
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.textContent = 'Play';
+    playBtn.addEventListener('click', async () => {
+      try {
+        const rec = await loadPlaylistRecord(pl.id);
+        if (!rec) return;
+        activePlaylist = rec;
+        await playActivePlaylist();
+        switchTab('player');
+      } catch {}
+    });
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.textContent = 'Edit';
+    editBtn.className = 'secondary';
+    editBtn.addEventListener('click', async () => {
+      try {
+        const rec = await loadPlaylistRecord(pl.id);
+        if (!rec) return;
+        activePlaylist = rec;
+        if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
+      } catch {}
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.textContent = 'Delete';
+    delBtn.className = 'danger';
+    delBtn.addEventListener('click', () => {
+      pendingDeletePlaylistId = pl && pl.id;
+      const txt = document.getElementById('playlistDeleteText');
+      if (txt) txt.textContent = `Delete "${(pl && pl.name) || 'Playlist'}"?`;
+      const ov = document.getElementById('playlistDeleteOverlay');
+      if (ov) ov.classList.remove('hidden');
+      try { updateScrollState(); } catch {}
+    });
+
+    actions.appendChild(playBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    row.appendChild(nameBtn);
+    row.appendChild(actions);
+    li.appendChild(row);
+    listEl.appendChild(li);
+  }
+  try { setTimeout(updateScrollState, 50); } catch {}
 }
 
 function renderLoopsPage() {
@@ -1123,6 +1247,11 @@ function bindUI() {
   const playlistPlay = document.getElementById('playlistPlay');
   const playlistClose = document.getElementById('playlistClose');
 
+  const newPlaylistFromPage = document.getElementById('newPlaylistFromPage');
+  const playlistDeleteOverlay = document.getElementById('playlistDeleteOverlay');
+  const confirmDeletePlaylist = document.getElementById('confirmDeletePlaylist');
+  const cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
+
   const loopPickerOverlay = document.getElementById('loopPickerOverlay');
   const loopPickerList = document.getElementById('loopPickerList');
   const closeLoopPicker = document.getElementById('closeLoopPicker');
@@ -1342,19 +1471,13 @@ function bindUI() {
   const showOverlay = (el) => {
     if (!el) return;
     el.classList.remove('hidden');
-    try {
-      document.documentElement.classList.add('no-scroll');
-      document.body.classList.add('no-scroll');
-    } catch {}
+    try { updateScrollState(); } catch {}
   };
 
   const hideOverlay = (el) => {
     if (!el) return;
     el.classList.add('hidden');
-    try {
-      document.documentElement.classList.remove('no-scroll');
-      document.body.classList.remove('no-scroll');
-    } catch {}
+    try { updateScrollState(); } catch {}
   };
 
   let savePlaylistTimer = 0;
@@ -1376,6 +1499,11 @@ function bindUI() {
       const row = document.createElement('div');
       row.className = 'pl-row';
 
+      if (!isAddRow) {
+        const it = items[index];
+        if (it && it.itemId) row.dataset.itemId = it.itemId;
+      }
+
       if (isAddRow) {
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
@@ -1386,10 +1514,23 @@ function bindUI() {
         });
         row.appendChild(addBtn);
       } else {
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'pl-name-wrap';
+
+        const handle = document.createElement('div');
+        handle.className = 'pl-handle';
+        handle.textContent = '≡';
+        handle.setAttribute('aria-label', 'Reorder');
+        handle.setAttribute('role', 'button');
+        handle.tabIndex = 0;
+
         const nameEl = document.createElement('div');
         nameEl.className = 'pl-name';
         nameEl.textContent = label || 'Loop';
-        row.appendChild(nameEl);
+
+        nameWrap.appendChild(handle);
+        nameWrap.appendChild(nameEl);
+        row.appendChild(nameWrap);
       }
 
       const repsInput = document.createElement('input');
@@ -1417,6 +1558,104 @@ function bindUI() {
 
     // Next row shows Add button for next loop.
     addRow('', 1, true, items.length);
+
+    // Enable drag-to-reorder for item rows.
+    attachPlaylistReorderHandlers();
+  };
+
+  const attachPlaylistReorderHandlers = () => {
+    if (!playlistRows || !activePlaylist || !Array.isArray(activePlaylist.items)) return;
+    const rows = Array.from(playlistRows.querySelectorAll('.pl-row'));
+    const itemRows = rows.filter(r => r && r.dataset && r.dataset.itemId);
+
+    let draggingRow = null;
+    let draggingId = null;
+    let pointerId = null;
+
+    const rebuildOrderFromDom = () => {
+      if (!activePlaylist || !Array.isArray(activePlaylist.items)) return;
+      const order = Array.from(playlistRows.querySelectorAll('.pl-row'))
+        .map(r => r && r.dataset && r.dataset.itemId)
+        .filter(Boolean);
+
+      const map = new Map(activePlaylist.items.map(it => [it && it.itemId, it]));
+      const next = [];
+      for (const id of order) {
+        const it = map.get(id);
+        if (it) next.push(it);
+      }
+      // Keep any items that may have been missed (shouldn't happen).
+      for (const it of activePlaylist.items) {
+        if (it && it.itemId && !order.includes(it.itemId)) next.push(it);
+      }
+      activePlaylist.items = next;
+      saveActivePlaylistSoon();
+    };
+
+    const moveRowToPointer = (clientY) => {
+      if (!draggingRow) return;
+      const siblings = Array.from(playlistRows.querySelectorAll('.pl-row'))
+        .filter(r => r && r !== draggingRow && r.dataset && r.dataset.itemId);
+
+      for (const sib of siblings) {
+        const rect = sib.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (clientY < mid) {
+          if (sib !== draggingRow.nextSibling) {
+            playlistRows.insertBefore(draggingRow, sib);
+          }
+          return;
+        }
+      }
+      // If we're below all, append before the add-row (last row without itemId).
+      const addRow = Array.from(playlistRows.querySelectorAll('.pl-row')).find(r => !(r && r.dataset && r.dataset.itemId));
+      if (addRow) playlistRows.insertBefore(draggingRow, addRow);
+      else playlistRows.appendChild(draggingRow);
+    };
+
+    const onMove = (e) => {
+      if (!draggingRow) return;
+      if (pointerId != null && e.pointerId !== pointerId) return;
+      moveRowToPointer(e.clientY);
+      e.preventDefault();
+    };
+
+    const onUp = (e) => {
+      if (!draggingRow) return;
+      if (pointerId != null && e.pointerId !== pointerId) return;
+      try { draggingRow.classList.remove('dragging'); } catch {}
+      try { playlistRows.releasePointerCapture(pointerId); } catch {}
+      draggingRow = null;
+      draggingId = null;
+      pointerId = null;
+      rebuildOrderFromDom();
+      // Re-render to ensure handlers and indices stay consistent.
+      renderPlaylistRows();
+      e.preventDefault();
+    };
+
+    // Remove any previous listeners by re-binding fresh on each render.
+    playlistRows.onpointermove = null;
+    playlistRows.onpointerup = null;
+    playlistRows.onpointercancel = null;
+    playlistRows.addEventListener('pointermove', onMove);
+    playlistRows.addEventListener('pointerup', onUp);
+    playlistRows.addEventListener('pointercancel', onUp);
+
+    itemRows.forEach(r => {
+      const handle = r.querySelector('.pl-handle');
+      if (!handle) return;
+      handle.addEventListener('pointerdown', (e) => {
+        // Don't start drag if user interacts with the reps input.
+        if (e.target && e.target.closest && e.target.closest('input')) return;
+        draggingRow = r;
+        draggingId = r.dataset.itemId;
+        pointerId = e.pointerId;
+        try { r.classList.add('dragging'); } catch {}
+        try { playlistRows.setPointerCapture(pointerId); } catch {}
+        e.preventDefault();
+      });
+    });
   };
 
   const openPlaylistCreate = () => {
@@ -1431,6 +1670,13 @@ function bindUI() {
   const openPlaylistEdit = (record) => {
     activePlaylist = record;
     activePlaylistId = record && record.id;
+    try {
+      if (activePlaylist && Array.isArray(activePlaylist.items)) {
+        activePlaylist.items.forEach(it => {
+          if (it && !it.itemId) it.itemId = makePlaylistItemId();
+        });
+      }
+    } catch {}
     if (playlistTitle) playlistTitle.textContent = record && record.name ? record.name : 'Playlist';
     if (playlistCreateView) playlistCreateView.classList.add('hidden');
     if (playlistEditView) playlistEditView.classList.remove('hidden');
@@ -1442,6 +1688,10 @@ function bindUI() {
     hideOverlay(playlistOverlay);
     try { setTimeout(updateScrollState, 50); } catch {}
   };
+
+  // Expose to Playlists page renderer.
+  openPlaylistCreateOverlay = openPlaylistCreate;
+  openPlaylistEditOverlay = openPlaylistEdit;
 
   const closePicker = () => hideOverlay(loopPickerOverlay);
 
@@ -1457,7 +1707,7 @@ function bindUI() {
         if (!activePlaylist) return;
         if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
         const idx = Math.max(0, playlistPickIndex);
-        const item = { presetKey: ch.presetKey, label: ch.label, reps: 1 };
+        const item = { itemId: makePlaylistItemId(), presetKey: ch.presetKey, label: ch.label, reps: 1 };
         if (idx >= activePlaylist.items.length) activePlaylist.items.push(item);
         else activePlaylist.items[idx] = item;
         saveActivePlaylistSoon();
@@ -1470,6 +1720,9 @@ function bindUI() {
   };
 
   openPlaylistCreator && openPlaylistCreator.addEventListener('click', openPlaylistCreate);
+  newPlaylistFromPage && newPlaylistFromPage.addEventListener('click', () => {
+    if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();
+  });
   closePlaylistOverlay && closePlaylistOverlay.addEventListener('click', closePlaylist);
   playlistClose && playlistClose.addEventListener('click', closePlaylist);
 
@@ -1480,6 +1733,7 @@ function bindUI() {
     try {
       await savePlaylistRecord(record);
       openPlaylistEdit(record);
+      try { if (activeTab === 'playlists') renderPlaylistsPage(); } catch {}
     } catch {
       setStatus('Failed to create playlist.');
     }
@@ -1495,6 +1749,33 @@ function bindUI() {
   playlistPlay && playlistPlay.addEventListener('click', () => {
     playActivePlaylist();
     closePlaylist();
+  });
+
+  // Playlist delete confirmation overlay
+  cancelDeletePlaylist && cancelDeletePlaylist.addEventListener('click', () => {
+    pendingDeletePlaylistId = null;
+    hideOverlay(playlistDeleteOverlay);
+  });
+
+  confirmDeletePlaylist && confirmDeletePlaylist.addEventListener('click', async () => {
+    const id = pendingDeletePlaylistId;
+    pendingDeletePlaylistId = null;
+    hideOverlay(playlistDeleteOverlay);
+    if (!id) return;
+    try {
+      await deletePlaylistRecord(id);
+      // If deleting the currently loaded playlist, stop sequencing.
+      if (activePlaylist && activePlaylist.id === id) {
+        stopPlaylistPlayback();
+        activePlaylist = null;
+        activePlaylistId = null;
+        playlistIsPlaying = false;
+      }
+      if (activeTab === 'playlists') renderPlaylistsPage();
+      setStatus('Playlist deleted');
+    } catch {
+      setStatus('Failed to delete playlist');
+    }
   });
 
   fileInput && fileInput.addEventListener('click', () => {

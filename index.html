@@ -63,6 +63,17 @@
         </div>
       </section>
 
+      <section id="page-playlists" class="page" aria-label="Playlists Page">
+        <div class="card">
+          <h2>Playlists</h2>
+          <p class="hint">Your saved playlists live here.</p>
+          <div class="controls" aria-label="Playlist actions">
+            <button id="newPlaylistFromPage" aria-label="Create new playlist">New Playlist</button>
+          </div>
+          <ul id="playlistsList" class="list" aria-label="Saved playlists"></ul>
+        </div>
+      </section>
+
       <section id="page-loops" class="page" aria-label="Audio Loops Page">
         <div class="card">
           <h2>Audio Loops</h2>
@@ -111,6 +122,7 @@
 
     <nav class="tabbar" aria-label="Bottom Navigation">
       <button class="tab active" data-tab="player" aria-label="Player" aria-current="page">Player</button>
+      <button class="tab" data-tab="playlists" aria-label="Playlists">Playlists</button>
       <button class="tab" data-tab="loops" aria-label="Audio Loops">Audio Loops</button>
       <button class="tab" data-tab="settings" aria-label="Settings">Settings</button>
     </nav>
@@ -149,6 +161,17 @@
       <div id="loopPickerList" class="picker-list" aria-label="Available loops"></div>
       <div class="overlay-actions">
         <button id="closeLoopPicker" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="playlistDeleteOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Delete playlist confirmation">
+    <div class="overlay-card">
+      <h2>Delete Playlist</h2>
+      <p class="hint" id="playlistDeleteText">Delete this playlist?</p>
+      <div class="overlay-actions">
+        <button id="confirmDeletePlaylist" class="danger" aria-label="Confirm delete playlist">Delete</button>
+        <button id="cancelDeletePlaylist" class="secondary" aria-label="Cancel delete playlist">Cancel</button>
       </div>
     </div>
   </div>
