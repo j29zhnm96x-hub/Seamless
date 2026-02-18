@@ -121,6 +121,8 @@ h1 {
 
 .controls, .imports { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 
+#page-playlists .controls { margin-bottom: 16px; }
+
 .rate-wrap { display: grid; gap: 10px; }
 .rate-label {
   display: flex;
@@ -478,9 +480,9 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
 .playlist-card {
   display: grid;
   grid-template-columns: 1fr auto auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 10px;
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid #1e2730;
   background: var(--panel);
@@ -497,8 +499,20 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
 }
 
 .playlist-card-play {
-  padding: 10px 12px;
+  height: 44px;
+  padding: 0 12px;
   font-size: 14px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .playlist-card-menu {
@@ -509,14 +523,17 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
   place-items: center;
   font-size: 18px;
   line-height: 1;
+  font-weight: 800;
+  letter-spacing: 2px;
   border-radius: var(--radius-sm);
-  background: var(--panel);
+  background: none;
   color: var(--text);
   box-shadow: none;
-  border: 1px solid #2a3542;
+  border: none;
+  transform: translateY(-6px);
 }
 
-.playlist-card-menu:hover { background: #242b35; }
+.playlist-card-menu:hover { background: none; }
 
 .plst-actions {
   display: flex;

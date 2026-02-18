@@ -947,8 +947,9 @@ async function renderPlaylistsPage() {
 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
-    playBtn.textContent = 'Play';
     playBtn.className = 'playlist-card-play';
+    playBtn.innerHTML = '<span class="play-icon">▶</span>';
+    playBtn.setAttribute('aria-label', 'Play playlist');
     playBtn.addEventListener('click', async () => {
       try {
         const rec = await loadPlaylistRecord(pl.id);
@@ -962,7 +963,7 @@ async function renderPlaylistsPage() {
     const menuBtn = document.createElement('button');
     menuBtn.type = 'button';
     menuBtn.className = 'playlist-card-menu';
-    menuBtn.textContent = '⋮';
+    menuBtn.textContent = '...';
     menuBtn.setAttribute('aria-label', `Playlist actions for ${(pl && pl.name) ? pl.name : 'Playlist'}`);
     menuBtn.addEventListener('click', () => {
       openActions(pl && pl.id, (pl && pl.name) ? pl.name : 'Playlist');
