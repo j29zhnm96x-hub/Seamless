@@ -500,7 +500,8 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
 
 .playlist-card-play {
   height: 44px;
-  padding: 0 12px;
+  width: 44px;
+  padding: 0;
   font-size: 14px;
   background: none;
   border: none;
@@ -511,8 +512,9 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
 }
 
 .play-icon {
-  font-size: 18px;
+  font-size: 36px;
   line-height: 1;
+  color: var(--accent);
 }
 
 .playlist-card-menu {
@@ -612,6 +614,22 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
   box-shadow: none;
 }
 .list li button:hover { background: #242b35; }
+
+/* Playlist cards use icon-only buttons; don't inherit list button chrome. */
+.list li .playlist-card-play,
+.list li .playlist-card-menu {
+  width: 44px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.list li .playlist-card-play:hover,
+.list li .playlist-card-menu:hover {
+  background: transparent;
+}
 
 .tabbar {
   position: fixed;
