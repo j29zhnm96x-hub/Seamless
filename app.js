@@ -11,6 +11,72 @@ const UPLOAD_DB_VERSION = 1;
 const UPLOAD_STORE = 'uploads';
 const MAX_PERSISTED_UPLOADS = 25;
 
+// Persist playlists across restarts via IndexedDB.
+const PLAYLIST_DB_NAME = 'seamless-playlists';
+const PLAYLIST_DB_VERSION = 1;
+const PLAYLIST_STORE = 'playlists';
+
+function openPlaylistsDb() {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(PLAYLIST_DB_NAME, PLAYLIST_DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(PLAYLIST_STORE)) {
+          const store = db.createObjectStore(PLAYLIST_STORE, { keyPath: 'id' });
+          store.createIndex('createdAt', 'createdAt');
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function playlistTx(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction(PLAYLIST_STORE, mode);
+      const store = tx.objectStore(PLAYLIST_STORE);
+      let result;
+      try { result = fn(store); } catch (e) { tx.abort(); return reject(e); }
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function makePlaylistId() {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+  return `pl_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+async function savePlaylistRecord(record) {
+  if (!record || !record.id) return;
+  const db = await openPlaylistsDb();
+  await playlistTx(db, 'readwrite', (store) => store.put(record));
+  try { db.close(); } catch {}
+}
+
+async function loadPlaylistRecord(id) {
+  if (!id) return null;
+  const db = await openPlaylistsDb();
+  const rec = await playlistTx(db, 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  });
+  try { db.close(); } catch {}
+  return rec;
+}
+
 function openUploadsDb() {
   return new Promise((resolve, reject) => {
     try {
@@ -185,6 +251,13 @@ let lastLoopPoints = null;
 let mediaSessionHandlersSet = false;
 let stopCleanupToken = 0;
 
+// Playlist state
+let activePlaylistId = null;
+let activePlaylist = null; // {id,name,items:[{presetKey,label,reps}]}
+let playlistPickIndex = -1;
+let playlistPlayToken = 0;
+let playlistIsPlaying = false;
+
 let activeTab = 'player';
 
 let analyser = null;
@@ -215,6 +288,102 @@ function setLoopInfo(info) {
   if (el) el.textContent = info || '';
 }
 
+function stopPlaylistPlayback() {
+  playlistPlayToken++;
+  playlistIsPlaying = false;
+}
+
+function getAllLoopChoices() {
+  const choices = [];
+  for (const p of builtinPresets) {
+    if (!p || !p.path) continue;
+    choices.push({ presetKey: `builtin:${p.path}`, label: p.name || p.path });
+  }
+  for (const p of userPresets) {
+    if (!p) continue;
+    if (p.blob && p.id) choices.push({ presetKey: `upload:${p.id}`, label: p.name || 'Imported' });
+    else if (p.url) choices.push({ presetKey: `url:${p.url}`, label: p.name || p.url });
+  }
+  return choices;
+}
+
+async function loadBufferFromPresetKey(presetKey) {
+  if (!presetKey) return null;
+  const [kind, rest] = String(presetKey).split(':');
+  if (!kind || !rest) return null;
+
+  if (kind === 'builtin') {
+    const buf = await loadBufferFromUrl(rest);
+    return { buffer: buf, sourceLabel: rest.split('/').pop() || rest, presetId: null, presetRef: null };
+  }
+  if (kind === 'url') {
+    const buf = await loadBufferFromUrl(rest);
+    return { buffer: buf, sourceLabel: rest, presetId: null, presetRef: null };
+  }
+  if (kind === 'upload') {
+    const preset = userPresets.find(p => p && p.id === rest) || null;
+    if (!preset || !preset.blob) return null;
+    const ab = await preset.blob.arrayBuffer();
+    const buf = await decodeArrayBuffer(ab);
+    return { buffer: buf, sourceLabel: preset.name || 'Imported', presetId: preset.id || null, presetRef: preset };
+  }
+  return null;
+}
+
+async function playActivePlaylist() {
+  if (!activePlaylist || !Array.isArray(activePlaylist.items) || !activePlaylist.items.length) {
+    setStatus('Playlist is empty.');
+    return;
+  }
+  stopPlaylistPlayback();
+  const token = playlistPlayToken;
+  playlistIsPlaying = true;
+
+  try { switchTab('player'); } catch {}
+
+  for (const it of activePlaylist.items) {
+    if (playlistPlayToken !== token) return;
+    if (!it || !it.presetKey) continue;
+    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+    setStatus(`Playlist: ${it.label || 'Loop'} ×${reps}`);
+
+    let loaded;
+    try {
+      loaded = await loadBufferFromPresetKey(it.presetKey);
+    } catch {
+      loaded = null;
+    }
+    if (!loaded || !loaded.buffer) continue;
+
+    currentBuffer = loaded.buffer;
+    currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
+    currentPresetId = loaded.presetId || null;
+    currentPresetRef = loaded.presetRef || null;
+    await startLoopFromBuffer(loaded.buffer, 0.5, 0.03);
+
+    // Wait for repetitions of the computed loop segment.
+    let seg = 0;
+    try {
+      const pts = computeLoopPoints(loaded.buffer);
+      seg = Math.max(0.02, (pts.end - pts.start) || 0);
+    } catch {
+      seg = Math.max(0.02, loaded.buffer.duration || 0);
+    }
+    const totalMs = Math.max(20, Math.floor(seg * reps * 1000));
+    const endAt = performance.now() + totalMs;
+    while (performance.now() < endAt) {
+      if (playlistPlayToken !== token) return;
+      const remaining = endAt - performance.now();
+      await new Promise(r => setTimeout(r, Math.min(250, Math.max(0, remaining))));
+    }
+  }
+
+  if (playlistPlayToken !== token) return;
+  playlistIsPlaying = false;
+  stopLoop(0, true);
+  setStatus('Playlist finished');
+} 
+
 function isIOS() {
   const ua = navigator.userAgent || '';
   const isAppleMobile = /iPhone|iPad|iPod/i.test(ua);
@@ -243,6 +412,12 @@ function looksLikeAudioFile(file) {
 // Disable page scrolling when content fits within the viewport.
 function updateScrollState() {
   try {
+    const overlayOpen = !!document.querySelector('.overlay:not(.hidden)');
+    if (overlayOpen) {
+      document.documentElement.classList.add('no-scroll');
+      document.body.classList.add('no-scroll');
+      return;
+    }
     const ui = document.querySelector('.app-shell') || document.body;
     const needScroll = ui.scrollHeight > window.innerHeight + 1;
     document.documentElement.classList.toggle('no-scroll', !needScroll);
@@ -903,6 +1078,22 @@ function bindUI() {
   const stopBtn = document.getElementById('stop');
   const fileInput = document.getElementById('fileInput');
   const importLoop = document.getElementById('importLoop');
+  const openPlaylistCreator = document.getElementById('openPlaylistCreator');
+  const playlistOverlay = document.getElementById('playlistOverlay');
+  const playlistCreateView = document.getElementById('playlistCreateView');
+  const playlistEditView = document.getElementById('playlistEditView');
+  const playlistName = document.getElementById('playlistName');
+  const createPlaylistBtn = document.getElementById('createPlaylistBtn');
+  const closePlaylistOverlay = document.getElementById('closePlaylistOverlay');
+  const playlistTitle = document.getElementById('playlistTitle');
+  const playlistRows = document.getElementById('playlistRows');
+  const playlistAddLoop = document.getElementById('playlistAddLoop');
+  const playlistPlay = document.getElementById('playlistPlay');
+  const playlistClose = document.getElementById('playlistClose');
+
+  const loopPickerOverlay = document.getElementById('loopPickerOverlay');
+  const loopPickerList = document.getElementById('loopPickerList');
+  const closeLoopPicker = document.getElementById('closeLoopPicker');
   const pasteBtn = document.getElementById('pasteBtn');
   const urlInput = document.getElementById('urlInput');
   const loadUrl = document.getElementById('loadUrl');
@@ -967,9 +1158,172 @@ function bindUI() {
 
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
 
+  // Stop should also stop playlist sequencing.
+  stopBtn && stopBtn.addEventListener('click', () => {
+    try { stopPlaylistPlayback(); } catch {}
+  });
+
   // Import Loop button (Audio Loops page)
   importLoop && importLoop.addEventListener('click', () => {
     try { fileInput && fileInput.click(); } catch {}
+  });
+
+  const showOverlay = (el) => {
+    if (!el) return;
+    el.classList.remove('hidden');
+    try {
+      document.documentElement.classList.add('no-scroll');
+      document.body.classList.add('no-scroll');
+    } catch {}
+  };
+
+  const hideOverlay = (el) => {
+    if (!el) return;
+    el.classList.add('hidden');
+    try {
+      document.documentElement.classList.remove('no-scroll');
+      document.body.classList.remove('no-scroll');
+    } catch {}
+  };
+
+  let savePlaylistTimer = 0;
+  const saveActivePlaylistSoon = () => {
+    if (!activePlaylist || !activePlaylist.id) return;
+    if (savePlaylistTimer) clearTimeout(savePlaylistTimer);
+    savePlaylistTimer = setTimeout(() => {
+      savePlaylistTimer = 0;
+      savePlaylistRecord(activePlaylist).catch(() => {});
+    }, 150);
+  };
+
+  const renderPlaylistRows = () => {
+    if (!playlistRows) return;
+    playlistRows.innerHTML = '';
+    const items = (activePlaylist && Array.isArray(activePlaylist.items)) ? activePlaylist.items : [];
+
+    const addRow = (label, reps, isAddRow, index) => {
+      const row = document.createElement('div');
+      row.className = 'pl-row';
+
+      if (isAddRow) {
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.textContent = 'Add';
+        addBtn.addEventListener('click', () => {
+          playlistPickIndex = index;
+          openLoopPicker();
+        });
+        row.appendChild(addBtn);
+      } else {
+        const nameEl = document.createElement('div');
+        nameEl.className = 'pl-name';
+        nameEl.textContent = label || 'Loop';
+        row.appendChild(nameEl);
+      }
+
+      const repsInput = document.createElement('input');
+      repsInput.className = 'pl-reps';
+      repsInput.type = 'number';
+      repsInput.min = '1';
+      repsInput.step = '1';
+      repsInput.value = String(Math.max(1, parseInt(reps, 10) || 1));
+      repsInput.setAttribute('aria-label', 'Repetitions');
+      if (isAddRow) repsInput.disabled = true;
+      repsInput.addEventListener('change', () => {
+        if (!activePlaylist || !activePlaylist.items || !activePlaylist.items[index]) return;
+        const v = Math.max(1, parseInt(repsInput.value, 10) || 1);
+        activePlaylist.items[index].reps = v;
+        saveActivePlaylistSoon();
+      });
+      row.appendChild(repsInput);
+
+      playlistRows.appendChild(row);
+    };
+
+    items.forEach((it, idx) => {
+      addRow(it && it.label, it && it.reps, false, idx);
+    });
+
+    // Next row shows Add button for next loop.
+    addRow('', 1, true, items.length);
+  };
+
+  const openPlaylistCreate = () => {
+    activePlaylistId = null;
+    activePlaylist = null;
+    if (playlistCreateView) playlistCreateView.classList.remove('hidden');
+    if (playlistEditView) playlistEditView.classList.add('hidden');
+    showOverlay(playlistOverlay);
+    try { if (playlistName) { playlistName.value = ''; playlistName.focus(); } } catch {}
+  };
+
+  const openPlaylistEdit = (record) => {
+    activePlaylist = record;
+    activePlaylistId = record && record.id;
+    if (playlistTitle) playlistTitle.textContent = record && record.name ? record.name : 'Playlist';
+    if (playlistCreateView) playlistCreateView.classList.add('hidden');
+    if (playlistEditView) playlistEditView.classList.remove('hidden');
+    showOverlay(playlistOverlay);
+    renderPlaylistRows();
+  };
+
+  const closePlaylist = () => {
+    hideOverlay(playlistOverlay);
+    try { setTimeout(updateScrollState, 50); } catch {}
+  };
+
+  const closePicker = () => hideOverlay(loopPickerOverlay);
+
+  const openLoopPicker = () => {
+    if (!loopPickerList) return;
+    loopPickerList.innerHTML = '';
+    const choices = getAllLoopChoices();
+    choices.forEach(ch => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = ch.label;
+      b.addEventListener('click', () => {
+        if (!activePlaylist) return;
+        if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
+        const idx = Math.max(0, playlistPickIndex);
+        const item = { presetKey: ch.presetKey, label: ch.label, reps: 1 };
+        if (idx >= activePlaylist.items.length) activePlaylist.items.push(item);
+        else activePlaylist.items[idx] = item;
+        saveActivePlaylistSoon();
+        closePicker();
+        renderPlaylistRows();
+      });
+      loopPickerList.appendChild(b);
+    });
+    showOverlay(loopPickerOverlay);
+  };
+
+  openPlaylistCreator && openPlaylistCreator.addEventListener('click', openPlaylistCreate);
+  closePlaylistOverlay && closePlaylistOverlay.addEventListener('click', closePlaylist);
+  playlistClose && playlistClose.addEventListener('click', closePlaylist);
+
+  createPlaylistBtn && createPlaylistBtn.addEventListener('click', async () => {
+    const name = (playlistName && playlistName.value || '').trim();
+    if (!name) { setStatus('Enter a playlist name.'); return; }
+    const record = { id: makePlaylistId(), name, createdAt: Date.now(), items: [] };
+    try {
+      await savePlaylistRecord(record);
+      openPlaylistEdit(record);
+    } catch {
+      setStatus('Failed to create playlist.');
+    }
+  });
+
+  playlistAddLoop && playlistAddLoop.addEventListener('click', () => {
+    playlistPickIndex = activePlaylist && Array.isArray(activePlaylist.items) ? activePlaylist.items.length : 0;
+    openLoopPicker();
+  });
+
+  closeLoopPicker && closeLoopPicker.addEventListener('click', closePicker);
+
+  playlistPlay && playlistPlay.addEventListener('click', () => {
+    playActivePlaylist();
+    closePlaylist();
   });
 
   fileInput && fileInput.addEventListener('click', () => {

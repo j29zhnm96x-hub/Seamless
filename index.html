@@ -32,6 +32,10 @@
         <div class="card">
           <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
         </div>
+
+        <div class="card">
+          <button id="openPlaylistCreator" aria-label="Open playlist creator">Playlist Creator</button>
+        </div>
       </section>
 
       <section id="page-loops" class="page" aria-label="Audio Loops Page">
@@ -86,6 +90,44 @@
       <button class="tab" data-tab="settings" aria-label="Settings">Settings</button>
     </nav>
   </div>
+
+  <!-- Playlist overlays (kept outside app-shell so they can cover full screen) -->
+  <div id="playlistOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Playlist">
+    <div class="overlay-card">
+      <section id="playlistCreateView" aria-label="Create playlist">
+        <h2>Create Playlist</h2>
+        <div class="row">
+          <label for="playlistName">Playlist name</label>
+          <input id="playlistName" class="text-input" type="text" autocomplete="off" placeholder="My playlist" />
+        </div>
+        <div class="overlay-actions">
+          <button id="createPlaylistBtn">Create</button>
+          <button id="closePlaylistOverlay" class="secondary">Close</button>
+        </div>
+      </section>
+
+      <section id="playlistEditView" class="hidden" aria-label="Edit playlist">
+        <h2 id="playlistTitle">Playlist</h2>
+        <div class="overlay-actions">
+          <button id="playlistAddLoop">Add</button>
+          <button id="playlistPlay">Play</button>
+          <button id="playlistClose" class="secondary">Close</button>
+        </div>
+        <div id="playlistRows" class="playlist-rows" aria-label="Playlist loops"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="loopPickerOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Choose loop">
+    <div class="overlay-card">
+      <h2>Choose Loop</h2>
+      <div id="loopPickerList" class="picker-list" aria-label="Available loops"></div>
+      <div class="overlay-actions">
+        <button id="closeLoopPicker" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
   <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>
   <script src="app.js"></script>
