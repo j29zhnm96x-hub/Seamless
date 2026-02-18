@@ -1331,11 +1331,37 @@ function bindUI() {
 
   // Playback rate jog wheel
   if (rateJog) {
+    const rateJogTrack = rateJog.querySelector('.rate-jog-track');
+
+    const getJogMetrics = () => {
+      const jogRect = rateJog.getBoundingClientRect();
+      const trackRect = (rateJogTrack ? rateJogTrack.getBoundingClientRect() : jogRect);
+      const thumbRect = (rateJogThumb ? rateJogThumb.getBoundingClientRect() : { width: 54 });
+
+      const thumbHalf = Math.max(1, (thumbRect.width || 54) / 2);
+
+      const localTrackLeft = trackRect.left - jogRect.left;
+      const localTrackRight = trackRect.right - jogRect.left;
+
+      let minCenterX = localTrackLeft + thumbHalf;
+      let maxCenterX = localTrackRight - thumbHalf;
+      if (!(maxCenterX > minCenterX)) {
+        const mid = (localTrackLeft + localTrackRight) / 2;
+        minCenterX = mid;
+        maxCenterX = mid;
+      }
+
+      return { jogRect, minCenterX, maxCenterX };
+    };
+
     const updateRateUI = (norm, displayRate = currentRate) => {
       const n = clamp(norm || 0, -1, 1);
       if (rateJogThumb) {
-        // 50% is center. Use translateX with a percentage of element width.
-        rateJogThumb.style.transform = `translateX(calc(-50% + ${n * 44}%))`;
+        const { minCenterX, maxCenterX } = getJogMetrics();
+        const t = (n + 1) / 2;
+        const cx = minCenterX + t * (maxCenterX - minCenterX);
+        rateJogThumb.style.left = `${cx}px`;
+        rateJogThumb.style.transform = 'translateX(-50%)';
       }
       if (rateReadout) rateReadout.textContent = `${Number(displayRate).toFixed(2)}×`;
       try {
@@ -1362,10 +1388,12 @@ function bindUI() {
     let lastTapY = 0;
 
     const setFromClientX = (clientX) => {
-      const r = rateJog.getBoundingClientRect();
-      const half = Math.max(1, r.width / 2);
-      const dx = clientX - (r.left + half);
-      const norm = clamp(dx / half, -1, 1);
+      const { jogRect, minCenterX, maxCenterX } = getJogMetrics();
+      const x = clientX - jogRect.left;
+      const clampedX = clamp(x, minCenterX, maxCenterX);
+      const span = Math.max(1e-6, (maxCenterX - minCenterX));
+      const t = (clampedX - minCenterX) / span;
+      const norm = clamp(t * 2 - 1, -1, 1);
       dragNorm = norm;
       pendingRate = normToRate(norm);
       updateRateUI(norm, pendingRate);
