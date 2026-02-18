@@ -2,6 +2,9 @@ let audioCtx, master, mediaDest, audioOut;
 let volumeVal = 0.5;
 let loopSource = null;
 let loopGain = null;
+let currentRate = 1.0;
+const RATE_MIN = 0.5;
+const RATE_MAX = 2.0;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 
@@ -286,6 +289,27 @@ function setStatus(msg) {
 function setLoopInfo(info) {
   const el = document.getElementById('loopInfo');
   if (el) el.textContent = info || '';
+}
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
+}
+
+function setPlaybackRate(rate, { smooth = true } = {}) {
+  currentRate = clamp(Number(rate) || 1.0, RATE_MIN, RATE_MAX);
+  try {
+    if (loopSource && audioCtx) {
+      const now = audioCtx.currentTime;
+      try {
+        loopSource.playbackRate.cancelScheduledValues(now);
+        if (smooth) loopSource.playbackRate.setTargetAtTime(currentRate, now, 0.03);
+        else loopSource.playbackRate.setValueAtTime(currentRate, now);
+      } catch {
+        try { loopSource.playbackRate.value = currentRate; } catch {}
+      }
+    }
+  } catch {}
+  return currentRate;
 }
 
 function stopPlaylistPlayback() {
@@ -765,6 +789,11 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   loopSource.loopStart = start;
   loopSource.loopEnd = end;
 
+  // Apply current playback rate (jog wheel).
+  try {
+    loopSource.playbackRate.setValueAtTime(clamp(currentRate, RATE_MIN, RATE_MAX), audioCtx.currentTime);
+  } catch {}
+
   loopGain = audioCtx.createGain();
   loopGain.gain.setValueAtTime(0, audioCtx.currentTime);
 
@@ -1076,6 +1105,9 @@ function updateMediaSession(state) {
 function bindUI() {
   const playBtn = document.getElementById('play');
   const stopBtn = document.getElementById('stop');
+  const rateJog = document.getElementById('rateJog');
+  const rateJogThumb = document.getElementById('rateJogThumb');
+  const rateReadout = document.getElementById('rateReadout');
   const fileInput = document.getElementById('fileInput');
   const importLoop = document.getElementById('importLoop');
   const openPlaylistCreator = document.getElementById('openPlaylistCreator');
@@ -1167,6 +1199,145 @@ function bindUI() {
   importLoop && importLoop.addEventListener('click', () => {
     try { fileInput && fileInput.click(); } catch {}
   });
+
+  // Playback rate jog wheel
+  if (rateJog) {
+    const updateRateUI = (norm, displayRate = currentRate) => {
+      const n = clamp(norm || 0, -1, 1);
+      if (rateJogThumb) {
+        // 50% is center. Use translateX with a percentage of element width.
+        rateJogThumb.style.transform = `translateX(calc(-50% + ${n * 44}%))`;
+      }
+      if (rateReadout) rateReadout.textContent = `${Number(displayRate).toFixed(2)}×`;
+      try {
+        rateJog.setAttribute('aria-valuenow', String(displayRate));
+        rateJog.setAttribute('aria-valuetext', `${Number(displayRate).toFixed(2)}x`);
+      } catch {}
+    };
+
+    const normToRate = (norm) => {
+      const n = clamp(norm, -1, 1);
+      // Reduce sensitivity near center for finer control.
+      const shaped = Math.sign(n) * Math.pow(Math.abs(n), 1.7);
+      if (shaped < 0) return 1.0 + shaped * (1.0 - RATE_MIN);
+      return 1.0 + shaped * (RATE_MAX - 1.0);
+    };
+
+    let active = false;
+    let pointerId = null;
+    let committedNorm = 0;
+    let dragNorm = 0;
+    let pendingRate = 1.0;
+    let lastTapAt = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+
+    const setFromClientX = (clientX) => {
+      const r = rateJog.getBoundingClientRect();
+      const half = Math.max(1, r.width / 2);
+      const dx = clientX - (r.left + half);
+      const norm = clamp(dx / half, -1, 1);
+      dragNorm = norm;
+      pendingRate = normToRate(norm);
+      updateRateUI(norm, pendingRate);
+    };
+
+    const commitPending = () => {
+      ensureAudio();
+      setPlaybackRate(pendingRate, { smooth: true });
+      committedNorm = dragNorm;
+      updateRateUI(committedNorm, currentRate);
+    };
+
+    const resetToCenter = () => {
+      pendingRate = 1.0;
+      dragNorm = 0;
+      committedNorm = 0;
+      ensureAudio();
+      setPlaybackRate(1.0, { smooth: true });
+      updateRateUI(0, 1.0);
+    };
+
+    const onDown = (e) => {
+      active = true;
+      pointerId = e.pointerId;
+      try { rateJog.setPointerCapture(pointerId); } catch {}
+      setFromClientX(e.clientX);
+      e.preventDefault();
+    };
+
+    const onMove = (e) => {
+      if (!active) return;
+      if (pointerId != null && e.pointerId !== pointerId) return;
+      setFromClientX(e.clientX);
+      e.preventDefault();
+    };
+
+    const onUp = (e) => {
+      if (!active) return;
+      if (pointerId != null && e.pointerId !== pointerId) return;
+      active = false;
+      pointerId = null;
+
+      // Double-tap to reset to center (0 => 1.0x).
+      try {
+        const now = Date.now();
+        const dx = Math.abs((e.clientX || 0) - lastTapX);
+        const dy = Math.abs((e.clientY || 0) - lastTapY);
+        const within = (now - lastTapAt) <= 320 && dx < 22 && dy < 22;
+        lastTapAt = now;
+        lastTapX = e.clientX || 0;
+        lastTapY = e.clientY || 0;
+        if (within) {
+          resetToCenter();
+          e.preventDefault();
+          return;
+        }
+      } catch {}
+
+      // Apply rate only after release.
+      commitPending();
+      e.preventDefault();
+    };
+
+    rateJog.addEventListener('pointerdown', onDown);
+    rateJog.addEventListener('pointermove', onMove);
+    rateJog.addEventListener('pointerup', onUp);
+    rateJog.addEventListener('pointercancel', onUp);
+
+    // Minimal keyboard nudges: arrow keys adjust and apply immediately.
+    rateJog.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      ensureAudio();
+      const step = 0.02;
+      const dir = (e.key === 'ArrowLeft') ? -1 : 1;
+      const target = clamp(currentRate + dir * step, RATE_MIN, RATE_MAX);
+      setPlaybackRate(target, { smooth: true });
+      // Approximate thumb position from rate.
+      // Map back to a norm for display only.
+      let n = 0;
+      if (currentRate < 1) n = -Math.pow((1 - currentRate) / (1 - RATE_MIN), 1 / 1.7);
+      else n = Math.pow((currentRate - 1) / (RATE_MAX - 1), 1 / 1.7);
+      committedNorm = clamp(n, -1, 1);
+      pendingRate = currentRate;
+      dragNorm = committedNorm;
+      updateRateUI(committedNorm, currentRate);
+      e.preventDefault();
+    });
+
+    // Desktop double-click reset.
+    rateJog.addEventListener('dblclick', (e) => {
+      try { resetToCenter(); } catch {}
+      e.preventDefault();
+    });
+
+    // Initialize
+    setPlaybackRate(currentRate, { smooth: false });
+    committedNorm = 0;
+    pendingRate = currentRate;
+    dragNorm = committedNorm;
+    updateRateUI(committedNorm, currentRate);
+  }
 
   const showOverlay = (el) => {
     if (!el) return;

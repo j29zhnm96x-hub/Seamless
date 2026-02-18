@@ -33,6 +33,31 @@
           <canvas id="wave" height="160" aria-label="Waveform preview"></canvas>
         </div>
 
+        <div class="card" aria-label="Playback rate">
+          <div class="rate-wrap">
+            <div class="rate-label">
+              <span>Rate</span>
+              <span id="rateReadout" class="rate-readout" aria-live="polite">1.00×</span>
+            </div>
+            <div
+              id="rateJog"
+              class="rate-jog"
+              role="slider"
+              tabindex="0"
+              aria-label="Playback rate jog"
+              aria-valuemin="0.5"
+              aria-valuemax="2.0"
+              aria-valuenow="1.0"
+              aria-valuetext="1.00x"
+            >
+              <div class="rate-jog-track"></div>
+              <div class="rate-jog-center" aria-hidden="true"></div>
+              <div id="rateJogThumb" class="rate-jog-thumb" aria-hidden="true"></div>
+            </div>
+            <p class="hint">Drag left/right, then release to apply. Double-tap to reset.</p>
+          </div>
+        </div>
+
         <div class="card">
           <button id="openPlaylistCreator" aria-label="Open playlist creator">Playlist Creator</button>
         </div>
