@@ -482,7 +482,8 @@ fieldset.settings legend { padding: 0 6px; font-weight: 600; letter-spacing: .4p
   grid-template-columns: 1fr auto auto;
   gap: 8px;
   align-items: center;
-  padding: 6px 8px;
+  height: 52px;
+  padding: 0 8px;
   border-radius: var(--radius-sm);
   border: 1px solid #1e2730;
   background: var(--panel);
