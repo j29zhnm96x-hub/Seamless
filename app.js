@@ -1240,6 +1240,8 @@ function updateMediaSession(state) {
 function bindUI() {
   const playBtn = document.getElementById('play');
   const stopBtn = document.getElementById('stop');
+  const volume = document.getElementById('volume');
+  const volumeReadout = document.getElementById('volumeReadout');
   const rateJog = document.getElementById('rateJog');
   const rateJogThumb = document.getElementById('rateJogThumb');
   const rateReadout = document.getElementById('rateReadout');
@@ -1330,6 +1332,29 @@ function bindUI() {
     } catch (e) {
       setStatus('No buffer loaded. Choose a file.');
     }
+  });
+
+  // Overall volume
+  try {
+    if (volume) {
+      const v = clamp(Math.round((Number(volumeVal) || 0) * 100), 0, 100);
+      volume.value = String(v);
+      if (volumeReadout) volumeReadout.textContent = `${v}%`;
+    }
+  } catch {}
+
+  volume && volume.addEventListener('input', () => {
+    const v = clamp(Number(volume.value) || 0, 0, 100);
+    volumeVal = clamp(v / 100, 0, 1);
+    try { if (volumeReadout) volumeReadout.textContent = `${Math.round(v)}%`; } catch {}
+    try {
+      if (audioCtx && master) {
+        const now = audioCtx.currentTime;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(master.gain.value, now);
+        master.gain.setTargetAtTime(volumeVal, now, 0.06);
+      }
+    } catch {}
   });
 
   // Initialize now-playing label state.

@@ -208,6 +208,9 @@ button.danger { background: var(--danger); }
 .range-wrap { display: flex; align-items: center; gap: 8px; }
 .range-wrap input[type=range] { width: 180px; accent-color: var(--accent); }
 
+.volume-range { width: 100%; }
+.volume-range input[type=range] { width: 100%; }
+
 #loopInfo { font-size: .9rem; color: var(--text); font-weight: 500; }
 
 #dropZone {
