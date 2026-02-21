@@ -301,6 +301,8 @@ let activePlaylist = null; // {id,name,items:[{presetKey,label,reps}]}
 let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
+let playlistScheduledNodes = [];
+let playlistScheduledTimers = [];
 let pendingDeletePlaylistId = null;
 let pendingActionsPlaylistId = null;
 let pendingActionsPlaylistName = '';
@@ -363,6 +365,24 @@ function setPlaybackRate(rate, { smooth = true } = {}) {
 function stopPlaylistPlayback() {
   playlistPlayToken++;
   playlistIsPlaying = false;
+
+  // Cancel any scheduled UI timers.
+  try {
+    for (const t of playlistScheduledTimers) clearTimeout(t);
+  } catch {}
+  playlistScheduledTimers = [];
+
+  // Stop and disconnect any scheduled sources (including those scheduled to start later).
+  try {
+    for (const n of playlistScheduledNodes) {
+      if (!n) continue;
+      try { if (n.source) n.source.onended = null; } catch {}
+      try { if (n.source) n.source.stop(0); } catch {}
+      try { if (n.source) n.source.disconnect(); } catch {}
+      try { if (n.gain) n.gain.disconnect(); } catch {}
+    }
+  } catch {}
+  playlistScheduledNodes = [];
 }
 
 function getAllLoopChoices() {
@@ -415,49 +435,152 @@ async function playActivePlaylist() {
   const token = playlistPlayToken;
   playlistIsPlaying = true;
 
+  ensureAudio();
+  if (audioCtx && audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+  startOutputIfNeeded();
+
+  // Stop whatever is currently playing, but keep the HTMLAudio element running.
+  stopLoop(0, false);
+
   try { switchTab('player'); } catch {}
 
-  for (const it of activePlaylist.items) {
-    if (playlistPlayToken !== token) return;
-    if (!it || !it.presetKey) continue;
-    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
-    setStatus(`Playlist: ${it.label || 'Loop'} ×${reps}`);
-
-    let loaded;
-    try {
-      loaded = await loadBufferFromPresetKey(it.presetKey);
-    } catch {
-      loaded = null;
-    }
-    if (!loaded || !loaded.buffer) continue;
-
-    currentBuffer = loaded.buffer;
-    currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
-    currentPresetId = loaded.presetId || null;
-    currentPresetRef = loaded.presetRef || null;
-    await startLoopFromBuffer(loaded.buffer, 0.5, 0.03);
-
-    // Wait for repetitions of the computed loop segment.
-    let seg = 0;
-    try {
-      const pts = computeLoopPoints(loaded.buffer);
-      seg = Math.max(0.02, (pts.end - pts.start) || 0);
-    } catch {
-      seg = Math.max(0.02, loaded.buffer.duration || 0);
-    }
-    const totalMs = Math.max(20, Math.floor(seg * reps * 1000));
-    const endAt = performance.now() + totalMs;
-    while (performance.now() < endAt) {
-      if (playlistPlayToken !== token) return;
-      const remaining = endAt - performance.now();
-      await new Promise(r => setTimeout(r, Math.min(250, Math.max(0, remaining))));
-    }
+  const items = Array.isArray(activePlaylist.items) ? activePlaylist.items.slice() : [];
+  if (!items.length) {
+    playlistIsPlaying = false;
+    setStatus('Playlist is empty.');
+    return;
   }
 
-  if (playlistPlayToken !== token) return;
-  playlistIsPlaying = false;
-  stopLoop(0, true);
-  setStatus('Playlist finished');
+  // Preload/decode each unique presetKey up front to avoid gaps between items.
+  setStatus('Loading playlist…');
+  const loadPromises = new Map();
+  for (const it of items) {
+    if (!it || !it.presetKey) continue;
+    if (!loadPromises.has(it.presetKey)) {
+      loadPromises.set(it.presetKey, loadBufferFromPresetKey(it.presetKey).catch(() => null));
+    }
+  }
+  const loadedByKey = new Map();
+  for (const [k, p] of loadPromises.entries()) {
+    loadedByKey.set(k, await p);
+    if (playlistPlayToken !== token) return;
+  }
+
+  // Build a playable sequence with loop points computed once per buffer.
+  const seq = [];
+  for (const it of items) {
+    if (!it || !it.presetKey) continue;
+    const loaded = loadedByKey.get(it.presetKey);
+    if (!loaded || !loaded.buffer) continue;
+
+    let pts;
+    try { pts = computeLoopPoints(loaded.buffer); } catch { pts = null; }
+    const loopStart = Math.max(0, (pts && pts.start) || 0);
+    const loopEnd = Math.max(loopStart + 0.02, (pts && pts.end) || (loaded.buffer.duration || (loopStart + 0.5)));
+    const seg = Math.max(0.02, (loopEnd - loopStart) || 0);
+    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+
+    seq.push({
+      it,
+      loaded,
+      reps,
+      seg,
+      loopStart,
+      loopEnd,
+    });
+  }
+
+  if (!seq.length) {
+    playlistIsPlaying = false;
+    setStatus('Playlist has no playable loops.');
+    return;
+  }
+
+  const FADE = 0.004;
+  const lead = 0.08;
+  let t = (audioCtx ? audioCtx.currentTime : 0) + lead;
+
+  // Schedule each loop segment on the audio clock.
+  playlistScheduledNodes = [];
+  playlistScheduledTimers = [];
+
+  for (let idx = 0; idx < seq.length; idx++) {
+    if (playlistPlayToken !== token) return;
+    const s = seq[idx];
+    const startAt = t;
+    const total = Math.max(0.02, s.seg * s.reps);
+    const stopAt = startAt + total;
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = s.loaded.buffer;
+    src.loop = true;
+    src.loopStart = s.loopStart;
+    src.loopEnd = s.loopEnd;
+    try {
+      src.playbackRate.setValueAtTime(clamp(currentRate, RATE_MIN, RATE_MAX), startAt);
+    } catch {}
+
+    const g = audioCtx.createGain();
+    const targetVol = 0.5;
+
+    // Fade in/out to reduce clicks without overlapping loops.
+    const fadeInEnd = startAt + FADE;
+    const fadeOutStart = Math.max(fadeInEnd, stopAt - FADE);
+    try {
+      g.gain.setValueAtTime(0, startAt);
+      g.gain.linearRampToValueAtTime(targetVol, fadeInEnd);
+      g.gain.setValueAtTime(targetVol, fadeOutStart);
+      g.gain.linearRampToValueAtTime(0, stopAt);
+    } catch {}
+
+    src.connect(g);
+    g.connect(master);
+
+    try { src.start(startAt, s.loopStart); } catch { try { src.start(startAt); } catch {} }
+    try { src.stop(stopAt + 0.001); } catch {}
+
+    playlistScheduledNodes.push({ source: src, gain: g });
+
+    // UI update near start (non-audio-critical).
+    const msUntil = Math.max(0, Math.floor((startAt - audioCtx.currentTime) * 1000));
+    const timer = setTimeout(() => {
+      if (playlistPlayToken !== token) return;
+      const it = s.it;
+      const loaded = s.loaded;
+      currentBuffer = loaded.buffer;
+      currentSourceLabel = (it && it.label) || loaded.sourceLabel || 'Playlist';
+      currentPresetId = loaded.presetId || null;
+      currentPresetRef = loaded.presetRef || null;
+
+      // Keep Stop/MediaSession wired to the active source.
+      loopSource = src;
+      loopGain = g;
+
+      try { updateNowPlayingNameUI(); } catch {}
+      try { drawWaveform(); } catch {}
+      try { updateMediaSession('playing'); } catch {}
+      try { setStatus(`Playlist: ${currentSourceLabel} ×${Math.max(1, parseInt(it && it.reps, 10) || 1)}`); } catch {}
+    }, msUntil);
+    playlistScheduledTimers.push(timer);
+
+    // Cleanup after end.
+    const endTimer = setTimeout(() => {
+      try { src.disconnect(); } catch {}
+      try { g.disconnect(); } catch {}
+    }, Math.max(0, Math.floor((stopAt - audioCtx.currentTime) * 1000) + 30));
+    playlistScheduledTimers.push(endTimer);
+
+    t = stopAt;
+  }
+
+  // Finalize.
+  const finishTimer = setTimeout(() => {
+    if (playlistPlayToken !== token) return;
+    playlistIsPlaying = false;
+    stopLoop(0, true);
+    setStatus('Playlist finished');
+  }, Math.max(0, Math.floor((t - (audioCtx ? audioCtx.currentTime : 0)) * 1000) + 50));
+  playlistScheduledTimers.push(finishTimer);
 } 
 
 function isIOS() {
