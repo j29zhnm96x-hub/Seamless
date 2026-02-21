@@ -24,10 +24,17 @@
 
     <main class="pages" aria-label="Pages">
       <section id="page-player" class="page active" aria-label="Player Page">
-        <section class="controls" aria-label="Playback Controls">
-          <button id="play" aria-label="Play loop">Play</button>
-          <button id="stop" class="secondary" aria-label="Stop loop">Stop</button>
-        </section>
+        <div class="transport" aria-label="Transport Controls">
+          <button id="play" class="transport-btn" aria-label="Play">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="7,4 20,12 7,20"/></svg>
+          </button>
+          <button id="stop" class="transport-btn" aria-label="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+          </button>
+          <button id="repeat" class="transport-btn" aria-label="Repeat playlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M3 11V9a4 4 0 014-4h13"/><path d="M7 22l-3-3 3-3"/><path d="M21 13v2a4 4 0 01-4 4H4"/></svg>
+          </button>
+        </div>
 
         <div class="card">
           <div class="wave-wrap" aria-label="Waveform container">
@@ -75,14 +82,30 @@
       </section>
 
       <section id="page-playlists" class="page" aria-label="Playlists Page">
-        <div class="card">
+        <div class="page-header">
           <h2>Playlists</h2>
-          <p class="hint">Your saved playlists live here.</p>
-          <div class="controls" aria-label="Playlist actions">
-            <button id="newPlaylistFromPage" aria-label="Create new playlist">New Playlist</button>
-          </div>
-          <ul id="playlistsList" class="list" aria-label="Saved playlists"></ul>
+          <button id="newPlaylistFromPage" class="btn-sm" aria-label="New playlist">+ New</button>
         </div>
+        <ul id="playlistsList" class="playlist-list" aria-label="Saved playlists"></ul>
+      </section>
+
+      <section id="page-playlist-detail" class="page" aria-label="Playlist Detail">
+        <button id="detailBack" class="detail-back" aria-label="Back to playlists">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="detail-top">
+          <h2 id="detailTitle" class="detail-title">Playlist</h2>
+          <p id="detailInfo" class="detail-info">0 loops</p>
+        </div>
+        <div class="detail-actions">
+          <button id="detailPlay" class="btn-accent" aria-label="Play playlist">
+            <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="7,4 20,12 7,20"/></svg>Play
+          </button>
+          <button id="detailEdit" class="btn-ghost" aria-label="Edit playlist">Edit</button>
+          <button id="detailDelete" class="btn-danger-text" aria-label="Delete playlist">Delete</button>
+        </div>
+        <div id="detailItems" class="detail-items"></div>
       </section>
 
       <section id="page-loops" class="page" aria-label="Audio Loops Page">
@@ -106,28 +129,97 @@
         </div>
       </section>
 
+      <!-- Trimmer sub-page (opens from Loops) -->
+      <section id="page-trimmer" class="page" aria-label="Loop Trimmer">
+        <button id="trimBack" class="detail-back" aria-label="Back to loops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="detail-top">
+          <h2 id="trimTitle" class="detail-title">Trim Loop</h2>
+          <p id="trimInfo" class="detail-info">Drag the IN/OUT cursors to adjust loop points</p>
+        </div>
+        <div class="trim-canvas-wrap">
+          <canvas id="trimCanvas" height="200" aria-label="Trim waveform"></canvas>
+        </div>
+        <div class="trim-readouts">
+          <div class="trim-readout"><span class="trim-readout-label">IN</span><span id="trimInTime" class="trim-readout-val">0.000s</span></div>
+          <div class="trim-readout"><span class="trim-readout-label">OUT</span><span id="trimOutTime" class="trim-readout-val">0.000s</span></div>
+          <div class="trim-readout"><span class="trim-readout-label">Length</span><span id="trimDuration" class="trim-readout-val">0.000s</span></div>
+        </div>
+        <div class="trim-zoom">
+          <label for="trimZoom" class="trim-zoom-label">Zoom</label>
+          <input id="trimZoom" type="range" min="1" max="200" value="1" aria-label="Zoom level" />
+        </div>
+        <div class="trim-actions">
+          <button id="trimPlayTest" class="btn-accent" aria-label="Play trimmed loop">
+            <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="7,4 20,12 7,20"/></svg>Test Loop
+          </button>
+          <button id="trimStopTest" class="btn-ghost" aria-label="Stop test">Stop</button>
+          <button id="trimSave" class="btn-accent" aria-label="Save trim points">Save</button>
+          <button id="trimReset" class="btn-ghost" aria-label="Reset to auto">Reset</button>
+        </div>
+      </section>
+
       <section id="page-settings" class="page" aria-label="Settings Page">
-        <fieldset class="settings" aria-label="Loop Settings">
-          <legend>Loop Settings</legend>
-          <button type="button" id="toggleSettings" class="toggle-panel-btn" aria-expanded="true">HIDE</button>
-          <div id="settingsBody" class="settings-grid">
-            <div class="row">
-              <label for="s-threshold">Threshold</label>
-              <input id="s-threshold" type="number" step="0.0001" min="0" max="0.1" value="0.001" />
-            </div>
-            <div class="row">
-              <label for="s-margin">Margin (ms)</label>
-              <input id="s-margin" type="number" step="0.5" min="0" max="50" value="2" />
-            </div>
-            <div class="row">
-              <label for="s-window">Window (ms)</label>
-              <input id="s-window" type="number" step="1" min="1" max="50" value="10" />
-            </div>
-            <div class="row">
-              <button id="recompute">Recompute Loop</button>
+        <div class="page-header">
+          <h2>Settings</h2>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Data</h3>
+          <div class="settings-group">
+            <button id="exportJson" class="settings-item" type="button" aria-label="Export data">
+              <span class="settings-item-main">Export Playlists &amp; Loops</span>
+              <span class="settings-item-hint">Download as JSON backup</span>
+            </button>
+            <button id="importJson" class="settings-item" type="button" aria-label="Import data">
+              <span class="settings-item-main">Import Playlists &amp; Loops</span>
+              <span class="settings-item-hint">Restore from JSON file</span>
+            </button>
+            <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" aria-label="Import JSON file" />
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Appearance</h3>
+          <div class="settings-group">
+            <div class="settings-item settings-toggle-row">
+              <span class="settings-item-main">Theme</span>
+              <div id="themeToggle" class="theme-toggle" role="radiogroup" aria-label="Theme">
+                <button class="theme-opt active" data-theme="dark" aria-label="Dark theme">Dark</button>
+                <button class="theme-opt" data-theme="light" aria-label="Light theme">Light</button>
+              </div>
             </div>
           </div>
-        </fieldset>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Language</h3>
+          <div class="settings-group">
+            <div class="settings-item settings-toggle-row">
+              <span class="settings-item-main">Language</span>
+              <select id="langSelect" class="settings-select" aria-label="Language">
+                <option value="en" selected>English</option>
+                <option value="hr">Hrvatski</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">About</h3>
+          <div class="settings-group">
+            <div class="settings-item">
+              <span class="settings-item-main">Seamless Loop Player</span>
+              <span class="settings-item-hint">v1.0 &mdash; Gapless audio loops with Web Audio API</span>
+            </div>
+            <button id="settingsHelp" class="settings-item" type="button" aria-label="Help">
+              <span class="settings-item-main">Help</span>
+              <span class="settings-item-hint">How to use the app</span>
+            </button>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -187,17 +279,7 @@
     </div>
   </div>
 
-  <div id="playlistActionsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Playlist actions">
-    <div class="overlay-card">
-      <h2 id="playlistActionsTitle">Playlist</h2>
-      <p class="hint">Choose an action.</p>
-      <div class="overlay-actions">
-        <button id="playlistActionsEdit" class="secondary" aria-label="Edit playlist">Edit</button>
-        <button id="playlistActionsDelete" class="danger" aria-label="Delete playlist">Delete</button>
-        <button id="playlistActionsCancel" class="secondary" aria-label="Close">Close</button>
-      </div>
-    </div>
-  </div>
+  <!-- playlistActionsOverlay removed — actions now live on the detail page -->
 
   <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>

@@ -218,7 +218,10 @@ async function hydratePersistedUploadsIntoUserPresets() {
     for (const it of items) {
       if (!it || !it.blob) continue;
       if (it.id && existingIds.has(it.id)) continue;
-      userPresets.unshift({ id: it.id, name: it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 });
+      const preset = { id: it.id, name: it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
+      if (it.trimIn != null) preset.trimIn = it.trimIn;
+      if (it.trimOut != null) preset.trimOut = it.trimOut;
+      userPresets.unshift(preset);
     }
   } catch {}
 }
@@ -297,13 +300,27 @@ let stopCleanupToken = 0;
 
 // Playlist state
 let activePlaylistId = null;
-let activePlaylist = null; // {id,name,items:[{presetKey,label,reps}]}
+let activePlaylist = null; // {id,name,items:[{presetKey,label,reps,volume}]}
 let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
+let playlistRepeat = false;
 let pendingDeletePlaylistId = null;
-let pendingActionsPlaylistId = null;
-let pendingActionsPlaylistName = '';
+let detailPlaylistId = null;
+let detailEditMode = false;
+
+// Trimmer state
+let trimBuffer = null;
+let trimPreset = null;  // the userPresets entry being trimmed
+let trimIn = 0;
+let trimOut = 0;
+let trimZoomLevel = 1;
+let trimViewStart = 0; // left edge of zoomed view (seconds)
+let trimDragging = null; // 'in' | 'out' | 'pan' | null
+let trimDragStartX = 0;
+let trimPanStartView = 0;
+let trimTestSource = null;
+let trimTestGain = null;
 
 // Exposed by bindUI so the Playlists page can open the editor.
 let openPlaylistCreateOverlay = null;
@@ -432,7 +449,7 @@ async function playActivePlaylist() {
   }
 
   // Preload/decode each unique presetKey up front to avoid gaps between items.
-  setStatus('Loading playlist…');
+  setStatus('Loading playlist\u2026');
   const loadPromises = new Map();
   for (const it of items) {
     if (!it || !it.presetKey) continue;
@@ -446,48 +463,58 @@ async function playActivePlaylist() {
     if (playlistPlayToken !== token) return;
   }
 
-  // Precompute per-buffer segment length once.
+  // Precompute per-buffer segment length once, respecting custom trim points.
   const segByKey = new Map();
   for (const [k, loaded] of loadedByKey.entries()) {
     if (!loaded || !loaded.buffer) continue;
     let seg = 0;
     try {
-      const pts = computeLoopPoints(loaded.buffer);
-      seg = Math.max(0.02, (pts.end - pts.start) || 0);
+      // Check if this preset has custom trim points.
+      const ref = loaded.presetRef;
+      if (ref && ref.trimIn != null && ref.trimOut != null) {
+        seg = Math.max(0.02, ref.trimOut - ref.trimIn);
+      } else {
+        const pts = computeLoopPoints(loaded.buffer);
+        seg = Math.max(0.02, (pts.end - pts.start) || 0);
+      }
     } catch {
       seg = Math.max(0.02, loaded.buffer.duration || 0);
     }
     segByKey.set(k, seg);
   }
 
-  for (const it of items) {
-    if (playlistPlayToken !== token) return;
-    if (!it || !it.presetKey) continue;
-
-    const loaded = loadedByKey.get(it.presetKey);
-    if (!loaded || !loaded.buffer) continue;
-
-    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
-    const seg = segByKey.get(it.presetKey) || Math.max(0.02, loaded.buffer.duration || 0);
-
-    currentBuffer = loaded.buffer;
-    currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
-    currentPresetId = loaded.presetId || null;
-    currentPresetRef = loaded.presetRef || null;
-    setStatus(`Playlist: ${currentSourceLabel} ×${reps}`);
-
-    const rateNow = clamp(currentRate, RATE_MIN, RATE_MAX);
-    await startLoopFromBuffer(loaded.buffer, 0.5, 0.03);
-
-    // Wait for repetitions of the computed loop segment.
-    const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, rateNow));
-    const endAt = (audioCtx ? audioCtx.currentTime : 0) + totalSec;
-    while (audioCtx && audioCtx.currentTime < endAt) {
+  // Play through the items, possibly repeating the whole sequence.
+  do {
+    for (const it of items) {
       if (playlistPlayToken !== token) return;
-      const remaining = endAt - audioCtx.currentTime;
-      await new Promise(r => setTimeout(r, Math.min(50, Math.max(0, remaining * 1000))));
+      if (!it || !it.presetKey) continue;
+
+      const loaded = loadedByKey.get(it.presetKey);
+      if (!loaded || !loaded.buffer) continue;
+
+      const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+      const seg = segByKey.get(it.presetKey) || Math.max(0.02, loaded.buffer.duration || 0);
+      const itemVol = clamp((it.volume !== undefined && it.volume !== null) ? it.volume : 1.0, 0, 1);
+
+      currentBuffer = loaded.buffer;
+      currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
+      currentPresetId = loaded.presetId || null;
+      currentPresetRef = loaded.presetRef || null;
+      setStatus(`Playlist: ${currentSourceLabel} \u00d7${reps}`);
+
+      const rateNow = clamp(currentRate, RATE_MIN, RATE_MAX);
+      await startLoopFromBuffer(loaded.buffer, itemVol * 0.5, 0.03);
+
+      // Wait for repetitions of the computed loop segment.
+      const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, rateNow));
+      const endAt = (audioCtx ? audioCtx.currentTime : 0) + totalSec;
+      while (audioCtx && audioCtx.currentTime < endAt) {
+        if (playlistPlayToken !== token) return;
+        const remaining = endAt - audioCtx.currentTime;
+        await new Promise(r => setTimeout(r, Math.min(50, Math.max(0, remaining * 1000))));
+      }
     }
-  }
+  } while (playlistRepeat && playlistPlayToken === token);
 
   if (playlistPlayToken !== token) return;
   playlistIsPlaying = false;
@@ -859,7 +886,7 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   return { start: start / sr, end: end / sr };
 }
 
-async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
+async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, customTrim = null) {
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
@@ -867,7 +894,19 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03) {
   // Internal switch: stop old source, but keep HTMLAudio element playing.
   stopLoop(0, false);
 
-  const { start, end } = computeLoopPoints(buffer);
+  // Use custom trim points if provided; else check preset ref for saved trims; else auto-detect.
+  let start, end;
+  if (customTrim && typeof customTrim.start === 'number' && typeof customTrim.end === 'number') {
+    start = customTrim.start;
+    end = customTrim.end;
+  } else if (currentPresetRef && currentPresetRef.trimIn != null && currentPresetRef.trimOut != null) {
+    start = currentPresetRef.trimIn;
+    end = currentPresetRef.trimOut;
+  } else {
+    const pts = computeLoopPoints(buffer);
+    start = pts.start;
+    end = pts.end;
+  }
   lastLoopPoints = { start, end };
 
   loopSource = audioCtx.createBufferSource();
@@ -914,7 +953,9 @@ function switchTab(tab) {
   const pages = {
     player: document.getElementById('page-player'),
     playlists: document.getElementById('page-playlists'),
+    'playlist-detail': document.getElementById('page-playlist-detail'),
     loops: document.getElementById('page-loops'),
+    trimmer: document.getElementById('page-trimmer'),
     settings: document.getElementById('page-settings')
   };
   Object.entries(pages).forEach(([k, el]) => {
@@ -922,9 +963,13 @@ function switchTab(tab) {
     el.classList.toggle('active', k === tab);
   });
 
+  // Highlight the parent tab for sub-pages.
+  let highlightTab = tab;
+  if (tab === 'playlist-detail') highlightTab = 'playlists';
+  if (tab === 'trimmer') highlightTab = 'loops';
   const tabs = document.querySelectorAll('.tabbar .tab');
   tabs.forEach(btn => {
-    const isActive = btn.getAttribute('data-tab') === tab;
+    const isActive = btn.getAttribute('data-tab') === highlightTab;
     btn.classList.toggle('active', isActive);
     if (isActive) btn.setAttribute('aria-current', 'page');
     else btn.removeAttribute('aria-current');
@@ -933,6 +978,8 @@ function switchTab(tab) {
   if (tab === 'loops') renderLoopsPage();
   if (tab === 'playlists') renderPlaylistsPage();
   if (tab === 'player') setTimeout(drawWaveform, 0);
+  if (tab === 'trimmer') setTimeout(drawTrimWaveform, 0);
+  if (tab !== 'trimmer') stopTrimTest();
   setTimeout(updateScrollState, 50);
 }
 
@@ -950,71 +997,600 @@ async function renderPlaylistsPage() {
     const li = document.createElement('li');
     const div = document.createElement('div');
     div.className = 'hint';
-    div.textContent = 'No playlists yet. Tap New Playlist to create one.';
+    div.textContent = 'No playlists yet. Tap + New to create one.';
+    div.style.padding = '10px 0';
     li.appendChild(div);
     listEl.appendChild(li);
     return;
   }
 
-  const openDeleteConfirm = (id, name) => {
-    pendingDeletePlaylistId = id;
-    const txt = document.getElementById('playlistDeleteText');
-    if (txt) txt.textContent = `Delete "${name || 'Playlist'}"?`;
-    const ov = document.getElementById('playlistDeleteOverlay');
-    if (ov) ov.classList.remove('hidden');
-    try { updateScrollState(); } catch {}
-  };
-
-  const openActions = (id, name) => {
-    pendingActionsPlaylistId = id;
-    pendingActionsPlaylistName = name || 'Playlist';
-    const title = document.getElementById('playlistActionsTitle');
-    if (title) title.textContent = pendingActionsPlaylistName;
-    const ov = document.getElementById('playlistActionsOverlay');
-    if (ov) ov.classList.remove('hidden');
-    try { updateScrollState(); } catch {}
-  };
-
   for (const pl of items) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'playlist-list-item';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = (pl && pl.name) ? pl.name : 'Playlist';
+
+    const countSpan = document.createElement('span');
+    countSpan.className = 'pl-item-count';
+    const n = (pl && Array.isArray(pl.items)) ? pl.items.length : 0;
+    countSpan.textContent = `${n} loop${n !== 1 ? 's' : ''}`;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'pl-item-chevron';
+    chevron.textContent = '›';
+
+    btn.appendChild(nameSpan);
+    btn.appendChild(countSpan);
+    btn.appendChild(chevron);
+
+    btn.addEventListener('click', () => {
+      openPlaylistDetail(pl.id);
+    });
+
     const li = document.createElement('li');
-    const card = document.createElement('div');
-    card.className = 'playlist-card';
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'playlist-card-name';
-    nameEl.textContent = (pl && pl.name) ? pl.name : 'Playlist';
-
-    const playBtn = document.createElement('button');
-    playBtn.type = 'button';
-    playBtn.className = 'playlist-card-play';
-    playBtn.innerHTML = '<span class="play-icon">▶</span>';
-    playBtn.setAttribute('aria-label', 'Play playlist');
-    playBtn.addEventListener('click', async () => {
-      try {
-        const rec = await loadPlaylistRecord(pl.id);
-        if (!rec) return;
-        activePlaylist = rec;
-        await playActivePlaylist();
-        switchTab('player');
-      } catch {}
-    });
-
-    const menuBtn = document.createElement('button');
-    menuBtn.type = 'button';
-    menuBtn.className = 'playlist-card-menu';
-    menuBtn.textContent = '...';
-    menuBtn.setAttribute('aria-label', `Playlist actions for ${(pl && pl.name) ? pl.name : 'Playlist'}`);
-    menuBtn.addEventListener('click', () => {
-      openActions(pl && pl.id, (pl && pl.name) ? pl.name : 'Playlist');
-    });
-
-    card.appendChild(nameEl);
-    card.appendChild(playBtn);
-    card.appendChild(menuBtn);
-    li.appendChild(card);
+    li.appendChild(btn);
     listEl.appendChild(li);
   }
   try { setTimeout(updateScrollState, 50); } catch {}
+}
+
+async function openPlaylistDetail(id) {
+  if (!id) return;
+  detailPlaylistId = id;
+  detailEditMode = false;
+  try {
+    const rec = await loadPlaylistRecord(id);
+    if (!rec) { setStatus('Playlist not found'); return; }
+    activePlaylist = rec;
+    activePlaylistId = rec.id;
+    if (Array.isArray(rec.items)) {
+      rec.items.forEach(it => {
+        if (it && !it.itemId) it.itemId = makePlaylistItemId();
+        if (it && (it.volume === undefined || it.volume === null)) it.volume = 1.0;
+      });
+    }
+    switchTab('playlist-detail');
+    renderPlaylistDetail();
+  } catch (e) {
+    setStatus('Failed to open playlist');
+  }
+}
+
+function renderPlaylistDetail() {
+  const titleEl = document.getElementById('detailTitle');
+  const infoEl = document.getElementById('detailInfo');
+  const itemsEl = document.getElementById('detailItems');
+  const editBtn = document.getElementById('detailEdit');
+  if (!itemsEl) return;
+  const rec = activePlaylist;
+  if (!rec) return;
+
+  if (titleEl) titleEl.textContent = rec.name || 'Playlist';
+  const n = (rec.items && rec.items.length) || 0;
+  if (infoEl) infoEl.textContent = `${n} loop${n !== 1 ? 's' : ''}`;
+  if (editBtn) editBtn.textContent = detailEditMode ? 'Done' : 'Edit';
+
+  itemsEl.innerHTML = '';
+
+  if (!rec.items || !rec.items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'hint';
+    empty.style.padding = '16px 0';
+    empty.textContent = detailEditMode ? 'Tap + Add Loop below to add loops.' : 'No loops in this playlist.';
+    itemsEl.appendChild(empty);
+  }
+
+  if (detailEditMode) {
+    renderPlaylistDetailEdit(itemsEl, rec);
+  } else {
+    renderPlaylistDetailReadonly(itemsEl, rec);
+  }
+}
+
+function renderPlaylistDetailReadonly(container, rec) {
+  if (!rec.items) return;
+  for (const it of rec.items) {
+    if (!it) continue;
+    const row = document.createElement('div');
+    row.className = 'detail-loop';
+    const header = document.createElement('div');
+    header.className = 'detail-loop-header';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'detail-loop-name';
+    nameEl.textContent = it.label || 'Loop';
+    const repsEl = document.createElement('div');
+    repsEl.className = 'detail-loop-reps';
+    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+    const vol = Math.round((it.volume !== undefined && it.volume !== null ? it.volume : 1.0) * 100);
+    repsEl.textContent = `\u00d7${reps}  \u00b7  ${vol}%`;
+    header.appendChild(nameEl);
+    header.appendChild(repsEl);
+    row.appendChild(header);
+    container.appendChild(row);
+  }
+}
+
+function renderPlaylistDetailEdit(container, rec) {
+  if (!rec.items) rec.items = [];
+
+  const saveDetailSoon = () => {
+    if (!activePlaylist || !activePlaylist.id) return;
+    savePlaylistRecord(activePlaylist).catch(() => {});
+  };
+
+  let draggingRow = null;
+  let dragPointerId = null;
+
+  const rebuildOrder = () => {
+    if (!activePlaylist || !Array.isArray(activePlaylist.items)) return;
+    const order = Array.from(container.querySelectorAll('.detail-loop-edit'))
+      .map(r => r.dataset.itemId).filter(Boolean);
+    const map = new Map(activePlaylist.items.map(it => [it && it.itemId, it]));
+    const next = [];
+    for (const id of order) { const it = map.get(id); if (it) next.push(it); }
+    for (const it of activePlaylist.items) {
+      if (it && it.itemId && !order.includes(it.itemId)) next.push(it);
+    }
+    activePlaylist.items = next;
+    saveDetailSoon();
+  };
+
+  for (let idx = 0; idx < rec.items.length; idx++) {
+    const it = rec.items[idx];
+    if (!it) continue;
+
+    const row = document.createElement('div');
+    row.className = 'detail-loop-edit';
+    if (it.itemId) row.dataset.itemId = it.itemId;
+
+    const top = document.createElement('div');
+    top.className = 'detail-edit-top';
+
+    const handle = document.createElement('div');
+    handle.className = 'detail-edit-handle';
+    handle.textContent = '\u2261';
+    handle.setAttribute('aria-label', 'Reorder');
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'detail-edit-name';
+    nameEl.textContent = it.label || 'Loop';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'detail-edit-remove';
+    removeBtn.textContent = '\u00d7';
+    removeBtn.setAttribute('aria-label', `Remove ${it.label || 'loop'}`);
+    removeBtn.addEventListener('click', () => {
+      const i = activePlaylist.items.findIndex(x => x && x.itemId === it.itemId);
+      if (i >= 0) activePlaylist.items.splice(i, 1);
+      saveDetailSoon();
+      renderPlaylistDetail();
+    });
+
+    top.appendChild(handle);
+    top.appendChild(nameEl);
+    top.appendChild(removeBtn);
+
+    const controls = document.createElement('div');
+    controls.className = 'detail-edit-controls';
+
+    // Volume slider
+    const volGroup = document.createElement('div');
+    volGroup.className = 'detail-ctrl-group';
+    const volLabel = document.createElement('div');
+    volLabel.className = 'detail-ctrl-label';
+    volLabel.textContent = 'Volume';
+    const volVal = document.createElement('div');
+    volVal.className = 'detail-ctrl-val';
+    volVal.textContent = `${Math.round((it.volume !== undefined ? it.volume : 1.0) * 100)}%`;
+    const volSlider = document.createElement('input');
+    volSlider.type = 'range';
+    volSlider.min = '0';
+    volSlider.max = '100';
+    volSlider.value = String(Math.round((it.volume !== undefined ? it.volume : 1.0) * 100));
+    volSlider.setAttribute('aria-label', 'Loop volume');
+    volSlider.addEventListener('input', () => {
+      const v = Math.max(0, Math.min(100, parseInt(volSlider.value, 10) || 0));
+      it.volume = v / 100;
+      volVal.textContent = `${v}%`;
+    });
+    volSlider.addEventListener('change', saveDetailSoon);
+    volGroup.appendChild(volLabel);
+    volGroup.appendChild(volSlider);
+    volGroup.appendChild(volVal);
+
+    // Reps input
+    const repsGroup = document.createElement('div');
+    repsGroup.className = 'detail-ctrl-group';
+    const repsLabel = document.createElement('div');
+    repsLabel.className = 'detail-ctrl-label';
+    repsLabel.textContent = 'Reps';
+    const repsInput = document.createElement('input');
+    repsInput.type = 'number';
+    repsInput.min = '1';
+    repsInput.step = '1';
+    repsInput.value = String(Math.max(1, parseInt(it.reps, 10) || 1));
+    repsInput.setAttribute('aria-label', 'Repetitions');
+    repsInput.addEventListener('change', () => {
+      it.reps = Math.max(1, parseInt(repsInput.value, 10) || 1);
+      saveDetailSoon();
+    });
+    repsGroup.appendChild(repsLabel);
+    repsGroup.appendChild(repsInput);
+
+    controls.appendChild(volGroup);
+    controls.appendChild(repsGroup);
+
+    row.appendChild(top);
+    row.appendChild(controls);
+    container.appendChild(row);
+
+    // Drag-to-reorder
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.target && e.target.closest && e.target.closest('input')) return;
+      draggingRow = row;
+      dragPointerId = e.pointerId;
+      try { row.classList.add('dragging'); } catch {}
+      try { container.setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    });
+  }
+
+  // Add loop button
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'detail-add-btn';
+  addBtn.textContent = '+ Add Loop';
+  addBtn.addEventListener('click', () => {
+    openDetailLoopPicker();
+  });
+  container.appendChild(addBtn);
+
+  container.onpointermove = (e) => {
+    if (!draggingRow) return;
+    if (dragPointerId != null && e.pointerId !== dragPointerId) return;
+    const siblings = Array.from(container.querySelectorAll('.detail-loop-edit'))
+      .filter(r => r !== draggingRow);
+    for (const sib of siblings) {
+      const rect = sib.getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) {
+        if (sib !== draggingRow.nextSibling) container.insertBefore(draggingRow, sib);
+        return;
+      }
+    }
+    const aBtn = container.querySelector('.detail-add-btn');
+    if (aBtn) container.insertBefore(draggingRow, aBtn);
+    e.preventDefault();
+  };
+  container.onpointerup = container.onpointercancel = (e) => {
+    if (!draggingRow) return;
+    if (dragPointerId != null && e.pointerId !== dragPointerId) return;
+    try { draggingRow.classList.remove('dragging'); } catch {}
+    try { container.releasePointerCapture(dragPointerId); } catch {}
+    draggingRow = null;
+    dragPointerId = null;
+    rebuildOrder();
+    renderPlaylistDetail();
+  };
+}
+
+function openDetailLoopPicker() {
+  const loopPickerOverlay = document.getElementById('loopPickerOverlay');
+  const loopPickerList = document.getElementById('loopPickerList');
+  if (!loopPickerList) return;
+  loopPickerList.innerHTML = '';
+  const choices = getAllLoopChoices();
+  choices.forEach(ch => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = ch.label;
+    b.addEventListener('click', () => {
+      if (!activePlaylist) return;
+      if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
+      const item = { itemId: makePlaylistItemId(), presetKey: ch.presetKey, label: ch.label, reps: 1, volume: 1.0 };
+      activePlaylist.items.push(item);
+      savePlaylistRecord(activePlaylist).catch(() => {});
+      const ov = document.getElementById('loopPickerOverlay');
+      if (ov) ov.classList.add('hidden');
+      try { updateScrollState(); } catch {}
+      renderPlaylistDetail();
+    });
+    loopPickerList.appendChild(b);
+  });
+  if (loopPickerOverlay) loopPickerOverlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+/* ================================================================
+   Loop Trimmer
+   ================================================================ */
+
+async function openTrimmer(preset) {
+  if (!preset || !preset.blob) { setStatus('No audio to trim'); return; }
+  try {
+    setStatus('Loading for trim…');
+    const ab = await preset.blob.arrayBuffer();
+    const buf = await decodeArrayBuffer(ab);
+    if (!buf) { setStatus('Failed to decode audio'); return; }
+    trimBuffer = buf;
+    trimPreset = preset;
+    // Initialize IN/OUT from saved trim or auto-detect.
+    if (preset.trimIn != null && preset.trimOut != null) {
+      trimIn = preset.trimIn;
+      trimOut = preset.trimOut;
+    } else {
+      const pts = computeLoopPoints(buf);
+      trimIn = pts.start;
+      trimOut = pts.end;
+    }
+    trimZoomLevel = 1;
+    trimViewStart = 0;
+    trimDragging = null;
+    const titleEl = document.getElementById('trimTitle');
+    const infoEl = document.getElementById('trimInfo');
+    if (titleEl) titleEl.textContent = preset.name || 'Trim Loop';
+    if (infoEl) infoEl.textContent = `Duration ${buf.duration.toFixed(2)}s`;
+    const zoomSlider = document.getElementById('trimZoom');
+    if (zoomSlider) zoomSlider.value = '1';
+    switchTab('trimmer');
+    updateTrimReadouts();
+    setTimeout(drawTrimWaveform, 0);
+    setStatus('Trimmer ready');
+  } catch (e) {
+    setStatus('Failed to open trimmer');
+  }
+}
+
+function getTrimViewSpan() {
+  if (!trimBuffer) return { start: 0, end: 1 };
+  const dur = trimBuffer.duration || 1;
+  const viewDur = Math.max(0.01, dur / Math.max(1, trimZoomLevel));
+  let vs = trimViewStart;
+  if (vs + viewDur > dur) vs = Math.max(0, dur - viewDur);
+  if (vs < 0) vs = 0;
+  trimViewStart = vs;
+  return { start: vs, end: vs + viewDur };
+}
+
+function drawTrimWaveform() {
+  const cvs = document.getElementById('trimCanvas');
+  if (!cvs || !trimBuffer) return;
+  const rootStyles = getComputedStyle(document.documentElement);
+  const waveBg = (rootStyles.getPropertyValue('--wave-bg') || '').trim() || '#141418';
+  const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#5b8def';
+  const textCol = (rootStyles.getPropertyValue('--text-2') || '').trim() || '#82828c';
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(10, Math.floor(cvs.clientWidth * dpr));
+  const h = Math.max(50, Math.floor((cvs.clientHeight || cvs.height) * dpr));
+  if (cvs.width !== w) cvs.width = w;
+  if (cvs.height !== h) cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = waveBg;
+  ctx.fillRect(0, 0, w, h);
+
+  const sr = trimBuffer.sampleRate;
+  const ch0 = trimBuffer.getChannelData(0);
+  const { start: vStart, end: vEnd } = getTrimViewSpan();
+  const viewSamples = Math.max(1, Math.floor((vEnd - vStart) * sr));
+  const s0 = Math.floor(vStart * sr);
+  const mid = h / 2;
+
+  // Draw waveform
+  const step = Math.max(1, Math.floor(viewSamples / w));
+  ctx.fillStyle = accent;
+  ctx.globalAlpha = 0.45;
+  for (let px = 0; px < w; px++) {
+    const sampleIdx = s0 + Math.floor((px / w) * viewSamples);
+    let min = 0, max = 0;
+    for (let j = 0; j < step && sampleIdx + j < ch0.length; j++) {
+      const v = ch0[sampleIdx + j] || 0;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const y1 = mid + min * mid;
+    const y2 = mid + max * mid;
+    ctx.fillRect(px, y1, 1, Math.max(1, y2 - y1));
+  }
+  ctx.globalAlpha = 1;
+
+  // Dimmed region outside trim
+  const inPx = Math.round(((trimIn - vStart) / (vEnd - vStart)) * w);
+  const outPx = Math.round(((trimOut - vStart) / (vEnd - vStart)) * w);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  if (inPx > 0) ctx.fillRect(0, 0, Math.min(w, inPx), h);
+  if (outPx < w) ctx.fillRect(Math.max(0, outPx), 0, w - outPx, h);
+
+  // IN cursor (green line)
+  if (inPx >= 0 && inPx <= w) {
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(inPx - 1, 0, 3, h);
+    ctx.font = `bold ${Math.round(11 * dpr)}px sans-serif`;
+    ctx.fillText('IN', Math.min(inPx + 4, w - 20 * dpr), 14 * dpr);
+  }
+
+  // OUT cursor (red line)
+  if (outPx >= 0 && outPx <= w) {
+    ctx.fillStyle = '#f87171';
+    ctx.fillRect(outPx - 1, 0, 3, h);
+    ctx.font = `bold ${Math.round(11 * dpr)}px sans-serif`;
+    ctx.fillText('OUT', Math.max(outPx - 30 * dpr, 2), 14 * dpr);
+  }
+}
+
+function updateTrimReadouts() {
+  const inEl = document.getElementById('trimInTime');
+  const outEl = document.getElementById('trimOutTime');
+  const durEl = document.getElementById('trimDuration');
+  if (inEl) inEl.textContent = `${trimIn.toFixed(3)}s`;
+  if (outEl) outEl.textContent = `${trimOut.toFixed(3)}s`;
+  if (durEl) durEl.textContent = `${Math.max(0, trimOut - trimIn).toFixed(3)}s`;
+}
+
+function handleTrimPointerDown(e) {
+  const cvs = document.getElementById('trimCanvas');
+  if (!cvs || !trimBuffer) return;
+  const rect = cvs.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const frac = x / rect.width;
+  const { start: vStart, end: vEnd } = getTrimViewSpan();
+  const timeAtX = vStart + frac * (vEnd - vStart);
+
+  // Determine which cursor is closest (within grab radius).
+  const pixelWidth = rect.width;
+  const grabRadius = 20; // px
+  const inPx = ((trimIn - vStart) / (vEnd - vStart)) * pixelWidth;
+  const outPx = ((trimOut - vStart) / (vEnd - vStart)) * pixelWidth;
+  const distIn = Math.abs(x - inPx);
+  const distOut = Math.abs(x - outPx);
+
+  if (distIn <= grabRadius && distIn <= distOut) {
+    trimDragging = 'in';
+  } else if (distOut <= grabRadius) {
+    trimDragging = 'out';
+  } else {
+    trimDragging = 'pan';
+    trimDragStartX = e.clientX;
+    trimPanStartView = trimViewStart;
+  }
+  try { cvs.setPointerCapture(e.pointerId); } catch {}
+  e.preventDefault();
+}
+
+function handleTrimPointerMove(e) {
+  if (!trimDragging || !trimBuffer) return;
+  const cvs = document.getElementById('trimCanvas');
+  if (!cvs) return;
+  const rect = cvs.getBoundingClientRect();
+  const dur = trimBuffer.duration;
+
+  if (trimDragging === 'pan') {
+    const dx = e.clientX - trimDragStartX;
+    const { start: vStart, end: vEnd } = getTrimViewSpan();
+    const viewDur = vEnd - vStart;
+    const shift = -(dx / rect.width) * viewDur;
+    trimViewStart = Math.max(0, Math.min(dur - viewDur, trimPanStartView + shift));
+    drawTrimWaveform();
+    return;
+  }
+
+  const x = e.clientX - rect.left;
+  const frac = Math.max(0, Math.min(1, x / rect.width));
+  const { start: vStart, end: vEnd } = getTrimViewSpan();
+  const time = vStart + frac * (vEnd - vStart);
+
+  if (trimDragging === 'in') {
+    trimIn = Math.max(0, Math.min(time, trimOut - 0.001));
+  } else if (trimDragging === 'out') {
+    trimOut = Math.max(trimIn + 0.001, Math.min(time, dur));
+  }
+  updateTrimReadouts();
+  drawTrimWaveform();
+}
+
+function handleTrimPointerUp(e) {
+  if (!trimDragging) return;
+  trimDragging = null;
+  const cvs = document.getElementById('trimCanvas');
+  try { if (cvs) cvs.releasePointerCapture(e.pointerId); } catch {}
+}
+
+function stopTrimTest() {
+  try { if (trimTestSource) { trimTestSource.stop(); trimTestSource.disconnect(); } } catch {}
+  try { if (trimTestGain) trimTestGain.disconnect(); } catch {}
+  trimTestSource = null;
+  trimTestGain = null;
+}
+
+async function playTrimTest() {
+  if (!trimBuffer || !audioCtx) return;
+  stopTrimTest();
+  ensureAudio();
+  if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+  startOutputIfNeeded();
+  // Stop any main playback to avoid overlap.
+  stopLoop(0, false);
+
+  trimTestSource = audioCtx.createBufferSource();
+  trimTestSource.buffer = trimBuffer;
+  trimTestSource.loop = true;
+  trimTestSource.loopStart = trimIn;
+  trimTestSource.loopEnd = trimOut;
+  try { trimTestSource.playbackRate.setValueAtTime(1, audioCtx.currentTime); } catch {}
+
+  trimTestGain = audioCtx.createGain();
+  trimTestGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  trimTestGain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.03);
+
+  trimTestSource.connect(trimTestGain);
+  trimTestGain.connect(master);
+
+  master.gain.cancelScheduledValues(audioCtx.currentTime);
+  master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
+  master.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+
+  trimTestSource.start(audioCtx.currentTime, trimIn);
+  startOutputIfNeeded();
+  setStatus('Playing trim preview…');
+}
+
+async function saveTrimPoints() {
+  if (!trimPreset || !trimPreset.id) { setStatus('Nothing to save'); return; }
+  trimPreset.trimIn = trimIn;
+  trimPreset.trimOut = trimOut;
+  // Persist to IndexedDB upload record.
+  try {
+    const db = await openUploadsDb();
+    const rec = await idbTx(db, 'readonly', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.get(trimPreset.id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    });
+    if (rec) {
+      rec.trimIn = trimIn;
+      rec.trimOut = trimOut;
+      await idbTx(db, 'readwrite', (store) => store.put(rec));
+    }
+    try { db.close(); } catch {}
+  } catch {}
+  setStatus('Trim saved');
+}
+
+async function resetTrimPoints() {
+  if (!trimBuffer) return;
+  const pts = computeLoopPoints(trimBuffer);
+  trimIn = pts.start;
+  trimOut = pts.end;
+  updateTrimReadouts();
+  drawTrimWaveform();
+  // Also clear persisted trim.
+  if (trimPreset) {
+    delete trimPreset.trimIn;
+    delete trimPreset.trimOut;
+    if (trimPreset.id) {
+      try {
+        const db = await openUploadsDb();
+        const rec = await idbTx(db, 'readonly', (store) => {
+          return new Promise((resolve, reject) => {
+            const req = store.get(trimPreset.id);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+          });
+        });
+        if (rec) {
+          delete rec.trimIn;
+          delete rec.trimOut;
+          await idbTx(db, 'readwrite', (store) => store.put(rec));
+        }
+        try { db.close(); } catch {}
+      } catch {}
+    }
+  }
+  setStatus('Trim reset to auto');
 }
 
 function renderLoopsPage() {
@@ -1085,6 +1661,20 @@ function renderLoopsPage() {
       }
     });
     content.appendChild(playBtn);
+
+    // Trim button
+    if (p.blob) {
+      const trimBtn = document.createElement('button');
+      trimBtn.type = 'button';
+      trimBtn.className = 'preset-trim';
+      trimBtn.textContent = '✂';
+      trimBtn.setAttribute('aria-label', `Trim ${p.name}`);
+      trimBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openTrimmer(p);
+      });
+      content.appendChild(trimBtn);
+    }
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
@@ -1184,17 +1774,6 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
   updateMediaSession('paused');
 }
 
-function getSettingsFromUI() {
-  const th = document.getElementById('s-threshold');
-  const mg = document.getElementById('s-margin');
-  const wn = document.getElementById('s-window');
-  return {
-    threshold: Number(th && th.value) || defaultSettings.threshold,
-    marginMs: Number(mg && mg.value) || defaultSettings.marginMs,
-    windowMs: Number(wn && wn.value) || defaultSettings.windowMs,
-  };
-}
-
 function drawWaveform() {
   const cvs = document.getElementById('wave');
   if (!cvs) return;
@@ -1276,9 +1855,156 @@ function updateMediaSession(state) {
   } catch {}
 }
 
+/* ================================================================
+   Settings: Export/Import, Theme, Help
+   ================================================================ */
+
+async function exportAppData() {
+  try {
+    setStatus('Exporting…');
+    const playlists = await listPlaylistRecords().catch(() => []);
+    const uploads = await listPersistedUploads().catch(() => []);
+    // Strip blobs from uploads (too large); export metadata + trim points only.
+    const uploadMeta = (uploads || []).map(u => ({
+      id: u.id, name: u.name, createdAt: u.createdAt,
+      trimIn: u.trimIn != null ? u.trimIn : undefined,
+      trimOut: u.trimOut != null ? u.trimOut : undefined,
+    }));
+    const data = {
+      app: 'seamless',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      playlists: playlists || [],
+      uploads: uploadMeta,
+    };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `seamless-backup-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+    setStatus('Export complete');
+  } catch (e) {
+    setStatus('Export failed');
+  }
+}
+
+async function importAppData(file) {
+  if (!file) return;
+  try {
+    setStatus('Importing…');
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || data.app !== 'seamless') { setStatus('Invalid backup file'); return; }
+    // Import playlists.
+    if (Array.isArray(data.playlists)) {
+      for (const pl of data.playlists) {
+        if (!pl || !pl.id) continue;
+        await savePlaylistRecord(pl).catch(() => {});
+      }
+    }
+    // Import upload trim metadata (merge with existing uploads).
+    if (Array.isArray(data.uploads)) {
+      try {
+        const db = await openUploadsDb();
+        for (const meta of data.uploads) {
+          if (!meta || !meta.id) continue;
+          const existing = await idbTx(db, 'readonly', (store) => {
+            return new Promise((resolve, reject) => {
+              const req = store.get(meta.id);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => reject(req.error);
+            });
+          }).catch(() => null);
+          if (existing) {
+            if (meta.trimIn != null) existing.trimIn = meta.trimIn;
+            if (meta.trimOut != null) existing.trimOut = meta.trimOut;
+            await idbTx(db, 'readwrite', (store) => store.put(existing)).catch(() => {});
+          }
+        }
+        try { db.close(); } catch {}
+      } catch {}
+    }
+    // Refresh userPresets trim data from imported metadata.
+    if (Array.isArray(data.uploads)) {
+      for (const meta of data.uploads) {
+        if (!meta || !meta.id) continue;
+        const preset = userPresets.find(p => p && p.id === meta.id);
+        if (preset) {
+          if (meta.trimIn != null) preset.trimIn = meta.trimIn;
+          if (meta.trimOut != null) preset.trimOut = meta.trimOut;
+        }
+      }
+    }
+    setStatus('Import complete');
+    if (activeTab === 'playlists') renderPlaylistsPage();
+    if (activeTab === 'loops') renderLoopsPage();
+  } catch (e) {
+    setStatus('Import failed — invalid JSON');
+  }
+}
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.classList.remove('theme-light');
+  if (theme === 'light') root.classList.add('theme-light');
+  try { localStorage.setItem('seamless-theme', theme); } catch {}
+  // Update toggle buttons.
+  document.querySelectorAll('.theme-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
+}
+
+function loadSavedTheme() {
+  try {
+    const saved = localStorage.getItem('seamless-theme');
+    if (saved === 'light' || saved === 'dark') applyTheme(saved);
+  } catch {}
+}
+
+function showHelpOverlay() {
+  // Reuse the picker overlay (or create a dynamic one).
+  let ov = document.getElementById('helpOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'helpOverlay';
+    ov.className = 'overlay hidden';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', 'Help');
+    ov.innerHTML = `<div class="overlay-card">
+      <h2>Help</h2>
+      <div class="help-content">
+        <h3>Player</h3>
+        <p>Tap <b>Play</b> to start the loaded loop. Use the volume slider and rate jog to adjust playback. The <b>Repeat</b> button toggles whole-playlist looping.</p>
+        <h3>Playlists</h3>
+        <p>Create playlists and add loops to them. Tap a playlist to see its details — edit, reorder, or adjust per-loop volume.</p>
+        <h3>Audio Loops</h3>
+        <p>Browse built-in loops or import your own. Imported loops have a <b>✂ trim</b> button to adjust loop start/end points.</p>
+        <h3>Trimmer</h3>
+        <p>Drag the green <b>IN</b> and red <b>OUT</b> cursors to set loop boundaries. Zoom in for precision. Tap <b>Test Loop</b> to hear the result before saving.</p>
+        <h3>Settings</h3>
+        <p>Export/import your data as JSON. Switch between dark and light themes.</p>
+      </div>
+      <div class="overlay-actions"><button id="closeHelp" class="secondary">Close</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#closeHelp').addEventListener('click', () => {
+      ov.classList.add('hidden');
+      try { updateScrollState(); } catch {}
+    });
+  }
+  ov.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
 function bindUI() {
   const playBtn = document.getElementById('play');
   const stopBtn = document.getElementById('stop');
+  const repeatBtn = document.getElementById('repeat');
   const volume = document.getElementById('volume');
   const volumeReadout = document.getElementById('volumeReadout');
   const rateJog = document.getElementById('rateJog');
@@ -1303,10 +2029,11 @@ function bindUI() {
   const confirmDeletePlaylist = document.getElementById('confirmDeletePlaylist');
   const cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
 
-  const playlistActionsOverlay = document.getElementById('playlistActionsOverlay');
-  const playlistActionsEdit = document.getElementById('playlistActionsEdit');
-  const playlistActionsDelete = document.getElementById('playlistActionsDelete');
-  const playlistActionsCancel = document.getElementById('playlistActionsCancel');
+  // Detail page buttons
+  const detailBack = document.getElementById('detailBack');
+  const detailPlay = document.getElementById('detailPlay');
+  const detailEdit = document.getElementById('detailEdit');
+  const detailDelete = document.getElementById('detailDelete');
 
   const loopPickerOverlay = document.getElementById('loopPickerOverlay');
   const loopPickerList = document.getElementById('loopPickerList');
@@ -1316,9 +2043,23 @@ function bindUI() {
   const loadUrl = document.getElementById('loadUrl');
   const loadPreset = document.getElementById('loadPreset');
   const dropZone = document.getElementById('dropZone');
-  const recomputeBtn = document.getElementById('recompute');
-  const toggleSettings = document.getElementById('toggleSettings');
-  const settingsBody = document.getElementById('settingsBody');
+
+  // Trimmer elements
+  const trimBack = document.getElementById('trimBack');
+  const trimCanvas = document.getElementById('trimCanvas');
+  const trimZoom = document.getElementById('trimZoom');
+  const trimPlayTest = document.getElementById('trimPlayTest');
+  const trimStopTest = document.getElementById('trimStopTest');
+  const trimSaveBtn = document.getElementById('trimSave');
+  const trimResetBtn = document.getElementById('trimReset');
+
+  // Settings elements
+  const exportJsonBtn = document.getElementById('exportJson');
+  const importJsonBtn = document.getElementById('importJson');
+  const importJsonInput = document.getElementById('importJsonInput');
+  const themeToggle = document.getElementById('themeToggle');
+  const settingsHelpBtn = document.getElementById('settingsHelp');
+
   let dragCounter = 0;
 
   // iOS Files app can be picky about MIME/UTI; broaden accept at runtime (especially in standalone).
@@ -1404,6 +2145,40 @@ function bindUI() {
   // Stop should also stop playlist sequencing.
   stopBtn && stopBtn.addEventListener('click', () => {
     try { stopPlaylistPlayback(); } catch {}
+  });
+
+  // Repeat button toggles playlist repeat mode.
+  repeatBtn && repeatBtn.addEventListener('click', () => {
+    playlistRepeat = !playlistRepeat;
+    repeatBtn.classList.toggle('active', playlistRepeat);
+    repeatBtn.setAttribute('aria-pressed', String(playlistRepeat));
+    setStatus(playlistRepeat ? 'Repeat: ON' : 'Repeat: OFF');
+  });
+
+  // ---- Playlist detail page wiring ----
+  detailBack && detailBack.addEventListener('click', () => {
+    detailEditMode = false;
+    switchTab('playlists');
+  });
+
+  detailPlay && detailPlay.addEventListener('click', async () => {
+    if (!activePlaylist) return;
+    await playActivePlaylist();
+  });
+
+  detailEdit && detailEdit.addEventListener('click', () => {
+    detailEditMode = !detailEditMode;
+    renderPlaylistDetail();
+  });
+
+  detailDelete && detailDelete.addEventListener('click', () => {
+    if (!activePlaylist) return;
+    pendingDeletePlaylistId = activePlaylist.id;
+    const txt = document.getElementById('playlistDeleteText');
+    if (txt) txt.textContent = `Delete "${activePlaylist.name || 'Playlist'}"?`;
+    const ov = document.getElementById('playlistDeleteOverlay');
+    if (ov) ov.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
   });
 
   // Import Loop button (Audio Loops page)
@@ -1833,44 +2608,6 @@ function bindUI() {
     if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();
   });
 
-  const hidePlaylistActions = () => {
-    pendingActionsPlaylistId = null;
-    pendingActionsPlaylistName = '';
-    hideOverlay(playlistActionsOverlay);
-  };
-
-  // Close actions modal when tapping outside the card.
-  playlistActionsOverlay && playlistActionsOverlay.addEventListener('click', (e) => {
-    if (!e || !e.target) return;
-    if (e.target === playlistActionsOverlay) hidePlaylistActions();
-  });
-
-  playlistActionsCancel && playlistActionsCancel.addEventListener('click', () => {
-    hidePlaylistActions();
-  });
-
-  playlistActionsEdit && playlistActionsEdit.addEventListener('click', async () => {
-    const id = pendingActionsPlaylistId;
-    hidePlaylistActions();
-    if (!id) return;
-    try {
-      const rec = await loadPlaylistRecord(id);
-      if (!rec) return;
-      activePlaylist = rec;
-      if (openPlaylistEditOverlay) openPlaylistEditOverlay(rec);
-    } catch {}
-  });
-
-  playlistActionsDelete && playlistActionsDelete.addEventListener('click', () => {
-    const id = pendingActionsPlaylistId;
-    const name = pendingActionsPlaylistName || 'Playlist';
-    hidePlaylistActions();
-    if (!id) return;
-    pendingDeletePlaylistId = id;
-    const txt = document.getElementById('playlistDeleteText');
-    if (txt) txt.textContent = `Delete "${name}"?`;
-    showOverlay(playlistDeleteOverlay);
-  });
   closePlaylistOverlay && closePlaylistOverlay.addEventListener('click', closePlaylist);
   playlistClose && playlistClose.addEventListener('click', closePlaylist);
 
@@ -1880,8 +2617,9 @@ function bindUI() {
     const record = { id: makePlaylistId(), name, createdAt: Date.now(), items: [] };
     try {
       await savePlaylistRecord(record);
-      openPlaylistEdit(record);
-      try { if (activeTab === 'playlists') renderPlaylistsPage(); } catch {}
+      // After creating, go to the detail page for the new playlist.
+      closePlaylist();
+      openPlaylistDetail(record.id);
     } catch {
       setStatus('Failed to create playlist.');
     }
@@ -1919,7 +2657,10 @@ function bindUI() {
         activePlaylistId = null;
         playlistIsPlaying = false;
       }
-      if (activeTab === 'playlists') renderPlaylistsPage();
+      // Navigate back to playlists list if on detail page.
+      if (activeTab === 'playlist-detail' || activeTab === 'playlists') {
+        switchTab('playlists');
+      }
       setStatus('Playlist deleted');
     } catch {
       setStatus('Failed to delete playlist');
@@ -2147,30 +2888,69 @@ function bindUI() {
     });
   }
 
-  recomputeBtn && recomputeBtn.addEventListener('click', async () => {
-    currentSettings = getSettingsFromUI();
-    if (!currentBuffer) { setStatus('No buffer to analyze.'); return; }
-    const pts = computeLoopPoints(currentBuffer, currentSettings);
-    lastLoopPoints = pts;
-    setLoopInfo(`Loop: ${pts.start.toFixed(3)}s → ${pts.end.toFixed(3)}s | dur ${currentBuffer.duration.toFixed(2)}s`);
-    drawWaveform();
-    if (loopSource) await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
+  // ---- Trimmer bindings ----
+  trimBack && trimBack.addEventListener('click', () => {
+    stopTrimTest();
+    switchTab('loops');
   });
 
-  window.addEventListener('resize', () => drawWaveform());
-  window.addEventListener('orientationchange', () => setTimeout(drawWaveform, 250));
+  if (trimCanvas) {
+    trimCanvas.addEventListener('pointerdown', handleTrimPointerDown);
+    trimCanvas.addEventListener('pointermove', handleTrimPointerMove);
+    trimCanvas.addEventListener('pointerup', handleTrimPointerUp);
+    trimCanvas.addEventListener('pointercancel', handleTrimPointerUp);
+  }
+
+  trimZoom && trimZoom.addEventListener('input', () => {
+    const v = parseInt(trimZoom.value, 10) || 1;
+    trimZoomLevel = Math.max(1, v);
+    // Centre the view around the midpoint of the trim region when zooming.
+    if (trimBuffer) {
+      const midTrim = (trimIn + trimOut) / 2;
+      const viewDur = trimBuffer.duration / trimZoomLevel;
+      trimViewStart = Math.max(0, midTrim - viewDur / 2);
+    }
+    drawTrimWaveform();
+  });
+
+  trimPlayTest && trimPlayTest.addEventListener('click', () => playTrimTest());
+  trimStopTest && trimStopTest.addEventListener('click', () => { stopTrimTest(); setStatus('Stopped'); });
+  trimSaveBtn && trimSaveBtn.addEventListener('click', () => saveTrimPoints());
+  trimResetBtn && trimResetBtn.addEventListener('click', () => resetTrimPoints());
+
+  // ---- Settings bindings ----
+  exportJsonBtn && exportJsonBtn.addEventListener('click', () => exportAppData());
+  importJsonBtn && importJsonBtn.addEventListener('click', () => {
+    if (importJsonInput) importJsonInput.click();
+  });
+  importJsonInput && importJsonInput.addEventListener('change', () => {
+    const f = importJsonInput.files && importJsonInput.files[0];
+    if (f) importAppData(f);
+    try { importJsonInput.value = ''; } catch {}
+  });
+
+  if (themeToggle) {
+    themeToggle.querySelectorAll('.theme-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.dataset.theme || 'dark';
+        applyTheme(theme);
+      });
+    });
+  }
+
+  settingsHelpBtn && settingsHelpBtn.addEventListener('click', () => showHelpOverlay());
+
+  // Load saved theme on startup.
+  loadSavedTheme();
+
+  window.addEventListener('resize', () => { drawWaveform(); drawTrimWaveform(); });
+  window.addEventListener('orientationchange', () => { setTimeout(drawWaveform, 250); setTimeout(drawTrimWaveform, 250); });
   window.addEventListener('resize', () => updateLandscapeVizState());
   window.addEventListener('orientationchange', () => setTimeout(updateLandscapeVizState, 50));
   window.addEventListener('resize', () => lockViewportScale());
   window.addEventListener('orientationchange', () => {
     lockViewportScale();
     setTimeout(lockViewportScale, 250);
-  });
-
-  toggleSettings && toggleSettings.addEventListener('click', () => {
-    const hidden = settingsBody.classList.toggle('hidden');
-    toggleSettings.textContent = hidden ? 'SHOW' : 'HIDE';
-    toggleSettings.setAttribute('aria-expanded', hidden ? 'false' : 'true');
   });
 }
 
