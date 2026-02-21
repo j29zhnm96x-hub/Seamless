@@ -460,8 +460,6 @@ async function playActivePlaylist() {
     segByKey.set(k, seg);
   }
 
-  const playlistRate = clamp(currentRate, RATE_MIN, RATE_MAX);
-
   for (const it of items) {
     if (playlistPlayToken !== token) return;
     if (!it || !it.presetKey) continue;
@@ -478,10 +476,11 @@ async function playActivePlaylist() {
     currentPresetRef = loaded.presetRef || null;
     setStatus(`Playlist: ${currentSourceLabel} ×${reps}`);
 
+    const rateNow = clamp(currentRate, RATE_MIN, RATE_MAX);
     await startLoopFromBuffer(loaded.buffer, 0.5, 0.03);
 
     // Wait for repetitions of the computed loop segment.
-    const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, playlistRate));
+    const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, rateNow));
     const endAt = (audioCtx ? audioCtx.currentTime : 0) + totalSec;
     while (audioCtx && audioCtx.currentTime < endAt) {
       if (playlistPlayToken !== token) return;
