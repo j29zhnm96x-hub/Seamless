@@ -381,7 +381,11 @@ function getAllLoopChoices() {
 
 async function loadBufferFromPresetKey(presetKey) {
   if (!presetKey) return null;
-  const [kind, rest] = String(presetKey).split(':');
+  const s = String(presetKey);
+  const sep = s.indexOf(':');
+  if (sep < 0) return null;
+  const kind = s.slice(0, sep);
+  const rest = s.slice(sep + 1);
   if (!kind || !rest) return null;
 
   if (kind === 'builtin') {
@@ -393,7 +397,7 @@ async function loadBufferFromPresetKey(presetKey) {
     return { buffer: buf, sourceLabel: rest, presetId: null, presetRef: null };
   }
   if (kind === 'upload') {
-    const preset = userPresets.find(p => p && p.id === rest) || null;
+    const preset = userPresets.find(p => p && String(p.id) === String(rest)) || null;
     if (!preset || !preset.blob) return null;
     const ab = await preset.blob.arrayBuffer();
     const buf = await decodeArrayBuffer(ab);
