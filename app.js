@@ -1638,6 +1638,7 @@ function renderLoopsPage() {
 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
+    playBtn.className = 'preset-play';
     playBtn.textContent = p.name;
     playBtn.addEventListener('click', async () => {
       try {
