@@ -15,7 +15,7 @@
   --text-3: #55555e;
   --radius: 8px;
   --radius-lg: 14px;
-  --shadow: 0 2px 12px -4px rgba(0,0,0,0.50);
+  --shadow: 0 2px 10px rgba(0,0,0,0.38), 0 14px 34px -14px rgba(0,0,0,0.72);
   --transition: 120ms ease;
   --focus: 0 0 0 2px var(--accent-mid);
   --wave-bg: #141418;
@@ -101,6 +101,7 @@ button,input,a,.tab{touch-action:manipulation}
   border-radius:var(--radius);
   padding:14px;
   margin-bottom:12px;
+  box-shadow:var(--shadow);
 }
 
 /* -------- Buttons -------- */
@@ -122,7 +123,7 @@ button:active,.btn:active{transform:scale(.97)}
 .btn-accent,.btn-primary{
   background:var(--accent);
   color:#fff;
-  box-shadow:0 1px 4px rgba(0,0,0,.25);
+  box-shadow:var(--shadow);
 }
 .btn-accent:hover{filter:brightness(1.1)}
 
@@ -171,7 +172,7 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--surface);
   border:1px solid var(--border-2);
   color:var(--text);
-  box-shadow:none;
+  box-shadow:var(--shadow);
   padding:0;
   transition:var(--transition);
 }
@@ -193,6 +194,7 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--wave-bg);
   border:1px solid var(--border);
   border-radius:var(--radius);
+  box-shadow:var(--shadow);
   display:block;
 }
 .wave-nowplaying{
@@ -229,6 +231,7 @@ button.danger{background:var(--danger);color:#fff}
   position:relative;height:48px;
   border-radius:var(--radius);border:1px solid var(--border-2);
   background:var(--surface);overflow:hidden;touch-action:none;
+  box-shadow:var(--shadow);
 }
 .rate-jog:focus-visible{outline:none;box-shadow:var(--focus)}
 .rate-jog-track{
@@ -260,6 +263,11 @@ button.danger{background:var(--danger);color:#fff}
 /* -------- Playlists list -------- */
 .playlist-list{
   list-style:none;margin:0;padding:0;display:grid;gap:2px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  background:var(--surface);
+  box-shadow:var(--shadow);
 }
 .playlist-list-item{
   display:flex;align-items:center;
@@ -399,7 +407,14 @@ button.danger{background:var(--danger);color:#fff}
   margin:0 0 6px;font-size:11px;font-weight:700;
   text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);
 }
-.list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.list{
+  list-style:none;margin:0;padding:0;display:grid;gap:2px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  background:var(--surface);
+  box-shadow:var(--shadow);
+}
 .list li > button{
   width:100%;text-align:left;
   background:var(--surface);color:var(--text);
@@ -457,6 +472,7 @@ button.danger{background:var(--danger);color:#fff}
   border:1px solid var(--border);border-radius:var(--radius);
   overflow:hidden;background:var(--wave-bg);
   touch-action:none;
+  box-shadow:var(--shadow);
 }
 #trimCanvas{
   width:100%;height:auto;aspect-ratio:3/1;display:block;
@@ -506,6 +522,7 @@ button.danger{background:var(--danger);color:#fff}
   display:flex;gap:0;margin-bottom:10px;
   border:1px solid var(--border);border-radius:var(--radius);
   overflow:hidden;
+  box-shadow:var(--shadow);
 }
 .trim-readout{
   flex:1;display:flex;flex-direction:column;align-items:center;
@@ -547,6 +564,8 @@ button.danger{background:var(--danger);color:#fff}
 .settings-group{
   border:1px solid var(--border);border-radius:var(--radius);
   overflow:hidden;
+  background:var(--surface);
+  box-shadow:var(--shadow);
 }
 .settings-item{
   display:flex;flex-direction:column;gap:2px;
@@ -604,7 +623,7 @@ html.theme-light{
   --text:#1f1f26;
   --text-2:#5f5f6b;
   --text-3:#8a8aa0;
-  --shadow:0 2px 14px -6px rgba(0,0,0,0.10);
+  --shadow:0 2px 10px rgba(0,0,0,0.08), 0 16px 34px -18px rgba(0,0,0,0.20);
   --wave-bg:#eef0f4;
 }
 html.theme-light body{-webkit-font-smoothing:auto}
@@ -679,6 +698,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
 #dropZone{
   border:2px dashed var(--border-2);padding:14px;border-radius:var(--radius);
   background:var(--surface);font-size:13px;color:var(--text-2);transition:var(--transition);
+  box-shadow:var(--shadow);
 }
 #dropZone.drag-hover{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
 
