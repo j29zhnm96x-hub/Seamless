@@ -1,4 +1,4 @@
-# Seamless Loop Player
+# SeamlessPlayer
 
 A minimal web-based loop player that produces gapless background loops with smooth fades and iOS-friendly background/lock playback.
 

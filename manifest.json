@@ -1,6 +1,6 @@
 {
-  "name": "Seamless Loop Player",
-  "short_name": "Seamless",
+  "name": "SeamlessPlayer",
+  "short_name": "SeamlessPlayer",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0d1117",

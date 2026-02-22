@@ -1,4 +1,4 @@
-# AI Coding Agent Guidelines for `Seamless`
+# AI Coding Agent Guidelines for `SeamlessPlayer`
 
 > Status: Static web app for seamless audio loops using Web Audio API.
 

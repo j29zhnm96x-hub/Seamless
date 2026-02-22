@@ -9,18 +9,18 @@ const RATE_MAX = 2.0;
 const userPresets = [];
 
 // Persist imported audio blobs across restarts via IndexedDB.
-const UPLOAD_DB_NAME = 'seamless-uploads';
+const UPLOAD_DB_NAME = 'seamlessplayer-uploads';
 const UPLOAD_DB_VERSION = 1;
 const UPLOAD_STORE = 'uploads';
 const MAX_PERSISTED_UPLOADS = 25;
 
 // Persist playlists across restarts via IndexedDB.
-const PLAYLIST_DB_NAME = 'seamless-playlists';
+const PLAYLIST_DB_NAME = 'seamlessplayer-playlists';
 const PLAYLIST_DB_VERSION = 1;
 const PLAYLIST_STORE = 'playlists';
 
 // Language (simple i18n)
-const LANG_STORAGE_KEY = 'seamless-lang';
+const LANG_STORAGE_KEY = 'seamlessplayer-lang';
 let currentLang = 'en';
 const I18N = {
   en: {
@@ -2601,8 +2601,8 @@ function updateMediaSession(state) {
   if (!('mediaSession' in navigator)) return;
   const ms = navigator.mediaSession;
   try {
-    const title = currentSourceLabel || 'Seamless Loop';
-    ms.metadata = new MediaMetadata({ title, artist: 'Seamless', album: 'Loops' });
+    const title = currentSourceLabel || 'SeamlessPlayer Loop';
+    ms.metadata = new MediaMetadata({ title, artist: 'SeamlessPlayer', album: 'Loops' });
     if (!mediaSessionHandlersSet) {
       ms.setActionHandler('play', async () => {
         if (currentBuffer) await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
@@ -2631,7 +2631,7 @@ async function exportAppData() {
       trimOut: u.trimOut != null ? u.trimOut : undefined,
     }));
     const data = {
-      app: 'seamless',
+      app: 'seamlessplayer',
       version: 1,
       exportedAt: new Date().toISOString(),
       playlists: playlists || [],
@@ -2642,7 +2642,7 @@ async function exportAppData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `seamless-backup-${Date.now()}.json`;
+    a.download = `seamlessplayer-backup-${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
@@ -2658,7 +2658,7 @@ async function importAppData(file) {
     setStatus('Importing…');
     const text = await file.text();
     const data = JSON.parse(text);
-    if (!data || data.app !== 'seamless') { setStatus('Invalid backup file'); return; }
+    if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
     // Import playlists.
     if (Array.isArray(data.playlists)) {
       for (const pl of data.playlists) {
@@ -2711,7 +2711,7 @@ function applyTheme(theme) {
   const root = document.documentElement;
   root.classList.remove('theme-light');
   if (theme === 'light') root.classList.add('theme-light');
-  try { localStorage.setItem('seamless-theme', theme); } catch {}
+  try { localStorage.setItem('seamlessplayer-theme', theme); } catch {}
   // Update toggle buttons.
   document.querySelectorAll('.theme-opt').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);
@@ -2720,7 +2720,7 @@ function applyTheme(theme) {
 
 function loadSavedTheme() {
   try {
-    const saved = localStorage.getItem('seamless-theme');
+    const saved = localStorage.getItem('seamlessplayer-theme');
     if (saved === 'light' || saved === 'dark') applyTheme(saved);
   } catch {}
 }
