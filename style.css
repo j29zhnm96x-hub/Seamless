@@ -141,7 +141,7 @@ button:active,.btn:active{transform:scale(.97)}
 .btn-icon{vertical-align:-2px;margin-right:4px}
 
 button.secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border-2);box-shadow:none}
-button.secondary:hover{background:#2a2a30}
+button.secondary:hover{background:var(--surface)}
 button.danger{background:var(--danger);color:#fff}
 .danger{background:var(--danger)}
 
@@ -591,24 +591,24 @@ button.danger{background:var(--danger);color:#fff}
 
 /* -------- Light Theme -------- */
 html.theme-light{
-  --bg:#f4f4f6;
-  --surface:#ffffff;
-  --surface-2:#eeeef1;
-  --border:rgba(0,0,0,0.08);
-  --border-2:rgba(0,0,0,0.12);
-  --accent:#3b6fd4;
-  --accent-soft:rgba(59,111,212,0.08);
-  --accent-mid:rgba(59,111,212,0.20);
-  --danger:#c43c3c;
-  --danger-soft:rgba(196,60,60,0.08);
-  --text:#1a1a1e;
-  --text-2:#5c5c66;
-  --text-3:#9090a0;
-  --shadow:0 2px 12px -4px rgba(0,0,0,0.12);
-  --wave-bg:#e8e8ec;
+  --bg:#f6f6f3;
+  --surface:#fbfbfd;
+  --surface-2:#eff0f4;
+  --border:rgba(0,0,0,0.06);
+  --border-2:rgba(0,0,0,0.10);
+  --accent:#3a6bd6;
+  --accent-soft:rgba(58,107,214,0.08);
+  --accent-mid:rgba(58,107,214,0.18);
+  --danger:#c23a3a;
+  --danger-soft:rgba(194,58,58,0.08);
+  --text:#1f1f26;
+  --text-2:#5f5f6b;
+  --text-3:#8a8aa0;
+  --shadow:0 2px 14px -6px rgba(0,0,0,0.10);
+  --wave-bg:#eef0f4;
 }
 html.theme-light body{-webkit-font-smoothing:auto}
-html.theme-light .tabbar{background:rgba(244,244,246,0.88)}
+html.theme-light .tabbar{background:rgba(246,246,243,0.92)}
 html.theme-light .transport-btn{background:var(--surface);border-color:var(--border-2)}
 
 /* -------- Help overlay -------- */
@@ -673,7 +673,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   width:100%;text-align:left;background:var(--surface-2);color:var(--text);
   border:1px solid var(--border);box-shadow:none;padding:10px 14px;font-size:13px;
 }
-.picker-list button:hover{background:#2a2a30}
+.picker-list button:hover{background:var(--surface)}
 
 /* -------- Drop zone -------- */
 #dropZone{
