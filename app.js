@@ -26,6 +26,7 @@ const I18N = {
   en: {
     status_ready: 'Ready',
     status_stopped: 'Stopped',
+    player_playlist_prefix: 'Playlist',
     tab_player: 'Player',
     tab_playlists: 'Playlists',
     tab_loops: 'Audio Loops',
@@ -80,6 +81,7 @@ const I18N = {
   hr: {
     status_ready: 'Spremno',
     status_stopped: 'Zaustavljeno',
+    player_playlist_prefix: 'Playlista',
     tab_player: 'Reprodukcija',
     tab_playlists: 'Playliste',
     tab_loops: 'Audio petlje',
@@ -288,6 +290,9 @@ function applyLanguage(lang) {
     const helpOv = document.getElementById('helpOverlay');
     if (helpOv && !helpOv.classList.contains('hidden')) showHelpOverlay();
   } catch {}
+
+  // Player page dynamic bits
+  try { updatePlayerPlaylistUI(); } catch {}
 }
 
 function openPlaylistsDb() {
@@ -579,6 +584,9 @@ let stopCleanupToken = 0;
 // Playlist state
 let activePlaylistId = null;
 let activePlaylist = null; // {id,name,items:[{presetKey,label,reps,volume}]}
+// Playlist loaded into the Player page (sticky until user loads a loop or chooses another playlist to play).
+let playerPlaylistId = null;
+let playerPlaylist = null; // {id,name,items:[{presetKey,label,reps,volume}]}
 let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
@@ -586,6 +594,38 @@ let playlistRepeat = false;
 let pendingDeletePlaylistId = null;
 let detailPlaylistId = null;
 let detailEditMode = false;
+
+function setPlayerPlaylist(record) {
+  playerPlaylist = record || null;
+  playerPlaylistId = (record && record.id) ? record.id : null;
+  try { updatePlayerPlaylistUI(); } catch {}
+}
+
+function clearPlayerPlaylistContext() {
+  try { stopPlaylistPlayback(); } catch {}
+  playlistIsPlaying = false;
+  playerPlaylist = null;
+  playerPlaylistId = null;
+  try { updatePlayerPlaylistUI(); } catch {}
+}
+
+function updatePlayerPlaylistUI() {
+  const el = document.getElementById('playerPlaylist');
+  if (!el) return;
+
+  const pl = playerPlaylist;
+  const name = (pl && pl.name) ? String(pl.name).trim() : '';
+  if (pl && (name || pl.id)) {
+    const prefix = t('player_playlist_prefix');
+    el.textContent = name ? `${prefix}: ${name}` : `${prefix}`;
+    el.classList.remove('hidden');
+    el.setAttribute('aria-hidden', 'false');
+  } else {
+    el.textContent = '';
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+  }
+}
 
 // Trimmer state
 let trimBuffer = null;
@@ -708,7 +748,8 @@ async function loadBufferFromPresetKey(presetKey) {
 }
 
 async function playActivePlaylist() {
-  if (!activePlaylist || !Array.isArray(activePlaylist.items) || !activePlaylist.items.length) {
+  const pl = playerPlaylist;
+  if (!pl || !Array.isArray(pl.items) || !pl.items.length) {
     setStatus('Playlist is empty.');
     return;
   }
@@ -725,7 +766,9 @@ async function playActivePlaylist() {
 
   try { switchTab('player'); } catch {}
 
-  const items = Array.isArray(activePlaylist.items) ? activePlaylist.items.slice() : [];
+  try { updatePlayerPlaylistUI(); } catch {}
+
+  const items = Array.isArray(pl.items) ? pl.items.slice() : [];
   if (!items.length) {
     playlistIsPlaying = false;
     setStatus('Playlist is empty.');
@@ -2374,6 +2417,7 @@ function renderLoopsPage() {
       try {
         setStatus(`Loading ${p.name}...`);
         const buf = await loadBufferFromUrl(p.path);
+        clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = p.name;
         currentPresetId = null;
@@ -2410,6 +2454,7 @@ function renderLoopsPage() {
           buf = await loadBufferFromUrl(p.url);
         }
         if (!buf) { setStatus('Failed to decode.'); return; }
+        clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = p.name;
         currentPresetId = p.id || null;
@@ -2605,10 +2650,14 @@ function updateMediaSession(state) {
     ms.metadata = new MediaMetadata({ title, artist: 'SeamlessPlayer', album: 'Loops' });
     if (!mediaSessionHandlersSet) {
       ms.setActionHandler('play', async () => {
+        if (!playlistIsPlaying && playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
+          await playActivePlaylist();
+          return;
+        }
         if (currentBuffer) await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
       });
-      ms.setActionHandler('pause', () => stopLoop(0));
-      ms.setActionHandler('stop', () => stopLoop(0));
+      ms.setActionHandler('pause', () => { try { stopPlaylistPlayback(); } catch {} stopLoop(0); });
+      ms.setActionHandler('stop', () => { try { stopPlaylistPlayback(); } catch {} stopLoop(0); });
       mediaSessionHandlersSet = true;
     }
     ms.playbackState = state || (loopSource ? 'playing' : 'paused');
@@ -2864,12 +2913,20 @@ function bindUI() {
   playBtn && playBtn.addEventListener('click', async () => {
     ensureAudio();
     startOutputIfNeeded();
+
+    // If a playlist is loaded in the Player page, Play restarts it.
+    if (!playlistIsPlaying && playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
+      await playActivePlaylist();
+      return;
+    }
+
     if (currentBuffer) {
       await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
       return;
     }
     try {
       const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
+      clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = 'ambientalsynth.mp3';
       currentPresetId = null;
@@ -2929,6 +2986,7 @@ function bindUI() {
 
   detailPlay && detailPlay.addEventListener('click', async () => {
     if (!activePlaylist) return;
+    setPlayerPlaylist(activePlaylist);
     await playActivePlaylist();
   });
 
@@ -3399,6 +3457,7 @@ function bindUI() {
   closeLoopPicker && closeLoopPicker.addEventListener('click', closePicker);
 
   playlistPlay && playlistPlay.addEventListener('click', () => {
+    if (activePlaylist) setPlayerPlaylist(activePlaylist);
     playActivePlaylist();
     closePlaylist();
   });
@@ -3423,6 +3482,9 @@ function bindUI() {
         activePlaylistId = null;
         playlistIsPlaying = false;
       }
+      if (playerPlaylistId && String(playerPlaylistId) === String(id)) {
+        clearPlayerPlaylistContext();
+      }
       // Navigate back to playlists list if on detail page.
       if (activeTab === 'playlist-detail' || activeTab === 'playlists') {
         switchTab('playlists');
@@ -3446,6 +3508,7 @@ function bindUI() {
     const ab = await f.arrayBuffer();
     try {
       const buf = await decodeArrayBuffer(ab);
+      clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = f.name || 'File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3467,6 +3530,7 @@ function bindUI() {
         const ab2 = await res.arrayBuffer();
         URL.revokeObjectURL(url);
         const buf2 = await decodeArrayBuffer(ab2);
+        clearPlayerPlaylistContext();
         currentBuffer = buf2;
         currentSourceLabel = f.name || 'File';
         await startLoopFromBuffer(buf2, 0.5, 0.03);
@@ -3498,6 +3562,7 @@ function bindUI() {
               const blob = await item.getType(type);
               const ab = await blob.arrayBuffer();
               const buf = await decodeArrayBuffer(ab);
+              clearPlayerPlaylistContext();
               currentBuffer = buf;
               currentSourceLabel = `Clipboard ${type}`;
               await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3532,6 +3597,7 @@ function bindUI() {
         setStatus('Loading from pasted URL...');
         try {
           const buf = await loadBufferFromUrl(text);
+          clearPlayerPlaylistContext();
           currentBuffer = buf;
           currentSourceLabel = text;
           await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3547,6 +3613,7 @@ function bindUI() {
     const ab = await f.arrayBuffer();
     try {
       const buf = await decodeArrayBuffer(ab);
+      clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = f.name || 'Pasted File';
       await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3571,6 +3638,7 @@ function bindUI() {
     try {
       setStatus('Loading URL...');
       const buf = await loadBufferFromUrl(url);
+      clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = url;
       await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3618,6 +3686,7 @@ function bindUI() {
       const ab = await f.arrayBuffer();
       try {
         const buf = await decodeArrayBuffer(ab);
+        clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = f.name || 'Dropped File';
         await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3643,6 +3712,7 @@ function bindUI() {
       try {
         setStatus('Loading dropped URL...');
         const buf = await loadBufferFromUrl(maybeUrl);
+        clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = maybeUrl;
         await startLoopFromBuffer(buf, 0.5, 0.03);

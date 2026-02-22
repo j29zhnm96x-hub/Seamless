@@ -185,6 +185,24 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--accent-soft);
 }
 
+.player-playlist{
+  margin:-6px auto 10px;
+  width:fit-content;
+  max-width:100%;
+  padding:6px 12px;
+  border-radius:999px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  box-shadow:var(--shadow);
+  color:var(--text-2);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.1px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
 /* -------- Waveform -------- */
 .wave-wrap{position:relative}
 #wave{
