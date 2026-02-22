@@ -19,6 +19,277 @@ const PLAYLIST_DB_NAME = 'seamless-playlists';
 const PLAYLIST_DB_VERSION = 1;
 const PLAYLIST_STORE = 'playlists';
 
+// Language (simple i18n)
+const LANG_STORAGE_KEY = 'seamless-lang';
+let currentLang = 'en';
+const I18N = {
+  en: {
+    status_ready: 'Ready',
+    status_stopped: 'Stopped',
+    tab_player: 'Player',
+    tab_playlists: 'Playlists',
+    tab_loops: 'Audio Loops',
+    tab_settings: 'Settings',
+    playlists_title: 'Playlists',
+    playlists_new: '+ New',
+    loops_title: 'Audio Loops',
+    loops_hint: 'Built-ins and anything you imported during this session.',
+    loops_import: 'Import Loop',
+    loops_builtin: 'Built-in',
+    loops_imported: 'IMPORTED',
+    trimmer_info_hint: 'Drag the IN/OUT cursors to adjust loop points',
+    trimmer_zoom: 'Zoom',
+    trimmer_test: 'Test Loop',
+    trimmer_stop: 'Stop',
+    trimmer_save: 'Save',
+    trimmer_reset: 'Reset',
+    settings_title: 'Settings',
+    settings_data: 'Data',
+    settings_export_main: 'Export Playlists & Loops',
+    settings_export_hint: 'Download as JSON backup',
+    settings_import_main: 'Import Playlists & Loops',
+    settings_import_hint: 'Restore from JSON file',
+    settings_appearance: 'Appearance',
+    settings_theme: 'Theme',
+    settings_theme_dark: 'Dark',
+    settings_theme_light: 'Light',
+    settings_language: 'Language',
+    settings_about: 'About',
+    settings_help_main: 'Help',
+    settings_help_hint: 'How to use the app',
+    help_title: 'Help',
+    help_player_h: 'Player',
+    help_player_p: 'Tap Play to start the loaded loop. Use the volume slider and rate jog to adjust playback. The Repeat button toggles whole-playlist looping.',
+    help_playlists_h: 'Playlists',
+    help_playlists_p: 'Create playlists and add loops to them. Tap a playlist to see its details — edit, reorder, or adjust per-loop volume.',
+    help_loops_h: 'Audio Loops',
+    help_loops_p: 'Browse built-in loops or import your own. Imported loops have a ✂ trim button to adjust loop start/end points.',
+    help_trimmer_h: 'Trimmer',
+    help_trimmer_p: 'Drag the green IN and red OUT cursors to set loop boundaries. Zoom in for precision. Tap Test Loop to hear the result before saving.',
+    help_settings_h: 'Settings',
+    help_settings_p: 'Export/import your data as JSON. Switch between dark and light themes.',
+    help_close: 'Close',
+    playlist_create_title: 'Create Playlist',
+    playlist_name_label: 'Playlist name',
+    playlist_name_placeholder: 'My playlist',
+    playlist_create_btn: 'Create',
+    common_close: 'Close',
+    playlist_add: 'Add',
+    playlist_play: 'Play'
+  },
+  hr: {
+    status_ready: 'Spremno',
+    status_stopped: 'Zaustavljeno',
+    tab_player: 'Reprodukcija',
+    tab_playlists: 'Playliste',
+    tab_loops: 'Audio petlje',
+    tab_settings: 'Postavke',
+    playlists_title: 'Playliste',
+    playlists_new: '+ Novo',
+    loops_title: 'Audio petlje',
+    loops_hint: 'Ugrađene petlje i sve što ste uvezli tijekom ove sesije.',
+    loops_import: 'Uvezi petlju',
+    loops_builtin: 'Ugrađeno',
+    loops_imported: 'UVEZENO',
+    trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja petlje',
+    trimmer_zoom: 'Zum',
+    trimmer_test: 'Testiraj petlju',
+    trimmer_stop: 'Zaustavi',
+    trimmer_save: 'Spremi',
+    trimmer_reset: 'Vrati',
+    settings_title: 'Postavke',
+    settings_data: 'Podaci',
+    settings_export_main: 'Izvezi playliste i petlje',
+    settings_export_hint: 'Preuzmi kao JSON sigurnosnu kopiju',
+    settings_import_main: 'Uvezi playliste i petlje',
+    settings_import_hint: 'Vrati iz JSON datoteke',
+    settings_appearance: 'Izgled',
+    settings_theme: 'Tema',
+    settings_theme_dark: 'Tamna',
+    settings_theme_light: 'Svijetla',
+    settings_language: 'Jezik',
+    settings_about: 'O aplikaciji',
+    settings_help_main: 'Pomoć',
+    settings_help_hint: 'Kako koristiti aplikaciju',
+    help_title: 'Pomoć',
+    help_player_h: 'Reprodukcija',
+    help_player_p: 'Dodirnite Play za pokretanje učitane petlje. Koristite klizač glasnoće i kontrolu brzine za podešavanje reprodukcije. Gumb Repeat uključuje/isključuje ponavljanje playliste.',
+    help_playlists_h: 'Playliste',
+    help_playlists_p: 'Stvorite playliste i dodajte petlje. Dodirnite playlistu za detalje — uređivanje, promjenu redoslijeda ili glasnoću po petlji.',
+    help_loops_h: 'Audio petlje',
+    help_loops_p: 'Pregledajte ugrađene petlje ili uvezite svoje. Uvezene petlje imaju gumb ✂ za obrezivanje početka/kraja petlje.',
+    help_trimmer_h: 'Trimer',
+    help_trimmer_p: 'Povucite zeleni IN i crveni OUT pokazivač za granice petlje. Zumirajte za preciznost. Dodirnite Testiraj petlju da čujete rezultat prije spremanja.',
+    help_settings_h: 'Postavke',
+    help_settings_p: 'Izvoz/uvoz podataka kao JSON. Prebacivanje između tamne i svijetle teme.',
+    help_close: 'Zatvori',
+    playlist_create_title: 'Nova playlista',
+    playlist_name_label: 'Naziv playliste',
+    playlist_name_placeholder: 'Moja playlista',
+    playlist_create_btn: 'Stvori',
+    common_close: 'Zatvori',
+    playlist_add: 'Dodaj',
+    playlist_play: 'Pokreni'
+  }
+};
+
+function t(key) {
+  const langTable = I18N[currentLang] || I18N.en;
+  return (langTable && langTable[key]) || (I18N.en && I18N.en[key]) || key;
+}
+
+function getStoredLang() {
+  try {
+    const v = localStorage.getItem(LANG_STORAGE_KEY);
+    return (v === 'hr' || v === 'en') ? v : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function setText(elOrSelector, text) {
+  const el = typeof elOrSelector === 'string' ? document.querySelector(elOrSelector) : elOrSelector;
+  if (!el) return;
+  el.textContent = text;
+}
+
+function setButtonTextAfterSvg(btn, text) {
+  if (!btn) return;
+  try {
+    const nodes = Array.from(btn.childNodes || []);
+    const textNode = nodes.find(n => n && n.nodeType === Node.TEXT_NODE);
+    if (textNode) {
+      textNode.nodeValue = text.startsWith(' ') ? text : ` ${text}`;
+      return;
+    }
+    btn.textContent = text;
+  } catch {
+    try { btn.textContent = text; } catch {}
+  }
+}
+
+function applyLanguage(lang) {
+  currentLang = (lang === 'hr') ? 'hr' : 'en';
+  try { document.documentElement.lang = currentLang; } catch {}
+  try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch {}
+
+  const langSelect = document.getElementById('langSelect');
+  if (langSelect) {
+    try { langSelect.value = currentLang; } catch {}
+    try { langSelect.setAttribute('aria-label', t('settings_language')); } catch {}
+  }
+
+  // Tabs
+  const tabPlayer = document.querySelector('.tabbar .tab[data-tab="player"]');
+  const tabPlaylists = document.querySelector('.tabbar .tab[data-tab="playlists"]');
+  const tabLoops = document.querySelector('.tabbar .tab[data-tab="loops"]');
+  const tabSettings = document.querySelector('.tabbar .tab[data-tab="settings"]');
+  if (tabPlayer) { tabPlayer.textContent = t('tab_player'); tabPlayer.setAttribute('aria-label', t('tab_player')); }
+  if (tabPlaylists) { tabPlaylists.textContent = t('tab_playlists'); tabPlaylists.setAttribute('aria-label', t('tab_playlists')); }
+  if (tabLoops) { tabLoops.textContent = t('tab_loops'); tabLoops.setAttribute('aria-label', t('tab_loops')); }
+  if (tabSettings) { tabSettings.textContent = t('tab_settings'); tabSettings.setAttribute('aria-label', t('tab_settings')); }
+
+  // Playlists page
+  setText('#page-playlists .page-header h2', t('playlists_title'));
+  const newPl = document.getElementById('newPlaylistFromPage');
+  if (newPl) { newPl.textContent = t('playlists_new'); newPl.setAttribute('aria-label', t('playlists_new')); }
+
+  // Loops page
+  setText('#page-loops .card h2', t('loops_title'));
+  setText('#page-loops .card .hint', t('loops_hint'));
+  const importLoopBtn = document.getElementById('importLoop');
+  if (importLoopBtn) { importLoopBtn.textContent = t('loops_import'); importLoopBtn.setAttribute('aria-label', t('loops_import')); }
+  const loopsSectionTitles = document.querySelectorAll('#page-loops .list-section h3');
+  if (loopsSectionTitles && loopsSectionTitles.length >= 2) {
+    loopsSectionTitles[0].textContent = t('loops_builtin');
+    loopsSectionTitles[1].textContent = t('loops_imported');
+  }
+
+  // Trimmer
+  const trimInfo = document.getElementById('trimInfo');
+  if (trimInfo) trimInfo.textContent = t('trimmer_info_hint');
+  const zoomLabel = document.querySelector('label[for="trimZoom"]');
+  if (zoomLabel) zoomLabel.textContent = t('trimmer_zoom');
+  const btnTest = document.getElementById('trimPlayTest');
+  if (btnTest) {
+    setButtonTextAfterSvg(btnTest, t('trimmer_test'));
+    btnTest.setAttribute('aria-label', t('trimmer_test'));
+  }
+  const btnStop = document.getElementById('trimStopTest');
+  if (btnStop) { btnStop.textContent = t('trimmer_stop'); btnStop.setAttribute('aria-label', t('trimmer_stop')); }
+  const btnSave = document.getElementById('trimSave');
+  if (btnSave) { btnSave.textContent = t('trimmer_save'); btnSave.setAttribute('aria-label', t('trimmer_save')); }
+  const btnReset = document.getElementById('trimReset');
+  if (btnReset) { btnReset.textContent = t('trimmer_reset'); btnReset.setAttribute('aria-label', t('trimmer_reset')); }
+
+  // Settings page
+  setText('#page-settings .page-header h2', t('settings_title'));
+  const sectionTitles = document.querySelectorAll('#page-settings .settings-section-title');
+  if (sectionTitles && sectionTitles.length >= 4) {
+    sectionTitles[0].textContent = t('settings_data');
+    sectionTitles[1].textContent = t('settings_appearance');
+    sectionTitles[2].textContent = t('settings_language');
+    sectionTitles[3].textContent = t('settings_about');
+  }
+  const exportBtn = document.getElementById('exportJson');
+  if (exportBtn) {
+    const main = exportBtn.querySelector('.settings-item-main');
+    const hint = exportBtn.querySelector('.settings-item-hint');
+    if (main) main.textContent = t('settings_export_main');
+    if (hint) hint.textContent = t('settings_export_hint');
+  }
+  const importBtn = document.getElementById('importJson');
+  if (importBtn) {
+    const main = importBtn.querySelector('.settings-item-main');
+    const hint = importBtn.querySelector('.settings-item-hint');
+    if (main) main.textContent = t('settings_import_main');
+    if (hint) hint.textContent = t('settings_import_hint');
+  }
+  const themeRows = document.querySelectorAll('#page-settings .settings-toggle-row .settings-item-main');
+  if (themeRows && themeRows.length >= 2) {
+    themeRows[0].textContent = t('settings_theme');
+    themeRows[1].textContent = t('settings_language');
+  }
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    const darkBtn = themeToggle.querySelector('.theme-opt[data-theme="dark"]');
+    const lightBtn = themeToggle.querySelector('.theme-opt[data-theme="light"]');
+    if (darkBtn) { darkBtn.textContent = t('settings_theme_dark'); darkBtn.setAttribute('aria-label', t('settings_theme_dark')); }
+    if (lightBtn) { lightBtn.textContent = t('settings_theme_light'); lightBtn.setAttribute('aria-label', t('settings_theme_light')); }
+  }
+  const helpBtn = document.getElementById('settingsHelp');
+  if (helpBtn) {
+    const main = helpBtn.querySelector('.settings-item-main');
+    const hint = helpBtn.querySelector('.settings-item-hint');
+    if (main) main.textContent = t('settings_help_main');
+    if (hint) hint.textContent = t('settings_help_hint');
+    helpBtn.setAttribute('aria-label', t('settings_help_main'));
+  }
+
+  // Playlist overlay
+  setText('#playlistCreateView h2', t('playlist_create_title'));
+  const plLabel = document.querySelector('label[for="playlistName"]');
+  if (plLabel) plLabel.textContent = t('playlist_name_label');
+  const plInput = document.getElementById('playlistName');
+  if (plInput) plInput.setAttribute('placeholder', t('playlist_name_placeholder'));
+  const createBtn = document.getElementById('createPlaylistBtn');
+  if (createBtn) createBtn.textContent = t('playlist_create_btn');
+  const closeOverlay = document.getElementById('closePlaylistOverlay');
+  if (closeOverlay) closeOverlay.textContent = t('common_close');
+  const addBtn = document.getElementById('playlistAddLoop');
+  if (addBtn) addBtn.textContent = t('playlist_add');
+  const playBtn = document.getElementById('playlistPlay');
+  if (playBtn) playBtn.textContent = t('playlist_play');
+  const closeBtn = document.getElementById('playlistClose');
+  if (closeBtn) closeBtn.textContent = t('common_close');
+
+  // If help is open, re-render it in the new language.
+  try {
+    const helpOv = document.getElementById('helpOverlay');
+    if (helpOv && !helpOv.classList.contains('hidden')) showHelpOverlay();
+  } catch {}
+}
+
 function openPlaylistsDb() {
   return new Promise((resolve, reject) => {
     try {
@@ -2463,29 +2734,33 @@ function showHelpOverlay() {
     ov.className = 'overlay hidden';
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-modal', 'true');
-    ov.setAttribute('aria-label', 'Help');
-    ov.innerHTML = `<div class="overlay-card">
-      <h2>Help</h2>
-      <div class="help-content">
-        <h3>Player</h3>
-        <p>Tap <b>Play</b> to start the loaded loop. Use the volume slider and rate jog to adjust playback. The <b>Repeat</b> button toggles whole-playlist looping.</p>
-        <h3>Playlists</h3>
-        <p>Create playlists and add loops to them. Tap a playlist to see its details — edit, reorder, or adjust per-loop volume.</p>
-        <h3>Audio Loops</h3>
-        <p>Browse built-in loops or import your own. Imported loops have a <b>✂ trim</b> button to adjust loop start/end points.</p>
-        <h3>Trimmer</h3>
-        <p>Drag the green <b>IN</b> and red <b>OUT</b> cursors to set loop boundaries. Zoom in for precision. Tap <b>Test Loop</b> to hear the result before saving.</p>
-        <h3>Settings</h3>
-        <p>Export/import your data as JSON. Switch between dark and light themes.</p>
-      </div>
-      <div class="overlay-actions"><button id="closeHelp" class="secondary">Close</button></div>
-    </div>`;
     document.body.appendChild(ov);
-    ov.querySelector('#closeHelp').addEventListener('click', () => {
-      ov.classList.add('hidden');
-      try { updateScrollState(); } catch {}
-    });
   }
+
+  // Always re-render content so language updates apply immediately.
+  ov.setAttribute('aria-label', t('help_title'));
+  ov.innerHTML = `<div class="overlay-card">
+    <h2>${t('help_title')}</h2>
+    <div class="help-content">
+      <h3>${t('help_player_h')}</h3>
+      <p>${t('help_player_p')}</p>
+      <h3>${t('help_playlists_h')}</h3>
+      <p>${t('help_playlists_p')}</p>
+      <h3>${t('help_loops_h')}</h3>
+      <p>${t('help_loops_p')}</p>
+      <h3>${t('help_trimmer_h')}</h3>
+      <p>${t('help_trimmer_p')}</p>
+      <h3>${t('help_settings_h')}</h3>
+      <p>${t('help_settings_p')}</p>
+    </div>
+    <div class="overlay-actions"><button id="closeHelp" class="secondary">${t('help_close')}</button></div>
+  </div>`;
+
+  ov.querySelector('#closeHelp').addEventListener('click', () => {
+    ov.classList.add('hidden');
+    try { updateScrollState(); } catch {}
+  });
+
   ov.classList.remove('hidden');
   try { updateScrollState(); } catch {}
 }
@@ -2549,6 +2824,7 @@ function bindUI() {
   const importJsonInput = document.getElementById('importJsonInput');
   const themeToggle = document.getElementById('themeToggle');
   const settingsHelpBtn = document.getElementById('settingsHelp');
+  const langSelect = document.getElementById('langSelect');
 
   let dragCounter = 0;
 
@@ -3439,8 +3715,15 @@ function bindUI() {
 
   settingsHelpBtn && settingsHelpBtn.addEventListener('click', () => showHelpOverlay());
 
+  langSelect && langSelect.addEventListener('change', () => {
+    try { applyLanguage(langSelect.value); } catch {}
+  });
+
   // Load saved theme on startup.
   loadSavedTheme();
+
+  // Load saved language on startup.
+  applyLanguage(getStoredLang());
 
   window.addEventListener('resize', () => { drawWaveform(); drawTrimWaveform(); });
   window.addEventListener('orientationchange', () => { setTimeout(drawWaveform, 250); setTimeout(drawTrimWaveform, 250); });
@@ -3457,7 +3740,7 @@ window.addEventListener('load', () => {
   ensureAudio();
   lockViewportScale();
   bindUI();
-  setStatus('Ready');
+  setStatus(t('status_ready'));
   drawWaveform();
   switchTab('player');
   try { document.body.style.touchAction = 'manipulation'; } catch {}
