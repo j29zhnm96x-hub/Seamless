@@ -287,28 +287,55 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--surface);
   box-shadow:var(--shadow);
 }
+.playlist-list-row{
+  display:flex;
+  align-items:stretch;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.playlist-list-row:last-child{border-bottom:none}
+.playlist-list-row:first-child{border-radius:var(--radius) var(--radius) 0 0}
+.playlist-list-row:last-child{border-radius:0 0 var(--radius) var(--radius)}
+.playlist-list-row:only-child{border-radius:var(--radius)}
+.playlist-list-row:hover,.playlist-list-row:active{background:var(--surface-2)}
+
 .playlist-list-item{
+  flex:1 1 auto;
   display:flex;align-items:center;
   padding:13px 14px;
-  background:var(--surface);
+  background:transparent;
   border:none;
-  border-bottom:1px solid var(--border);
   color:var(--text);font-weight:500;font-size:14px;
   cursor:pointer;transition:var(--transition);
   width:100%;text-align:left;
   box-shadow:none;
   border-radius:0;
 }
-.playlist-list-item:first-child{border-radius:var(--radius) var(--radius) 0 0}
-.playlist-list-item:last-child{border-radius:0 0 var(--radius) var(--radius);border-bottom:none}
-.playlist-list-item:only-child{border-radius:var(--radius)}
-.playlist-list-item:hover,.playlist-list-item:active{background:var(--surface-2)}
+.playlist-list-item:hover,.playlist-list-item:active{background:transparent}
+.playlist-list-item .pl-item-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .playlist-list-item .pl-item-count{
   margin-left:auto;font-size:12px;color:var(--text-3);font-weight:400;
 }
 .playlist-list-item .pl-item-chevron{
   margin-left:8px;color:var(--text-3);font-size:16px;
 }
+
+.playlist-list-play{
+  flex:0 0 44px;
+  width:44px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:none;
+  border-left:1px solid var(--border);
+  background:transparent;
+  color:var(--text-2);
+  box-shadow:none;
+  cursor:pointer;
+  transition:var(--transition);
+}
+.playlist-list-play:hover{color:var(--accent)}
+.playlist-list-play svg{width:18px;height:18px}
 
 /* -------- Playlist detail page -------- */
 .detail-back{

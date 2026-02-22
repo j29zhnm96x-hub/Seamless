@@ -1332,11 +1332,15 @@ async function renderPlaylistsPage() {
   }
 
   for (const pl of items) {
+    const li = document.createElement('li');
+    li.className = 'playlist-list-row';
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'playlist-list-item';
 
     const nameSpan = document.createElement('span');
+    nameSpan.className = 'pl-item-name';
     nameSpan.textContent = (pl && pl.name) ? pl.name : 'Playlist';
 
     const countSpan = document.createElement('span');
@@ -1356,8 +1360,21 @@ async function renderPlaylistsPage() {
       openPlaylistDetail(pl.id);
     });
 
-    const li = document.createElement('li');
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'playlist-list-play';
+    playBtn.setAttribute('aria-label', `${t('playlist_play')}: ${(pl && pl.name) ? pl.name : 'Playlist'}`);
+    playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="7,4 20,12 7,20"/></svg>';
+    playBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!pl || !pl.id) return;
+      setPlayerPlaylist(pl);
+      await playActivePlaylist();
+    });
+
     li.appendChild(btn);
+    li.appendChild(playBtn);
     listEl.appendChild(li);
   }
   try { setTimeout(updateScrollState, 50); } catch {}
