@@ -36,6 +36,7 @@ const I18N = {
     loops_title: 'Audio Loops',
     loops_hint: 'Built-ins and anything you imported during this session.',
     loops_import: 'Import Loop',
+    loops_paste: 'Paste',
     loops_builtin: 'Built-in',
     loops_imported: 'IMPORTED',
     trimmer_info_hint: 'Drag the IN/OUT cursors to adjust loop points',
@@ -44,6 +45,8 @@ const I18N = {
     trimmer_stop: 'Stop',
     trimmer_save: 'Save',
     trimmer_reset: 'Reset',
+    trimmer_set_in: 'Set IN',
+    trimmer_set_out: 'Set OUT',
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
@@ -64,7 +67,7 @@ const I18N = {
     help_playlists_h: 'Playlists',
     help_playlists_p: 'Create playlists and add loops to them. Tap a playlist to see its details — edit, reorder, or adjust per-loop volume.',
     help_loops_h: 'Audio Loops',
-    help_loops_p: 'Browse built-in loops or import your own. Imported loops have a ✂ trim button to adjust loop start/end points.',
+    help_loops_p: 'Browse built-in loops or import your own. Imported loops have an edit button to adjust loop start/end points.',
     help_trimmer_h: 'Trimmer',
     help_trimmer_p: 'Drag the green IN and red OUT cursors to set loop boundaries. Zoom in for precision. Tap Test Loop to hear the result before saving.',
     help_settings_h: 'Settings',
@@ -91,6 +94,7 @@ const I18N = {
     loops_title: 'Audio petlje',
     loops_hint: 'Ugrađene petlje i sve što ste uvezli tijekom ove sesije.',
     loops_import: 'Uvezi petlju',
+    loops_paste: 'Zalijepi',
     loops_builtin: 'Ugrađeno',
     loops_imported: 'UVEZENO',
     trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja petlje',
@@ -99,6 +103,8 @@ const I18N = {
     trimmer_stop: 'Zaustavi',
     trimmer_save: 'Spremi',
     trimmer_reset: 'Vrati',
+    trimmer_set_in: 'Postavi IN',
+    trimmer_set_out: 'Postavi OUT',
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i petlje',
@@ -119,7 +125,7 @@ const I18N = {
     help_playlists_h: 'Playliste',
     help_playlists_p: 'Stvorite playliste i dodajte petlje. Dodirnite playlistu za detalje — uređivanje, promjenu redoslijeda ili glasnoću po petlji.',
     help_loops_h: 'Audio petlje',
-    help_loops_p: 'Pregledajte ugrađene petlje ili uvezite svoje. Uvezene petlje imaju gumb ✂ za obrezivanje početka/kraja petlje.',
+    help_loops_p: 'Pregledajte ugrađene petlje ili uvezite svoje. Uvezene petlje imaju gumb za uređivanje obrezivanja početka/kraja petlje.',
     help_trimmer_h: 'Trimer',
     help_trimmer_p: 'Povucite zeleni IN i crveni OUT pokazivač za granice petlje. Zumirajte za preciznost. Dodirnite Testiraj petlju da čujete rezultat prije spremanja.',
     help_settings_h: 'Postavke',
@@ -201,6 +207,8 @@ function applyLanguage(lang) {
   setText('#page-loops .card .hint', t('loops_hint'));
   const importLoopBtn = document.getElementById('importLoop');
   if (importLoopBtn) { importLoopBtn.textContent = t('loops_import'); importLoopBtn.setAttribute('aria-label', t('loops_import')); }
+  const pasteLoopBtn = document.getElementById('pasteBtn');
+  if (pasteLoopBtn) { pasteLoopBtn.textContent = t('loops_paste'); pasteLoopBtn.setAttribute('aria-label', t('loops_paste')); }
   const loopsSectionTitles = document.querySelectorAll('#page-loops .list-section h3');
   if (loopsSectionTitles && loopsSectionTitles.length >= 2) {
     loopsSectionTitles[0].textContent = t('loops_builtin');
@@ -223,6 +231,11 @@ function applyLanguage(lang) {
   if (btnSave) { btnSave.textContent = t('trimmer_save'); btnSave.setAttribute('aria-label', t('trimmer_save')); }
   const btnReset = document.getElementById('trimReset');
   if (btnReset) { btnReset.textContent = t('trimmer_reset'); btnReset.setAttribute('aria-label', t('trimmer_reset')); }
+
+  const btnSetIn = document.getElementById('trimSetIn');
+  if (btnSetIn) { btnSetIn.textContent = t('trimmer_set_in'); btnSetIn.setAttribute('aria-label', t('trimmer_set_in')); }
+  const btnSetOut = document.getElementById('trimSetOut');
+  if (btnSetOut) { btnSetOut.textContent = t('trimmer_set_out'); btnSetOut.setAttribute('aria-label', t('trimmer_set_out')); }
 
   // Settings page
   setText('#page-settings .page-header h2', t('settings_title'));
@@ -1836,6 +1849,43 @@ function updateTrimReadouts() {
   if (durEl) durEl.textContent = `${Math.max(0, trimOut - trimIn).toFixed(3)}s`;
 }
 
+function setTrimPointToPlayhead(which) {
+  if (!trimBuffer) return;
+  const MIN_GAP = 0.001;
+  const dur = Math.max(0, trimBuffer.duration || 0);
+  const t0 = clamp(trimCursorTime, 0, dur);
+
+  if (which === 'in') {
+    let newIn = clamp(t0, 0, Math.max(0, dur - MIN_GAP));
+    let newOut = trimOut;
+    if (newIn > newOut - MIN_GAP) {
+      newOut = clamp(newIn + MIN_GAP, MIN_GAP, dur);
+    }
+    trimOut = clamp(newOut, MIN_GAP, dur);
+    trimIn = clamp(newIn, 0, Math.max(0, trimOut - MIN_GAP));
+  } else if (which === 'out') {
+    let newOut = clamp(t0, MIN_GAP, dur);
+    let newIn = trimIn;
+    if (newOut < newIn + MIN_GAP) {
+      newIn = clamp(newOut - MIN_GAP, 0, Math.max(0, dur - MIN_GAP));
+    }
+    trimIn = clamp(newIn, 0, Math.max(0, newOut - MIN_GAP));
+    trimOut = clamp(newOut, trimIn + MIN_GAP, dur);
+  } else {
+    return;
+  }
+
+  try {
+    if (trimTestSource) {
+      trimTestSource.loopStart = trimIn;
+      trimTestSource.loopEnd = trimOut;
+    }
+  } catch {}
+
+  updateTrimReadouts();
+  drawTrimWaveform();
+}
+
 function handleTrimPointerDown(e) {
   const cvs = document.getElementById('trimCanvas');
   if (!cvs || !trimBuffer) return;
@@ -2506,7 +2556,7 @@ function renderLoopsPage() {
       const trimBtn = document.createElement('button');
       trimBtn.type = 'button';
       trimBtn.className = 'preset-trim';
-      trimBtn.textContent = '✂';
+      trimBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
       trimBtn.setAttribute('aria-label', `Trim ${p.name}`);
       trimBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2900,6 +2950,8 @@ function bindUI() {
   const trimStopTest = document.getElementById('trimStopTest');
   const trimSaveBtn = document.getElementById('trimSave');
   const trimResetBtn = document.getElementById('trimReset');
+  const trimSetInBtn = document.getElementById('trimSetIn');
+  const trimSetOutBtn = document.getElementById('trimSetOut');
 
   // Settings elements
   const exportJsonBtn = document.getElementById('exportJson');
@@ -3796,6 +3848,8 @@ function bindUI() {
   trimStopTest && trimStopTest.addEventListener('click', () => { stopTrimTest(); setStatus('Stopped'); });
   trimSaveBtn && trimSaveBtn.addEventListener('click', () => showTrimSaveOptions());
   trimResetBtn && trimResetBtn.addEventListener('click', () => resetTrimPoints());
+  trimSetInBtn && trimSetInBtn.addEventListener('click', () => setTrimPointToPlayhead('in'));
+  trimSetOutBtn && trimSetOutBtn.addEventListener('click', () => setTrimPointToPlayhead('out'));
 
   // ---- Settings bindings ----
   exportJsonBtn && exportJsonBtn.addEventListener('click', () => exportAppData());

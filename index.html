@@ -116,7 +116,8 @@
           <p class="hint">Built-ins and anything you imported during this session.</p>
 
           <div class="imports" aria-label="Import Loop">
-            <button id="importLoop" aria-label="Import audio loop">Import Loop</button>
+            <button id="importLoop" type="button" aria-label="Import audio loop">Import Loop</button>
+            <button id="pasteBtn" type="button" aria-label="Paste audio loop">Paste</button>
             <input id="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg" aria-label="Select audio file" class="hidden" />
           </div>
 
@@ -149,6 +150,12 @@
             <div id="trimCursorLabel" class="trim-playhead-label" aria-hidden="true">0.000s</div>
           </div>
         </div>
+
+        <div class="trim-mark-actions" aria-label="Set loop points from playhead">
+          <button id="trimSetIn" type="button" class="btn-ghost" aria-label="Set IN to playhead">Set IN</button>
+          <button id="trimSetOut" type="button" class="btn-ghost" aria-label="Set OUT to playhead">Set OUT</button>
+        </div>
+
         <div class="trim-readouts">
           <div class="trim-readout"><span class="trim-readout-label">IN</span><span id="trimInTime" class="trim-readout-val">0.000s</span></div>
           <div class="trim-readout"><span class="trim-readout-label">OUT</span><span id="trimOutTime" class="trim-readout-val">0.000s</span></div>

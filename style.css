@@ -496,6 +496,7 @@ button.danger{background:var(--danger);color:#fff}
   color:var(--text-2);font-size:16px;padding:0;box-shadow:none;
   display:grid;place-items:center;cursor:pointer;border-radius:0;
 }
+.preset-trim svg{width:18px;height:18px}
 .preset-trim:hover{color:var(--accent);background:var(--accent-soft)}
 .preset-delete{
   position:absolute;top:0;right:0;bottom:0;width:76px;
@@ -563,6 +564,14 @@ button.danger{background:var(--danger);color:#fff}
   white-space:nowrap;
   pointer-events:none;
 }
+
+.trim-mark-actions{
+  display:flex;
+  gap:8px;
+  margin:10px 0 12px;
+}
+.trim-mark-actions button{flex:1 1 auto;min-width:0;text-align:center}
+
 .trim-readouts{
   display:flex;gap:0;margin-bottom:10px;
   border:1px solid var(--border);border-radius:var(--radius);
