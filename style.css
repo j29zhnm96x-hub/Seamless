@@ -462,6 +462,46 @@ button.danger{background:var(--danger);color:#fff}
   width:100%;height:auto;aspect-ratio:3/1;display:block;
   cursor:crosshair;
 }
+
+.trim-playhead{
+  position:absolute;
+  top:0;bottom:0;
+  left:0;
+  transform:translateX(-1px);
+  width:2px;
+  pointer-events:auto;
+  touch-action:none;
+}
+.trim-playhead:focus-visible{outline:none;box-shadow:var(--focus);border-radius:2px}
+.trim-playhead-line{
+  position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--accent);
+  opacity:.95;
+}
+.trim-playhead-handle{
+  position:absolute;
+  left:50%;bottom:10px;
+  width:18px;height:18px;
+  transform:translateX(-50%);
+  border-radius:999px;
+  background:var(--surface);
+  border:1px solid var(--accent-mid);
+  box-shadow:var(--shadow);
+}
+.trim-playhead-label{
+  position:absolute;
+  top:8px;left:50%;transform:translateX(-50%);
+  padding:3px 8px;
+  border-radius:999px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-size:12px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  pointer-events:none;
+}
 .trim-readouts{
   display:flex;gap:0;margin-bottom:10px;
   border:1px solid var(--border);border-radius:var(--radius);

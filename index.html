@@ -141,6 +141,11 @@
         </div>
         <div class="trim-canvas-wrap">
           <canvas id="trimCanvas" height="200" aria-label="Trim waveform"></canvas>
+          <div id="trimCursor" class="trim-playhead" aria-label="Playhead (drag to focus zoom)" tabindex="0">
+            <div class="trim-playhead-line" aria-hidden="true"></div>
+            <div class="trim-playhead-handle" aria-hidden="true"></div>
+            <div id="trimCursorLabel" class="trim-playhead-label" aria-hidden="true">0.000s</div>
+          </div>
         </div>
         <div class="trim-readouts">
           <div class="trim-readout"><span class="trim-readout-label">IN</span><span id="trimInTime" class="trim-readout-val">0.000s</span></div>

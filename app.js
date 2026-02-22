@@ -172,9 +172,16 @@ async function listPersistedUploads() {
   return items;
 }
 
-async function savePersistedUpload({ name, blob }) {
+async function savePersistedUpload({ name, blob, trimIn, trimOut }) {
   if (!blob) return null;
-  const record = { id: makeUploadId(), name: name || 'Audio', blob, createdAt: Date.now() };
+  const record = {
+    id: makeUploadId(),
+    name: name || 'Audio',
+    blob,
+    createdAt: Date.now(),
+    ...(trimIn != null ? { trimIn } : {}),
+    ...(trimOut != null ? { trimOut } : {})
+  };
   const db = await openUploadsDb();
 
   await idbTx(db, 'readwrite', (store) => store.put(record));
@@ -321,6 +328,12 @@ let trimDragStartX = 0;
 let trimPanStartView = 0;
 let trimTestSource = null;
 let trimTestGain = null;
+let trimStopCleanupToken = 0;
+let trimCursorTime = 0;
+let trimCursorDragging = false;
+let trimCursorPointerId = null;
+let trimCursorFollowRaf = 0;
+let trimCursorFollowStartAt = 0;
 
 // Exposed by bindUI so the Playlists page can open the editor.
 let openPlaylistCreateOverlay = null;
@@ -1325,6 +1338,7 @@ async function openTrimmer(preset) {
       trimIn = pts.start;
       trimOut = pts.end;
     }
+    trimCursorTime = clamp(trimIn, 0, Math.max(0, buf.duration || 0));
     trimZoomLevel = 1;
     trimViewStart = 0;
     trimDragging = null;
@@ -1352,6 +1366,66 @@ function getTrimViewSpan() {
   if (vs < 0) vs = 0;
   trimViewStart = vs;
   return { start: vs, end: vs + viewDur };
+}
+
+function centerTrimViewAt(timeSec) {
+  if (!trimBuffer) return;
+  const dur = trimBuffer.duration || 1;
+  const viewDur = Math.max(0.01, dur / Math.max(1, trimZoomLevel));
+  trimViewStart = clamp(timeSec - viewDur / 2, 0, Math.max(0, dur - viewDur));
+}
+
+function updateTrimCursorUI(vStart = null, vEnd = null) {
+  const cursorEl = document.getElementById('trimCursor');
+  if (!cursorEl || !trimBuffer) return;
+  const labelEl = document.getElementById('trimCursorLabel');
+
+  if (vStart == null || vEnd == null) {
+    const span = getTrimViewSpan();
+    vStart = span.start;
+    vEnd = span.end;
+  }
+
+  const dur = Math.max(0, trimBuffer.duration || 0);
+  trimCursorTime = clamp(trimCursorTime, 0, dur);
+  const spanDur = Math.max(0.000001, (vEnd - vStart));
+  const frac = (trimCursorTime - vStart) / spanDur;
+  const pct = clamp(frac, 0, 1) * 100;
+  cursorEl.style.left = `${pct}%`;
+
+  try {
+    cursorEl.setAttribute('aria-valuemin', '0');
+    cursorEl.setAttribute('aria-valuemax', dur.toFixed(3));
+    cursorEl.setAttribute('aria-valuenow', trimCursorTime.toFixed(3));
+    cursorEl.setAttribute('aria-valuetext', `${trimCursorTime.toFixed(3)}s`);
+    cursorEl.setAttribute('role', 'slider');
+  } catch {}
+  if (labelEl) labelEl.textContent = `${trimCursorTime.toFixed(3)}s`;
+}
+
+function stopTrimCursorFollow() {
+  if (trimCursorFollowRaf) {
+    try { cancelAnimationFrame(trimCursorFollowRaf); } catch {}
+    trimCursorFollowRaf = 0;
+  }
+}
+
+function startTrimCursorFollow() {
+  stopTrimCursorFollow();
+  if (!audioCtx || !trimTestSource || !trimBuffer) return;
+  const loopLen = Math.max(0.001, (trimOut - trimIn));
+  trimCursorFollowStartAt = audioCtx.currentTime;
+
+  const tick = () => {
+    trimCursorFollowRaf = requestAnimationFrame(tick);
+    if (!trimTestSource || trimCursorDragging) return;
+    const elapsed = Math.max(0, audioCtx.currentTime - trimCursorFollowStartAt);
+    const pos = (elapsed % loopLen);
+    trimCursorTime = trimIn + pos;
+    const span = getTrimViewSpan();
+    updateTrimCursorUI(span.start, span.end);
+  };
+  tick();
 }
 
 function drawTrimWaveform() {
@@ -1418,6 +1492,8 @@ function drawTrimWaveform() {
     ctx.font = `bold ${Math.round(11 * dpr)}px sans-serif`;
     ctx.fillText('OUT', Math.max(outPx - 30 * dpr, 2), 14 * dpr);
   }
+
+  updateTrimCursorUI(vStart, vEnd);
 }
 
 function updateTrimReadouts() {
@@ -1451,6 +1527,9 @@ function handleTrimPointerDown(e) {
   } else if (distOut <= grabRadius) {
     trimDragging = 'out';
   } else {
+    // Tap background: move playhead here for easier zoom focus.
+    trimCursorTime = clamp(timeAtX, 0, Math.max(0, trimBuffer.duration || 0));
+    updateTrimCursorUI(vStart, vEnd);
     trimDragging = 'pan';
     trimDragStartX = e.clientX;
     trimPanStartView = trimViewStart;
@@ -1497,11 +1576,119 @@ function handleTrimPointerUp(e) {
   try { if (cvs) cvs.releasePointerCapture(e.pointerId); } catch {}
 }
 
-function stopTrimTest() {
-  try { if (trimTestSource) { trimTestSource.stop(); trimTestSource.disconnect(); } } catch {}
-  try { if (trimTestGain) trimTestGain.disconnect(); } catch {}
+function handleTrimCursorPointerDown(e) {
+  if (!trimBuffer) return;
+  stopTrimCursorFollow();
+  trimCursorDragging = true;
+  trimCursorPointerId = e.pointerId;
+  const cursorEl = e.currentTarget;
+  try { cursorEl.setPointerCapture(e.pointerId); } catch {}
+  handleTrimCursorPointerMove(e);
+  e.preventDefault();
+}
+
+function handleTrimCursorPointerMove(e) {
+  if (!trimCursorDragging || !trimBuffer) return;
+  if (trimCursorPointerId != null && e.pointerId !== trimCursorPointerId) return;
+  const cursorEl = document.getElementById('trimCursor');
+  if (!cursorEl || !cursorEl.parentElement) return;
+
+  const rect = cursorEl.parentElement.getBoundingClientRect();
+  const x = clamp(e.clientX - rect.left, 0, rect.width);
+  const frac = rect.width ? (x / rect.width) : 0;
+  const { start: vStart, end: vEnd } = getTrimViewSpan();
+  trimCursorTime = vStart + frac * (vEnd - vStart);
+  updateTrimCursorUI(vStart, vEnd);
+  e.preventDefault();
+}
+
+function handleTrimCursorPointerUp(e) {
+  if (!trimCursorDragging) return;
+  if (trimCursorPointerId != null && e.pointerId !== trimCursorPointerId) return;
+  trimCursorDragging = false;
+  const cursorEl = document.getElementById('trimCursor');
+  try { if (cursorEl) cursorEl.releasePointerCapture(e.pointerId); } catch {}
+  trimCursorPointerId = null;
+}
+
+function handleTrimCursorKeyDown(e) {
+  if (!trimBuffer) return;
+  const dur = Math.max(0, trimBuffer.duration || 0);
+  const step = e.shiftKey ? 0.05 : 0.005;
+  if (e.key === 'ArrowLeft') {
+    trimCursorTime = clamp(trimCursorTime - step, 0, dur);
+    updateTrimCursorUI();
+    e.preventDefault();
+  } else if (e.key === 'ArrowRight') {
+    trimCursorTime = clamp(trimCursorTime + step, 0, dur);
+    updateTrimCursorUI();
+    e.preventDefault();
+  }
+}
+
+function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
+  stopTrimCursorFollow();
+  trimStopCleanupToken++;
+  const token = trimStopCleanupToken;
+
+  const src = trimTestSource;
+  const gain = trimTestGain;
   trimTestSource = null;
   trimTestGain = null;
+
+  if (!audioCtx || !src) {
+    if (pauseOutput) {
+      try { if (!loopSource && audioOut) audioOut.pause(); } catch {}
+    }
+    try { if (gain) gain.disconnect(); } catch {}
+    return;
+  }
+
+  const now = audioCtx.currentTime;
+
+  // Avoid an audible wrap during the fade window.
+  try { src.loop = false; } catch {}
+
+  // Fast-path stop.
+  if (!rampOut || rampOut <= 0) {
+    try { if (gain) { try { gain.disconnect(); } catch {} } } catch {}
+    try { src.stop(now); } catch {}
+    try { src.disconnect(); } catch {}
+    if (pauseOutput) {
+      try { if (!loopSource && audioOut) audioOut.pause(); } catch {}
+    }
+    return;
+  }
+
+  try {
+    if (gain) {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, now + rampOut);
+    }
+
+    // Mirror main stop behavior: ramp master down so the stream is truly quiet.
+    try {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0, now + rampOut);
+    } catch {}
+
+    try { src.stop(now + rampOut + 0.001); } catch {}
+  } finally {
+    setTimeout(() => {
+      if (trimStopCleanupToken !== token) return;
+      try { src.disconnect(); } catch {}
+      try { if (gain) gain.disconnect(); } catch {}
+
+      // iOS/Safari: pausing flushes the MediaStream-><audio> buffer to prevent stutter tails.
+      if (pauseOutput) {
+        try {
+          if (!loopSource && !trimTestSource && audioOut) audioOut.pause();
+        } catch {}
+      }
+    }, Math.ceil((rampOut + 0.01) * 1000));
+  }
 }
 
 async function playTrimTest() {
@@ -1534,12 +1721,114 @@ async function playTrimTest() {
   trimTestSource.start(audioCtx.currentTime, trimIn);
   startOutputIfNeeded();
   setStatus('Playing trim preview…');
+  startTrimCursorFollow();
 }
 
-async function saveTrimPoints() {
-  if (!trimPreset || !trimPreset.id) { setStatus('Nothing to save'); return; }
-  trimPreset.trimIn = trimIn;
-  trimPreset.trimOut = trimOut;
+async function renderTrimmedBufferOffline(buffer, startSec, endSec) {
+  const sr = buffer.sampleRate;
+  const channels = buffer.numberOfChannels;
+  const dur = Math.max(0, (endSec - startSec) || 0);
+  const frames = Math.max(1, Math.ceil(dur * sr));
+
+  // Prefer OfflineAudioContext render (handles any internal format nuances).
+  try {
+    const off = new OfflineAudioContext(channels, frames, sr);
+    const src = off.createBufferSource();
+    src.buffer = buffer;
+    src.connect(off.destination);
+    src.start(0, Math.max(0, startSec), dur);
+    const rendered = await off.startRendering();
+    if (rendered) return rendered;
+  } catch {}
+
+  // Fallback: direct channel copy.
+  const out = new AudioBuffer({ length: frames, numberOfChannels: channels, sampleRate: sr });
+  const s0 = Math.max(0, Math.floor(startSec * sr));
+  for (let c = 0; c < channels; c++) {
+    const srcCh = buffer.getChannelData(c);
+    const dstCh = out.getChannelData(c);
+    for (let i = 0; i < frames; i++) {
+      dstCh[i] = srcCh[s0 + i] || 0;
+    }
+  }
+  return out;
+}
+
+function encodeWavBlobFromAudioBuffer(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numFrames = buffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numFrames * blockAlign;
+  const totalSize = 44 + dataSize;
+  const ab = new ArrayBuffer(totalSize);
+  const view = new DataView(ab);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  // RIFF header
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+
+  // fmt chunk
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true); // PCM
+  view.setUint16(20, 1, true);  // AudioFormat=PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // bits
+
+  // data chunk
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Interleave and convert to int16
+  const channels = [];
+  for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c));
+  let o = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let s = channels[c][i] || 0;
+      s = Math.max(-1, Math.min(1, s));
+      const v = s < 0 ? Math.round(s * 32768) : Math.round(s * 32767);
+      view.setInt16(o, v, true);
+      o += 2;
+    }
+  }
+
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+function getCurrentTrimRange() {
+  if (!trimBuffer) return null;
+  const dur = trimBuffer.duration || 0;
+  const inSec = clamp(trimIn, 0, Math.max(0, dur - 0.001));
+  const outSec = clamp(trimOut, inSec + 0.001, dur);
+  const segDur = outSec - inSec;
+  if (!isFinite(segDur) || segDur <= 0.001) return null;
+  return { inSec, outSec, segDur };
+}
+
+function withTrimmedSuffix(name, suffix) {
+  const base = (name || 'Audio').trim();
+  const cleaned = base.replace(/\s*\(trimmed[^)]*\)\s*$/i, '').trim();
+  return `${cleaned} ${suffix}`;
+}
+
+async function saveTrimPointsToOriginal() {
+  if (!trimPreset || !trimPreset.id || !trimBuffer) { setStatus('Nothing to save'); return; }
+  const range = getCurrentTrimRange();
+  if (!range) { setStatus('Trim is too short'); return; }
+
+  trimPreset.trimIn = range.inSec;
+  trimPreset.trimOut = range.outSec;
   // Persist to IndexedDB upload record.
   try {
     const db = await openUploadsDb();
@@ -1551,13 +1840,212 @@ async function saveTrimPoints() {
       });
     });
     if (rec) {
-      rec.trimIn = trimIn;
-      rec.trimOut = trimOut;
+      rec.trimIn = range.inSec;
+      rec.trimOut = range.outSec;
       await idbTx(db, 'readwrite', (store) => store.put(rec));
     }
     try { db.close(); } catch {}
   } catch {}
-  setStatus('Trim saved');
+  setStatus('Trim points saved');
+}
+
+async function createTrimmedLoopAsWav() {
+  if (!trimPreset || !trimBuffer) { setStatus('Nothing to save'); return; }
+  const range = getCurrentTrimRange();
+  if (!range) { setStatus('Trim is too short'); return; }
+
+  try {
+    setStatus('Rendering trimmed loop…');
+    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+    setStatus('Encoding WAV…');
+    const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
+
+    const baseName = (trimPreset.name || 'Audio').trim();
+    const name = baseName.toLowerCase().includes('(trimmed)') ? baseName : `${baseName} (Trimmed)`;
+
+    const saved = await savePersistedUpload({
+      name,
+      blob: wavBlob,
+      trimIn: 0,
+      trimOut: rendered.duration || range.segDur
+    });
+
+    addUserPresetFromBlob({ name, blob: wavBlob, saved });
+    try { renderLoopsPage(); } catch {}
+    stopTrimTest();
+    switchTab('loops');
+    setStatus('Trimmed loop created (WAV)');
+  } catch {
+    setStatus('Failed to create trimmed loop');
+  }
+}
+
+async function encodeCompressedWithMediaRecorder(buffer, mimeType) {
+  // Returns Blob or null.
+  try {
+    if (typeof MediaRecorder === 'undefined') return null;
+    if (!MediaRecorder.isTypeSupported || !MediaRecorder.isTypeSupported(mimeType)) return null;
+
+    const sr = buffer.sampleRate;
+    const channels = buffer.numberOfChannels;
+    // Use a short-lived context only for encoding.
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: sr });
+    const dest = ctx.createMediaStreamDestination();
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.connect(dest);
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+
+    const rec = new MediaRecorder(dest.stream, { mimeType });
+    const chunks = [];
+    rec.ondataavailable = (e) => { try { if (e.data && e.data.size) chunks.push(e.data); } catch {} };
+
+    const result = await new Promise((resolve) => {
+      rec.onstop = () => {
+        try { resolve(chunks.length ? new Blob(chunks, { type: mimeType }) : null); } catch { resolve(null); }
+      };
+      rec.onerror = () => resolve(null);
+      try { rec.start(250); } catch { resolve(null); return; }
+      try { source.start(0); } catch {}
+      // Stop after playback ends.
+      const ms = Math.max(50, Math.ceil((buffer.duration + 0.05) * 1000));
+      setTimeout(() => {
+        try { rec.stop(); } catch {}
+        try { source.stop(); } catch {}
+        try { source.disconnect(); } catch {}
+        try { gain.disconnect(); } catch {}
+        try { ctx.close(); } catch {}
+      }, ms);
+    });
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+async function createTrimmedLoopAsCompressed() {
+  if (!trimPreset || !trimBuffer) { setStatus('Nothing to save'); return; }
+  const range = getCurrentTrimRange();
+  if (!range) { setStatus('Trim is too short'); return; }
+
+  try {
+    setStatus('Rendering trimmed loop…');
+    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+
+    // Try a smaller format first (Safari/iOS often supports audio/mp4).
+    setStatus('Encoding compressed audio…');
+    const preferredTypes = [
+      'audio/mp4',
+      'audio/aac',
+      'audio/webm;codecs=opus'
+    ];
+
+    let blob = null;
+    let usedType = '';
+    for (const t of preferredTypes) {
+      blob = await encodeCompressedWithMediaRecorder(rendered, t);
+      if (blob && blob.size) { usedType = t; break; }
+    }
+
+    let suffix = '(Trimmed Compressed)';
+    let statusLabel = 'compressed';
+    if (usedType.includes('mp4') || usedType.includes('aac')) {
+      suffix = '(Trimmed AAC)';
+      statusLabel = 'AAC';
+    }
+
+    if (!blob || !blob.size) {
+      // Fallback to WAV.
+      setStatus('Compressed not supported — saving WAV…');
+
+      setStatus('Encoding WAV…');
+      const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
+      const name = withTrimmedSuffix(trimPreset.name, '(Trimmed WAV)');
+
+      const saved = await savePersistedUpload({
+        name,
+        blob: wavBlob,
+        trimIn: 0,
+        trimOut: rendered.duration || range.segDur
+      });
+
+      addUserPresetFromBlob({ name, blob: wavBlob, saved });
+      try { renderLoopsPage(); } catch {}
+      stopTrimTest();
+      switchTab('loops');
+      setStatus('Trimmed loop created (WAV)');
+      return;
+    }
+
+    const name = withTrimmedSuffix(trimPreset.name, suffix);
+
+    const saved = await savePersistedUpload({
+      name,
+      blob,
+      trimIn: 0,
+      trimOut: rendered.duration || range.segDur
+    });
+
+    addUserPresetFromBlob({ name, blob, saved });
+    try { renderLoopsPage(); } catch {}
+    stopTrimTest();
+    switchTab('loops');
+    setStatus(`Trimmed loop created (${statusLabel})`);
+  } catch {
+    setStatus('Failed to create trimmed loop');
+  }
+}
+
+function showTrimSaveOptions() {
+  let ov = document.getElementById('trimSaveOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'trimSaveOverlay';
+    ov.className = 'overlay hidden';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-label', 'Save trim');
+    ov.innerHTML = `<div class="overlay-card">
+      <h2>Save Trim</h2>
+      <p class="hint">Choose how you want to save this trim.</p>
+      <div class="picker-list" aria-label="Save options">
+        <button id="trimSavePoints" type="button">Save trim points (original)</button>
+        <button id="trimSaveWav" type="button">Create new trimmed loop (WAV)</button>
+        <button id="trimSaveCompressed" type="button">Create new trimmed loop (smaller file)</button>
+      </div>
+      <div class="overlay-actions">
+        <button id="trimSaveCancel" class="secondary" type="button">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+
+    const close = () => {
+      ov.classList.add('hidden');
+      try { updateScrollState(); } catch {}
+    };
+
+    ov.querySelector('#trimSaveCancel').addEventListener('click', close);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+
+    ov.querySelector('#trimSavePoints').addEventListener('click', async () => {
+      close();
+      await saveTrimPointsToOriginal();
+    });
+    ov.querySelector('#trimSaveWav').addEventListener('click', async () => {
+      close();
+      await createTrimmedLoopAsWav();
+    });
+    ov.querySelector('#trimSaveCompressed').addEventListener('click', async () => {
+      close();
+      await createTrimmedLoopAsCompressed();
+    });
+  }
+  ov.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
 }
 
 async function resetTrimPoints() {
@@ -2048,6 +2536,7 @@ function bindUI() {
   // Trimmer elements
   const trimBack = document.getElementById('trimBack');
   const trimCanvas = document.getElementById('trimCanvas');
+  const trimCursor = document.getElementById('trimCursor');
   const trimZoom = document.getElementById('trimZoom');
   const trimPlayTest = document.getElementById('trimPlayTest');
   const trimStopTest = document.getElementById('trimStopTest');
@@ -2902,21 +3391,30 @@ function bindUI() {
     trimCanvas.addEventListener('pointercancel', handleTrimPointerUp);
   }
 
+  if (trimCursor) {
+    trimCursor.addEventListener('pointerdown', handleTrimCursorPointerDown);
+    trimCursor.addEventListener('pointermove', handleTrimCursorPointerMove);
+    trimCursor.addEventListener('pointerup', handleTrimCursorPointerUp);
+    trimCursor.addEventListener('pointercancel', handleTrimCursorPointerUp);
+    trimCursor.addEventListener('keydown', handleTrimCursorKeyDown);
+  }
+
   trimZoom && trimZoom.addEventListener('input', () => {
     const v = parseInt(trimZoom.value, 10) || 1;
     trimZoomLevel = Math.max(1, v);
-    // Centre the view around the midpoint of the trim region when zooming.
+    // Centre the view around the playhead (drag cursor) when zooming.
     if (trimBuffer) {
-      const midTrim = (trimIn + trimOut) / 2;
-      const viewDur = trimBuffer.duration / trimZoomLevel;
-      trimViewStart = Math.max(0, midTrim - viewDur / 2);
+      const dur = Math.max(0, trimBuffer.duration || 0);
+      const fallback = (trimIn + trimOut) / 2;
+      const focus = isFinite(trimCursorTime) ? trimCursorTime : fallback;
+      centerTrimViewAt(clamp(focus, 0, dur));
     }
     drawTrimWaveform();
   });
 
   trimPlayTest && trimPlayTest.addEventListener('click', () => playTrimTest());
   trimStopTest && trimStopTest.addEventListener('click', () => { stopTrimTest(); setStatus('Stopped'); });
-  trimSaveBtn && trimSaveBtn.addEventListener('click', () => saveTrimPoints());
+  trimSaveBtn && trimSaveBtn.addEventListener('click', () => showTrimSaveOptions());
   trimResetBtn && trimResetBtn.addEventListener('click', () => resetTrimPoints());
 
   // ---- Settings bindings ----
