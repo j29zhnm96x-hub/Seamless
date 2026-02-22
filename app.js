@@ -57,9 +57,9 @@ const I18N = {
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
-    settings_export_hint: 'Download as JSON backup',
+    settings_export_hint: 'Download as backup (ZIP)',
     settings_import_main: 'Import Playlists & Loops',
-    settings_import_hint: 'Restore from JSON file',
+    settings_import_hint: 'Restore from backup (ZIP/JSON)',
     settings_appearance: 'Appearance',
     settings_theme: 'Theme',
     settings_theme_dark: 'Dark',
@@ -118,9 +118,9 @@ const I18N = {
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i petlje',
-    settings_export_hint: 'Preuzmi kao JSON sigurnosnu kopiju',
+    settings_export_hint: 'Preuzmi kao ZIP sigurnosnu kopiju',
     settings_import_main: 'Uvezi playliste i petlje',
-    settings_import_hint: 'Vrati iz JSON datoteke',
+    settings_import_hint: 'Vrati iz ZIP/JSON sigurnosne kopije',
     settings_appearance: 'Izgled',
     settings_theme: 'Tema',
     settings_theme_dark: 'Tamna',
@@ -541,6 +541,44 @@ async function savePersistedUpload({ name, blob, trimIn, trimOut }) {
 
   try { db.close(); } catch {}
   return record;
+}
+
+async function putPersistedUploadRecord(record) {
+  if (!record || !record.id || !record.blob) return null;
+  let createdAt = Number(record.createdAt);
+  if (!Number.isFinite(createdAt)) createdAt = Date.now();
+  const rec = {
+    id: String(record.id),
+    name: String(record.name || 'Audio'),
+    blob: record.blob,
+    createdAt,
+    ...(record.trimIn != null ? { trimIn: record.trimIn } : {}),
+    ...(record.trimOut != null ? { trimOut: record.trimOut } : {})
+  };
+  const db = await openUploadsDb();
+
+  await idbTx(db, 'readwrite', (store) => store.put(rec));
+
+  // Enforce a simple cap to reduce quota risk.
+  try {
+    const all = await idbTx(db, 'readonly', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    });
+    if (Array.isArray(all) && all.length > MAX_PERSISTED_UPLOADS) {
+      all.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const toDelete = all.slice(0, Math.max(0, all.length - MAX_PERSISTED_UPLOADS));
+      await idbTx(db, 'readwrite', (store) => {
+        toDelete.forEach(r => { try { store.delete(r.id); } catch {} });
+      });
+    }
+  } catch {}
+
+  try { db.close(); } catch {}
+  return rec;
 }
 
 async function renamePersistedUpload(id, newName) {
@@ -2837,27 +2875,67 @@ function updateMediaSession(state) {
 
 async function exportAppData() {
   try {
+    try { stopPlaylistPlayback(); } catch {}
+    try { stopLoop(0.03); } catch {}
+
     setStatus('Exporting…');
     const playlists = await listPlaylistRecords().catch(() => []);
     const uploads = await listPersistedUploads().catch(() => []);
-    // Strip blobs from uploads (too large); export metadata + trim points only.
+    const overrides = (() => {
+      try { return getUploadNameOverrides() || {}; } catch { return {}; }
+    })();
+
     const uploadMeta = (uploads || []).map(u => {
       const overrideName = getUploadNameOverride(u && u.id);
+      const id = u && u.id;
+      const filePath = id ? `uploads/${String(id)}` : '';
       return ({
-        id: u.id,
-        name: overrideName || u.name,
-        createdAt: u.createdAt,
-        trimIn: u.trimIn != null ? u.trimIn : undefined,
-        trimOut: u.trimOut != null ? u.trimOut : undefined,
+        id,
+        name: overrideName || (u && u.name) || 'Audio',
+        createdAt: u && u.createdAt,
+        trimIn: (u && u.trimIn != null) ? u.trimIn : undefined,
+        trimOut: (u && u.trimOut != null) ? u.trimOut : undefined,
+        file: filePath,
+        type: (u && u.blob && u.blob.type) ? u.blob.type : undefined,
+        size: (u && u.blob && u.blob.size) ? u.blob.size : undefined,
       });
     });
+
     const data = {
       app: 'seamlessplayer',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       playlists: playlists || [],
       uploads: uploadMeta,
+      uploadNameOverrides: overrides,
     };
+
+    const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
+    if (JSZipRef) {
+      const zip = new JSZipRef();
+      zip.file('backup.json', JSON.stringify(data, null, 2));
+
+      const folder = zip.folder('uploads');
+      for (const u of (uploads || [])) {
+        if (!u || !u.id || !u.blob) continue;
+        // Store blobs with stable IDs so playlists keep working.
+        try { folder.file(String(u.id), u.blob); } catch {}
+      }
+
+      setStatus('Building ZIP…');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `seamlessplayer-backup-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+      setStatus('Export complete');
+      return;
+    }
+
+    // Fallback: JSON-only export (metadata only).
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2867,19 +2945,146 @@ async function exportAppData() {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-    setStatus('Export complete');
+    setStatus('Export complete (JSON)');
   } catch (e) {
     setStatus('Export failed');
   }
 }
 
+async function importZipBackup(file) {
+  if (!file) return;
+  const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
+  if (!JSZipRef) { setStatus('ZIP import not available'); return; }
+
+  try { stopPlaylistPlayback(); } catch {}
+  try { stopLoop(0.03); } catch {}
+
+  setStatus('Importing ZIP…');
+  const ab = await file.arrayBuffer();
+  const zip = await JSZipRef.loadAsync(ab);
+  const backupFile = zip.file('backup.json');
+  if (!backupFile) { setStatus('Invalid backup: missing backup.json'); return; }
+
+  const jsonText = await backupFile.async('string');
+  const data = JSON.parse(jsonText);
+  if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
+
+  // Restore upload name overrides (safe even if uploads are missing).
+  try {
+    if (data.uploadNameOverrides && typeof data.uploadNameOverrides === 'object') {
+      localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(data.uploadNameOverrides));
+    }
+  } catch {}
+
+  // Import playlists.
+  if (Array.isArray(data.playlists)) {
+    for (const pl of data.playlists) {
+      if (!pl || !pl.id) continue;
+      await savePlaylistRecord(pl).catch(() => {});
+    }
+  }
+
+  // Import uploads (blob + trim metadata) preserving IDs.
+  if (Array.isArray(data.uploads)) {
+    let imported = 0;
+    for (const meta of data.uploads) {
+      if (!meta || !meta.id) continue;
+      const id = String(meta.id);
+      const path = String(meta.file || `uploads/${id}`);
+
+      const entry = zip.file(path) || zip.file(`uploads/${id}`);
+      if (!entry) continue;
+
+      try {
+        let blob = await entry.async('blob');
+        // JSZip blobs often come back with empty/unknown MIME type; restore if we have it.
+        try {
+          const mt = (meta && meta.type) ? String(meta.type) : '';
+          if (mt && (!blob.type || blob.type === 'application/octet-stream') && blob.size) {
+            blob = blob.slice(0, blob.size, mt);
+          }
+        } catch {}
+        await putPersistedUploadRecord({
+          id,
+          name: meta.name || 'Audio',
+          blob,
+          createdAt: meta.createdAt || Date.now(),
+          trimIn: meta.trimIn != null ? meta.trimIn : undefined,
+          trimOut: meta.trimOut != null ? meta.trimOut : undefined,
+        });
+        imported++;
+        if (imported % 3 === 0) setStatus(`Importing… (${imported})`);
+      } catch {}
+    }
+  }
+
+  // Sync in-memory presets with persisted uploads.
+  try {
+    const items = await listPersistedUploads();
+    if (Array.isArray(items)) {
+      const byId = new Map();
+      userPresets.forEach(p => { if (p && p.id) byId.set(String(p.id), p); });
+
+      // Add/update upload presets.
+      for (const it of items) {
+        if (!it || !it.id || !it.blob) continue;
+        const id = String(it.id);
+        const overrideName = getUploadNameOverride(id);
+        const name = overrideName || it.name || 'Audio';
+
+        const existing = byId.get(id);
+        if (existing) {
+          existing.blob = it.blob;
+          existing.persisted = true;
+          existing.createdAt = it.createdAt || existing.createdAt || 0;
+          existing.name = name;
+          if (it.trimIn != null) existing.trimIn = it.trimIn; else delete existing.trimIn;
+          if (it.trimOut != null) existing.trimOut = it.trimOut; else delete existing.trimOut;
+        } else {
+          const preset = { id: it.id, name, blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
+          if (it.trimIn != null) preset.trimIn = it.trimIn;
+          if (it.trimOut != null) preset.trimOut = it.trimOut;
+          userPresets.unshift(preset);
+        }
+      }
+    }
+  } catch {}
+
+  setStatus('Import complete');
+  if (activeTab === 'playlists') renderPlaylistsPage();
+  if (activeTab === 'loops') renderLoopsPage();
+}
+
 async function importAppData(file) {
   if (!file) return;
   try {
+    const isZip = (() => {
+      try {
+        const n = (file && file.name) ? String(file.name).toLowerCase() : '';
+        if (n.endsWith('.zip')) return true;
+        const t = (file && file.type) ? String(file.type).toLowerCase() : '';
+        return t.includes('zip');
+      } catch {
+        return false;
+      }
+    })();
+    if (isZip) {
+      await importZipBackup(file);
+      return;
+    }
+
     setStatus('Importing…');
     const text = await file.text();
     const data = JSON.parse(text);
     if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
+
+    // Restore upload name overrides if present.
+    try {
+      if (data.uploadNameOverrides && typeof data.uploadNameOverrides === 'object') {
+        localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(data.uploadNameOverrides));
+      }
+    } catch {}
+
     // Import playlists.
     if (Array.isArray(data.playlists)) {
       for (const pl of data.playlists) {
@@ -2909,14 +3114,17 @@ async function importAppData(file) {
         try { db.close(); } catch {}
       } catch {}
     }
-    // Refresh userPresets trim data from imported metadata.
+    // Refresh userPresets trim/name data from imported metadata.
     if (Array.isArray(data.uploads)) {
       for (const meta of data.uploads) {
         if (!meta || !meta.id) continue;
-        const preset = userPresets.find(p => p && p.id === meta.id);
+        const mid = String(meta.id);
+        const preset = userPresets.find(p => p && p.id != null && String(p.id) === mid);
         if (preset) {
           if (meta.trimIn != null) preset.trimIn = meta.trimIn;
           if (meta.trimOut != null) preset.trimOut = meta.trimOut;
+          const overrideName = getUploadNameOverride(mid);
+          if (overrideName) preset.name = overrideName;
         }
       }
     }

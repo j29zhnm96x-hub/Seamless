@@ -37,6 +37,10 @@ Open http://localhost:5173 in your browser.
 - Open the "Audio Loops" tab to browse built-in loops and session imports.
 - Use the Settings tab to tweak loop detection and click "Recompute".
 
+### Backup / Restore
+- Settings → Export creates a `.zip` backup that includes playlists and imported audio files (stored in IndexedDB).
+- Settings → Import accepts `.zip` backups (full restore) and `.json` backups (metadata-only / backward compatible).
+
 ## iOS Notes
 - Audio is routed to a hidden `<audio id="audioOut" playsinline>` to increase resilience when backgrounded/locked.
 - A user gesture is required before audio can play. Use the Play button first.

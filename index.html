@@ -188,13 +188,13 @@
           <div class="settings-group">
             <button id="exportJson" class="settings-item" type="button" aria-label="Export data">
               <span class="settings-item-main">Export Playlists &amp; Loops</span>
-              <span class="settings-item-hint">Download as JSON backup</span>
+              <span class="settings-item-hint">Download as backup (ZIP)</span>
             </button>
             <button id="importJson" class="settings-item" type="button" aria-label="Import data">
               <span class="settings-item-main">Import Playlists &amp; Loops</span>
-              <span class="settings-item-hint">Restore from JSON file</span>
+              <span class="settings-item-hint">Restore from backup (ZIP/JSON)</span>
             </button>
-            <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" aria-label="Import JSON file" />
+            <input id="importJsonInput" type="file" accept=".zip,application/zip,.json,application/json" class="hidden" aria-label="Import backup file" />
           </div>
         </div>
 
@@ -300,6 +300,7 @@
 
   <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
