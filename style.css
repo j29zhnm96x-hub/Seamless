@@ -350,6 +350,10 @@ button.danger{background:var(--danger);color:#fff}
 .detail-title{margin:0;font-size:22px;font-weight:700;letter-spacing:-.4px}
 .detail-info{margin:2px 0 0;color:var(--text-2);font-size:13px}
 
+.trim-title-row{display:flex;align-items:center;gap:10px}
+.trim-title-row .detail-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trim-rename{padding:7px 12px;font-size:12px;box-shadow:none}
+
 .detail-actions{
   display:flex;gap:8px;padding:8px 0 16px;
 }

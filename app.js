@@ -47,6 +47,9 @@ const I18N = {
     trimmer_reset: 'Reset',
     trimmer_set_in: 'Set IN',
     trimmer_set_out: 'Set OUT',
+    trimmer_rename: 'Rename',
+    trimmer_rename_prompt: 'Rename loop',
+    trimmer_rename_placeholder: 'Loop name',
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
@@ -105,6 +108,9 @@ const I18N = {
     trimmer_reset: 'Vrati',
     trimmer_set_in: 'Postavi IN',
     trimmer_set_out: 'Postavi OUT',
+    trimmer_rename: 'Preimenuj',
+    trimmer_rename_prompt: 'Preimenuj petlju',
+    trimmer_rename_placeholder: 'Naziv petlje',
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i petlje',
@@ -233,6 +239,9 @@ function applyLanguage(lang) {
   if (btnSetIn) { btnSetIn.textContent = t('trimmer_set_in'); btnSetIn.setAttribute('aria-label', t('trimmer_set_in')); }
   const btnSetOut = document.getElementById('trimSetOut');
   if (btnSetOut) { btnSetOut.textContent = t('trimmer_set_out'); btnSetOut.setAttribute('aria-label', t('trimmer_set_out')); }
+
+  const btnRename = document.getElementById('trimRename');
+  if (btnRename) { btnRename.textContent = t('trimmer_rename'); btnRename.setAttribute('aria-label', t('trimmer_rename')); }
 
   // Settings page
   setText('#page-settings .page-header h2', t('settings_title'));
@@ -492,6 +501,30 @@ async function savePersistedUpload({ name, blob, trimIn, trimOut }) {
 
   try { db.close(); } catch {}
   return record;
+}
+
+async function renamePersistedUpload(id, newName) {
+  if (!id) return false;
+  const name = String(newName || '').trim();
+  if (!name) return false;
+  const db = await openUploadsDb();
+  try {
+    const rec = await idbTx(db, 'readonly', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    });
+    if (!rec) return false;
+    rec.name = name;
+    await idbTx(db, 'readwrite', (store) => store.put(rec));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { db.close(); } catch {}
+  }
 }
 
 async function deletePersistedUpload(id) {
@@ -2949,6 +2982,7 @@ function bindUI() {
   const trimResetBtn = document.getElementById('trimReset');
   const trimSetInBtn = document.getElementById('trimSetIn');
   const trimSetOutBtn = document.getElementById('trimSetOut');
+  const trimRenameBtn = document.getElementById('trimRename');
 
   // Settings elements
   const exportJsonBtn = document.getElementById('exportJson');
@@ -3847,6 +3881,27 @@ function bindUI() {
   trimResetBtn && trimResetBtn.addEventListener('click', () => resetTrimPoints());
   trimSetInBtn && trimSetInBtn.addEventListener('click', () => setTrimPointToPlayhead('in'));
   trimSetOutBtn && trimSetOutBtn.addEventListener('click', () => setTrimPointToPlayhead('out'));
+
+  trimRenameBtn && trimRenameBtn.addEventListener('click', async () => {
+    if (!trimPreset) return;
+    const current = String(trimPreset.name || '').trim();
+    const proposed = prompt(t('trimmer_rename_prompt'), current || t('trimmer_rename_placeholder'));
+    if (proposed == null) return;
+    const name = String(proposed).trim();
+    if (!name) return;
+
+    trimPreset.name = name;
+    try {
+      if (currentPresetRef && trimPreset === currentPresetRef) {
+        currentSourceLabel = name;
+      }
+    } catch {}
+
+    const titleEl = document.getElementById('trimTitle');
+    if (titleEl) titleEl.textContent = name;
+    try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
+    try { if (trimPreset.persisted && trimPreset.id) await renamePersistedUpload(trimPreset.id, name); } catch {}
+  });
 
   // ---- Settings bindings ----
   exportJsonBtn && exportJsonBtn.addEventListener('click', () => exportAppData());
