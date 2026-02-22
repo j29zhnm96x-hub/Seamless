@@ -164,13 +164,11 @@ function setText(elOrSelector, text) {
 function setButtonTextAfterSvg(btn, text) {
   if (!btn) return;
   try {
-    const nodes = Array.from(btn.childNodes || []);
-    const textNode = nodes.find(n => n && n.nodeType === Node.TEXT_NODE);
-    if (textNode) {
-      textNode.nodeValue = text.startsWith(' ') ? text : ` ${text}`;
-      return;
-    }
-    btn.textContent = text;
+    // Collect non-text nodes (like SVG) and the new text
+    const elements = Array.from(btn.childNodes).filter(n => n.nodeType !== Node.TEXT_NODE);
+    btn.innerHTML = '';
+    elements.forEach(el => btn.appendChild(el));
+    btn.appendChild(document.createTextNode(text.startsWith(' ') ? text : ` ${text}`));
   } catch {
     try { btn.textContent = text; } catch {}
   }
@@ -223,7 +221,6 @@ function applyLanguage(lang) {
   const btnTest = document.getElementById('trimPlayTest');
   if (btnTest) {
     setButtonTextAfterSvg(btnTest, t('trimmer_test'));
-    btnTest.setAttribute('aria-label', t('trimmer_test'));
   }
   const btnStop = document.getElementById('trimStopTest');
   if (btnStop) { btnStop.textContent = t('trimmer_stop'); btnStop.setAttribute('aria-label', t('trimmer_stop')); }
