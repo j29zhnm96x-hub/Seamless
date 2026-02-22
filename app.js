@@ -2395,6 +2395,23 @@ async function resetTrimPoints() {
   setStatus('Trim reset to auto');
 }
 
+function refreshLoopsPageSoon() {
+  // Some browsers can delay layout/paint after file pickers or long async tasks.
+  // Rendering twice (now + next frame) makes the Loops list update reliably.
+  try { renderLoopsPage(); } catch {}
+  try {
+    requestAnimationFrame(() => {
+      try { renderLoopsPage(); } catch {}
+      try { updateScrollState(); } catch {}
+    });
+  } catch {
+    setTimeout(() => {
+      try { renderLoopsPage(); } catch {}
+      try { updateScrollState(); } catch {}
+    }, 0);
+  }
+}
+
 function renderLoopsPage() {
   const bl = document.getElementById('builtinListPage');
   const ul = document.getElementById('uploadsListPage');
@@ -3515,11 +3532,11 @@ function bindUI() {
       try {
         const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
         addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
-        try { renderLoopsPage(); } catch {}
+        refreshLoopsPageSoon();
       } catch {
         try {
           addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
-          try { renderLoopsPage(); } catch {}
+          refreshLoopsPageSoon();
         } catch {}
       }
     } catch (err) {
@@ -3537,11 +3554,11 @@ function bindUI() {
         try {
           const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
           addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
-          try { renderLoopsPage(); } catch {}
+          refreshLoopsPageSoon();
         } catch {
           try {
             addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
-            try { renderLoopsPage(); } catch {}
+            refreshLoopsPageSoon();
           } catch {}
         }
       } catch {
@@ -3569,11 +3586,11 @@ function bindUI() {
               try {
                 const saved = await savePersistedUpload({ name: `Clipboard ${type}`, blob });
                 addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved });
-                try { renderLoopsPage(); } catch {}
+                refreshLoopsPageSoon();
               } catch {
                 try {
                   addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved: null });
-                  try { renderLoopsPage(); } catch {}
+                  refreshLoopsPageSoon();
                 } catch {}
               }
               return;
@@ -3620,11 +3637,11 @@ function bindUI() {
       try {
         const saved = await savePersistedUpload({ name: f.name || 'Pasted File', blob: f });
         addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved });
-        try { renderLoopsPage(); } catch {}
+        refreshLoopsPageSoon();
       } catch {
         try {
           addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved: null });
-          try { renderLoopsPage(); } catch {}
+          refreshLoopsPageSoon();
         } catch {}
       }
     } catch (err) {
@@ -3693,11 +3710,11 @@ function bindUI() {
         try {
           const saved = await savePersistedUpload({ name: f.name || 'Dropped File', blob: f });
           addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved });
-          try { renderLoopsPage(); } catch {}
+          refreshLoopsPageSoon();
         } catch {
           try {
             addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved: null });
-            try { renderLoopsPage(); } catch {}
+            refreshLoopsPageSoon();
           } catch {}
         }
       } catch (err) {
