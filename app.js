@@ -14,6 +14,10 @@ const UPLOAD_DB_VERSION = 1;
 const UPLOAD_STORE = 'uploads';
 const MAX_PERSISTED_UPLOADS = 25;
 
+// Persist renamed loop titles without rewriting large Blob records.
+// This avoids iOS/Safari instability when repeatedly re-putting Blob-heavy IndexedDB objects.
+const UPLOAD_NAME_OVERRIDES_KEY = 'seamlessplayer-upload-name-overrides';
+
 // Persist playlists across restarts via IndexedDB.
 const PLAYLIST_DB_NAME = 'seamlessplayer-playlists';
 const PLAYLIST_DB_VERSION = 1;
@@ -440,6 +444,42 @@ function makeUploadId() {
   return `u_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function getUploadNameOverrides() {
+  try {
+    const raw = localStorage.getItem(UPLOAD_NAME_OVERRIDES_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return {};
+    return obj;
+  } catch {
+    return {};
+  }
+}
+
+function getUploadNameOverride(id) {
+  const key = (id == null) ? '' : String(id);
+  if (!key) return '';
+  try {
+    const overrides = getUploadNameOverrides();
+    const v = overrides[key];
+    return (v == null) ? '' : String(v);
+  } catch {
+    return '';
+  }
+}
+
+function setUploadNameOverride(id, name) {
+  const key = (id == null) ? '' : String(id);
+  if (!key) return;
+  const nm = String(name || '').trim();
+  try {
+    const overrides = getUploadNameOverrides();
+    if (nm) overrides[key] = nm;
+    else delete overrides[key];
+    localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(overrides));
+  } catch {}
+}
+
 function addUserPresetFromBlob({ name, blob, saved }) {
   const presetObj = {
     id: (saved && saved.id) || makeUploadId(),
@@ -544,7 +584,8 @@ async function hydratePersistedUploadsIntoUserPresets() {
     for (const it of items) {
       if (!it || !it.blob) continue;
       if (it.id && existingIds.has(it.id)) continue;
-      const preset = { id: it.id, name: it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
+      const overrideName = getUploadNameOverride(it.id);
+      const preset = { id: it.id, name: overrideName || it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
       if (it.trimIn != null) preset.trimIn = it.trimIn;
       if (it.trimOut != null) preset.trimOut = it.trimOut;
       userPresets.unshift(preset);
@@ -1697,6 +1738,18 @@ function openDetailLoopPicker() {
 async function openTrimmer(preset) {
   if (!preset || !preset.blob) { setStatus('No audio to trim'); return; }
   try {
+    // iOS/Safari: decoding + heavy canvas work while a MediaStream-backed loop is playing
+    // can put the output into a stuttery state until the stream is paused.
+    // Entering the trimmer is a user gesture anyway, so we safely stop playback first.
+    try { stopPlaylistPlayback(); } catch {}
+    try {
+      if (loopSource) {
+        const ramp = 0.05;
+        stopLoop(ramp, true);
+        await new Promise(r => setTimeout(r, Math.ceil((ramp + 0.04) * 1000)));
+      }
+    } catch {}
+
     setStatus('Loading for trim…');
     const ab = await preset.blob.arrayBuffer();
     const buf = await decodeArrayBuffer(ab);
@@ -2788,11 +2841,16 @@ async function exportAppData() {
     const playlists = await listPlaylistRecords().catch(() => []);
     const uploads = await listPersistedUploads().catch(() => []);
     // Strip blobs from uploads (too large); export metadata + trim points only.
-    const uploadMeta = (uploads || []).map(u => ({
-      id: u.id, name: u.name, createdAt: u.createdAt,
-      trimIn: u.trimIn != null ? u.trimIn : undefined,
-      trimOut: u.trimOut != null ? u.trimOut : undefined,
-    }));
+    const uploadMeta = (uploads || []).map(u => {
+      const overrideName = getUploadNameOverride(u && u.id);
+      return ({
+        id: u.id,
+        name: overrideName || u.name,
+        createdAt: u.createdAt,
+        trimIn: u.trimIn != null ? u.trimIn : undefined,
+        trimOut: u.trimOut != null ? u.trimOut : undefined,
+      });
+    });
     const data = {
       app: 'seamlessplayer',
       version: 1,
@@ -3900,7 +3958,7 @@ function bindUI() {
     const titleEl = document.getElementById('trimTitle');
     if (titleEl) titleEl.textContent = name;
     try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
-    try { if (trimPreset.persisted && trimPreset.id) await renamePersistedUpload(trimPreset.id, name); } catch {}
+    try { if (trimPreset.id) setUploadNameOverride(trimPreset.id, name); } catch {}
   });
 
   // ---- Settings bindings ----

@@ -469,6 +469,8 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--surface);color:var(--text);
   border:none;border-bottom:1px solid var(--border);
   box-shadow:none;padding:11px 14px;font-size:14px;border-radius:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-width:0;max-width:100%;display:block;
 }
 .list li:first-child > button{border-radius:var(--radius) var(--radius) 0 0}
 .list li:last-child > button{border-radius:0 0 var(--radius) var(--radius);border-bottom:none}
@@ -492,6 +494,7 @@ button.danger{background:var(--danger);color:#fff}
   padding:11px 14px;font-size:14px;font-weight:500;
   text-align:left;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:100%;display:block;
 }
 .preset-play:hover{background:var(--surface-2)}
 .preset-trim{
