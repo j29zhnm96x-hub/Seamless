@@ -681,6 +681,83 @@ let currentSourceLabel = null;
 let currentPresetId = null;
 let currentPresetRef = null;
 
+// Visual-only playhead state (Player waveform).
+let wavePlayheadRaf = 0;
+let wavePlayheadPosSec = 0;
+let wavePlayheadLastCtxTime = 0;
+let wavePlayheadLoopStart = 0;
+let wavePlayheadLoopEnd = 0;
+let wavePlayheadDur = 0;
+
+function stopWavePlayhead() {
+  try { if (wavePlayheadRaf) cancelAnimationFrame(wavePlayheadRaf); } catch {}
+  wavePlayheadRaf = 0;
+  wavePlayheadPosSec = 0;
+  wavePlayheadLastCtxTime = 0;
+  wavePlayheadLoopStart = 0;
+  wavePlayheadLoopEnd = 0;
+  wavePlayheadDur = 0;
+  const el = document.getElementById('wavePlayhead');
+  if (el) {
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+    try { el.style.transform = 'translateX(0px)'; } catch {}
+  }
+}
+
+function startWavePlayhead(buffer, loopStartSec, loopEndSec) {
+  const el = document.getElementById('wavePlayhead');
+  const canvas = document.getElementById('wave');
+  if (!el || !canvas || !buffer || !audioCtx) return;
+
+  const dur = Number(buffer.duration || 0);
+  if (!Number.isFinite(dur) || dur <= 0) return;
+
+  wavePlayheadDur = dur;
+  wavePlayheadLoopStart = Math.max(0, Number(loopStartSec || 0));
+  wavePlayheadLoopEnd = Math.max(wavePlayheadLoopStart, Number(loopEndSec || 0));
+  wavePlayheadPosSec = 0;
+  wavePlayheadLastCtxTime = audioCtx.currentTime;
+
+  el.classList.remove('hidden');
+  el.setAttribute('aria-hidden', 'true');
+
+  const tick = () => {
+    if (!audioCtx || !loopSource) { stopWavePlayhead(); return; }
+
+    const now = audioCtx.currentTime;
+    const dt = Math.max(0, now - (wavePlayheadLastCtxTime || now));
+    wavePlayheadLastCtxTime = now;
+
+    const rate = clamp(currentRate, RATE_MIN, RATE_MAX);
+    wavePlayheadPosSec += dt * rate;
+
+    // Wrap at loopEnd -> loopStart, matching AudioBufferSourceNode looping.
+    const ls = wavePlayheadLoopStart;
+    const le = wavePlayheadLoopEnd;
+    const seg = le - ls;
+    if (seg > 0 && wavePlayheadPosSec >= le) {
+      wavePlayheadPosSec = ls + ((wavePlayheadPosSec - le) % seg);
+    } else if (wavePlayheadPosSec >= wavePlayheadDur) {
+      wavePlayheadPosSec = 0;
+    }
+
+    try {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect && rect.width ? rect.width : 0;
+      if (w > 0) {
+        const x = Math.max(0, Math.min(w, (wavePlayheadPosSec / wavePlayheadDur) * w));
+        el.style.transform = `translateX(${x}px)`;
+      }
+    } catch {}
+
+    wavePlayheadRaf = requestAnimationFrame(tick);
+  };
+
+  try { if (wavePlayheadRaf) cancelAnimationFrame(wavePlayheadRaf); } catch {}
+  wavePlayheadRaf = requestAnimationFrame(tick);
+}
+
 function updateNowPlayingNameUI() {
   const el = document.getElementById('nowPlayingName');
   if (!el) return;
@@ -1383,6 +1460,9 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, cu
 
   loopSource.start(audioCtx.currentTime);
 
+  // Visual-only playhead.
+  try { startWavePlayhead(buffer, start, end); } catch {}
+
   // iOS can end up with <audio> paused after rapid actions; nudge playback.
   startOutputIfNeeded();
 
@@ -1444,10 +1524,10 @@ async function renderPlaylistsPage() {
 
   if (!items.length) {
     const li = document.createElement('li');
+    li.className = 'playlist-empty';
     const div = document.createElement('div');
     div.className = 'hint';
     div.textContent = 'No playlists yet. Tap + New to create one.';
-    div.style.padding = '10px 0';
     li.appendChild(div);
     listEl.appendChild(li);
     return;
@@ -2721,6 +2801,8 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
 
   // Nothing playing: just ensure output is quiet.
   if (!sourceToStop) {
+    stopWavePlayhead();
+    try { updateNowPlayingNameUI(); } catch {}
     try {
       master.gain.cancelScheduledValues(now);
       master.gain.setValueAtTime(master.gain.value, now);
@@ -2733,6 +2815,8 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
 
   // Fast-path for internal stop/start (startLoopFromBuffer calls stopLoop(0)).
   if (!rampOut || rampOut <= 0) {
+    stopWavePlayhead();
+    try { updateNowPlayingNameUI(); } catch {}
     // If this is a looping source, turning off looping avoids an audible wrap.
     try { sourceToStop.loop = false; } catch {}
     try { if (gainToStop) { try { gainToStop.disconnect(); } catch {} } } catch {}
@@ -2759,6 +2843,8 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
   try {
     // Avoid hearing a loop wrap during the fade-out window.
     try { sourceToStop.loop = false; } catch {}
+    stopWavePlayhead();
+    try { updateNowPlayingNameUI(); } catch {}
     if (gainToStop) {
       gainToStop.gain.cancelScheduledValues(now);
       gainToStop.gain.setValueAtTime(gainToStop.gain.value, now);

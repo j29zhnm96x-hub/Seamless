@@ -215,19 +215,32 @@ button.danger{background:var(--danger);color:#fff}
   box-shadow:var(--shadow);
   display:block;
 }
-.wave-nowplaying{
+
+.wave-playhead{
   position:absolute;
-  left:50%;bottom:6px;transform:translateX(-50%);
-  max-width:calc(100% - 16px);
-  padding:4px 10px;
-  border-radius:999px;
-  background:rgba(0,0,0,0.45);
-  color:var(--text);
-  font-size:12px;
-  font-weight:600;
-  white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;
+  top:0;
+  bottom:0;
+  width:0;
+  border-left:2px solid var(--accent);
+  box-shadow:0 0 0 1px var(--accent-mid), 0 0 10px var(--accent-soft);
+  /* Purple look without introducing new hard-coded colors. */
+  filter:hue-rotate(70deg) saturate(1.25);
   pointer-events:none;
+  will-change:transform;
+  transform:translateX(0);
+}
+
+.wave-nowplaying{
+  margin-top:10px;
+  color:var(--text);
+  font-size:13px;
+  font-weight:600;
+  line-height:1.25;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
 }
 
 /* -------- Volume / Rate controls -------- */
@@ -286,6 +299,18 @@ button.danger{background:var(--danger);color:#fff}
   overflow:hidden;
   background:var(--surface);
   box-shadow:var(--shadow);
+}
+
+.playlist-empty{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px 14px;
+  min-height:64px;
+}
+.playlist-empty .hint{
+  margin:0;
+  text-align:center;
 }
 .playlist-list-row{
   display:flex;
