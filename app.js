@@ -857,6 +857,9 @@ let vizCtx = null;
 let vizRafId = 0;
 let vizFreqData = null;
 let vizTimeData = null;
+let vizAutoPeak = 0;
+let vizBarScratch = [];
+let vizBarSmooth = [];
 let lastTouchEndAt = 0;
 
 const VIEWPORT_LOCK_CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
@@ -1201,6 +1204,7 @@ function ensureAudio() {
     // For visualization only (parallel tap). Do NOT connect to audioCtx.destination.
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.86;
     try { master.connect(analyser); } catch {}
     audioOut = document.getElementById('audioOut');
     if (audioOut) audioOut.srcObject = mediaDest.stream;
@@ -1258,7 +1262,6 @@ function startViz() {
   const rootStyles = getComputedStyle(document.documentElement);
   const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#4a90e2';
   const danger = (rootStyles.getPropertyValue('--danger') || '').trim() || '#e24a6a';
-  const text = (rootStyles.getPropertyValue('--text') || '').trim() || '#e6edf3';
 
   const draw = () => {
     vizRafId = requestAnimationFrame(draw);
@@ -1276,38 +1279,61 @@ function startViz() {
     vizCtx.clearRect(0, 0, w, h);
 
     // Frequency bars
-    const bars = Math.min(96, vizFreqData.length);
-    const barW = w / bars;
+    const binCount = vizFreqData.length;
+    const nyquist = audioCtx ? (audioCtx.sampleRate / 2) : 22050;
+    const minHz = 60;
+    const maxHz = 18000;
+    const hzPerBin = nyquist / Math.max(1, binCount);
+    const startBin = Math.max(0, Math.min(binCount - 1, Math.floor(minHz / Math.max(1e-6, hzPerBin))));
+    const endBin = Math.max(startBin + 1, Math.min(binCount - 1, Math.floor(maxHz / Math.max(1e-6, hzPerBin))));
+    const usableBins = Math.max(1, endBin - startBin);
+
+    const bars = Math.min(usableBins, Math.max(96, Math.min(220, Math.floor(w / 6))));
+    const barW = w / Math.max(1, bars);
     const grad = vizCtx.createLinearGradient(0, 0, w, 0);
     grad.addColorStop(0, accent);
     grad.addColorStop(1, danger);
     vizCtx.fillStyle = grad;
 
+    const maxBarH = h * 0.75;
+    const bottomPad = 8;
+
+    // Smoothed auto-gain so quieter material can still use most of the height.
+    // Also reduces twitchiness by avoiding per-frame rescaling.
+    let peak = 0;
+    if (!vizBarScratch || vizBarScratch.length < bars) vizBarScratch = new Array(bars);
+    if (!vizBarSmooth || vizBarSmooth.length < bars) vizBarSmooth = new Array(bars).fill(0);
     for (let i = 0; i < bars; i++) {
-      const idx = Math.floor((i / bars) * vizFreqData.length);
-      const v = vizFreqData[idx] / 255;
-      const bh = Math.max(2, v * (h * 0.55));
+      const t = (bars <= 1) ? 0 : (i / (bars - 1));
+      const idx = startBin + Math.floor(t * usableBins);
+      const raw = (vizFreqData[Math.min(binCount - 1, idx)] || 0) / 255;
+      vizBarScratch[i] = raw;
+      if (raw > peak) peak = raw;
+    }
+    // Follow peaks slowly (less responsive), and clamp to sane bounds.
+    vizAutoPeak = (vizAutoPeak * 0.985) + (peak * 0.015);
+    vizAutoPeak = Math.max(0.06, Math.min(0.95, vizAutoPeak));
+    const gain = Math.min(8, 1 / Math.max(0.08, vizAutoPeak));
+
+    for (let i = 0; i < bars; i++) {
+      let v = (vizBarScratch[i] || 0) * gain;
+      v = Math.max(0, Math.min(1, v));
+      // Softer curve (less twitchy) but still tall.
+      v = Math.pow(v, 0.9);
+
+      // Extra easing per bar for smooth visuals.
+      const prev = vizBarSmooth[i] || 0;
+      const eased = (prev * 0.88) + (v * 0.12);
+      vizBarSmooth[i] = eased;
+      v = eased;
+
+      const bh = Math.max(2, v * maxBarH);
       const x = i * barW;
-      const y = h - bh - 18;
+      const y = (h - bottomPad) - bh;
+
       vizCtx.globalAlpha = 0.35 + v * 0.65;
       vizCtx.fillRect(x + barW * 0.12, y, Math.max(1, barW * 0.76), bh);
     }
-    vizCtx.globalAlpha = 1;
-
-    // Time-domain line
-    vizCtx.lineWidth = 2;
-    vizCtx.strokeStyle = text;
-    vizCtx.globalAlpha = 0.65;
-    vizCtx.beginPath();
-    const step = Math.max(1, Math.floor(vizTimeData.length / w));
-    for (let x = 0; x < w; x++) {
-      const ti = Math.min(vizTimeData.length - 1, x * step);
-      const t = (vizTimeData[ti] - 128) / 128;
-      const y = (h * 0.35) + t * (h * 0.12);
-      if (x === 0) vizCtx.moveTo(x, y);
-      else vizCtx.lineTo(x, y);
-    }
-    vizCtx.stroke();
     vizCtx.globalAlpha = 1;
   };
 
