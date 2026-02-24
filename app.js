@@ -69,8 +69,6 @@ const I18N = {
     trimmer_rename: 'Rename',
     trimmer_rename_prompt: 'Rename loop',
     trimmer_rename_placeholder: 'Loop name',
-    trimmer_desc_label: 'Description',
-    trimmer_desc_placeholder: 'Add a description…',
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
@@ -141,8 +139,6 @@ const I18N = {
     trimmer_rename: 'Preimenuj',
     trimmer_rename_prompt: 'Preimenuj petlju',
     trimmer_rename_placeholder: 'Naziv petlje',
-    trimmer_desc_label: 'Opis',
-    trimmer_desc_placeholder: 'Dodaj opis…',
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i petlje',
@@ -289,11 +285,6 @@ function applyLanguage(lang) {
 
   const btnRename = document.getElementById('trimRename');
   if (btnRename) { btnRename.textContent = t('trimmer_rename'); btnRename.setAttribute('aria-label', t('trimmer_rename')); }
-
-  const trimDescLabel = document.querySelector('.trim-desc-label');
-  if (trimDescLabel) trimDescLabel.textContent = t('trimmer_desc_label');
-  const trimDescInput = document.getElementById('trimDesc');
-  if (trimDescInput) trimDescInput.placeholder = t('trimmer_desc_placeholder');
 
   // Settings page
   setText('#page-settings .page-header h2', t('settings_title'));
@@ -2083,17 +2074,6 @@ async function openTrimmer(preset) {
     const trimDisplayName = stripFileExt(preset.name || 'Trim Loop');
     if (titleEl) titleEl.textContent = trimDisplayName;
     if (infoEl) infoEl.textContent = `Duration ${buf.duration.toFixed(2)}s`;
-
-    // Populate description field.
-    const trimDescEl = document.getElementById('trimDesc');
-    if (trimDescEl) {
-      const descKey = preset.id || '';
-      trimDescEl.value = getLoopDescription(descKey);
-      trimDescEl.placeholder = t('trimmer_desc_placeholder');
-      trimDescEl.onblur = () => {
-        if (descKey) setLoopDescription(descKey, trimDescEl.value);
-      };
-    }
 
     const zoomSlider = document.getElementById('trimZoom');
     if (zoomSlider) zoomSlider.value = '1';

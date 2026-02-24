@@ -591,14 +591,6 @@ button.danger{background:var(--danger);color:#fff}
 .loop-info-desc-row{flex-direction:column;align-items:stretch;gap:6px}
 .loop-info-desc-input{resize:vertical;min-height:60px;font-size:13px}
 
-/* Trimmer description */
-.trim-desc-wrap{margin-bottom:12px}
-.trim-desc-label{
-  font-size:11px;font-weight:600;text-transform:uppercase;
-  letter-spacing:.5px;color:var(--text-2);margin-bottom:4px;display:block;
-}
-.trim-desc{width:100%;resize:vertical;min-height:40px;font-size:13px}
-
 /* -------- Loop Trimmer -------- */
 .trim-canvas-wrap{
   position:relative;margin:8px 0 12px;
