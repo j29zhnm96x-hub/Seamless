@@ -1072,119 +1072,131 @@ function setPlaybackRate(rate, { smooth = true } = {}) {
    Granular pitch shifter — corrects pitch when preservePitch is on.
    Uses ScriptProcessorNode with overlap-add granular resampling.
    Inserted between loopGain and master only when needed.
+   Stereo-aware (2-channel); handles mono sources transparently.
    ================================================================ */
 
 function createPitchShifterNode(ctx, pitchFactor) {
   const bufSize = 4096;
-  const grainSize = 2048;
+  const grainSize = 1024;
   const overlap = 4;
-  const hopOut = grainSize / overlap;
+  const hop = (grainSize / overlap) | 0; // 256
 
-  const node = ctx.createScriptProcessor(bufSize, 1, 1);
+  const node = ctx.createScriptProcessor(bufSize, 2, 2);
   node._pitchFactor = pitchFactor;
-  // Per-channel state.
-  node._state = null;
+  node._chState = null;
 
-  function initState() {
+  // Pre-compute Hann window.
+  const win = new Float32Array(grainSize);
+  for (let i = 0; i < grainSize; i++) {
+    win[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (grainSize - 1)));
+  }
+
+  function makeState() {
     return {
-      inputBuf: new Float32Array(grainSize * 4),
-      inputLen: 0,
-      outputBuf: new Float32Array(grainSize * 4),
-      outputLen: 0,
-      outputRead: 0,
-      window: buildHannWindow(grainSize)
+      inBuf: new Float32Array(bufSize * 4),
+      inW: 0,   // input write cursor
+      inR: 0,   // input read cursor
+      outBuf: new Float32Array(bufSize * 4),
+      outW: 0,  // OLA write cursor
+      outR: 0,  // read cursor
     };
   }
 
-  function buildHannWindow(len) {
-    const w = new Float32Array(len);
-    for (let i = 0; i < len; i++) w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (len - 1)));
-    return w;
-  }
-
   node.onaudioprocess = function (e) {
-    const input = e.inputBuffer.getChannelData(0);
-    const output = e.outputBuffer.getChannelData(0);
     const pf = node._pitchFactor;
+    const inCh = e.inputBuffer.numberOfChannels;
+    const outCh = e.outputBuffer.numberOfChannels;
+    const ch = Math.min(inCh, outCh, 2);
+    const bLen = e.outputBuffer.length;
+
+    // Bypass when near unity.
     if (!pf || Math.abs(pf - 1.0) < 0.005) {
-      // Bypass: copy straight through.
-      output.set(input);
+      for (let c = 0; c < ch; c++)
+        e.outputBuffer.getChannelData(c).set(e.inputBuffer.getChannelData(c));
+      for (let c = ch; c < outCh; c++)
+        e.outputBuffer.getChannelData(c).fill(0);
       return;
     }
 
-    if (!node._state) node._state = initState();
-    const s = node._state;
-    const win = s.window;
-
-    // Append input samples.
-    if (s.inputLen + input.length > s.inputBuf.length) {
-      const newBuf = new Float32Array(s.inputLen + input.length + grainSize * 2);
-      newBuf.set(s.inputBuf.subarray(0, s.inputLen));
-      s.inputBuf = newBuf;
-    }
-    s.inputBuf.set(input, s.inputLen);
-    s.inputLen += input.length;
-
-    // Ensure output buffer is big enough.
-    const neededOut = s.outputRead + output.length + grainSize * 2;
-    if (neededOut > s.outputBuf.length) {
-      const newOut = new Float32Array(neededOut + grainSize * 2);
-      newOut.set(s.outputBuf.subarray(0, s.outputLen));
-      s.outputBuf = newOut;
+    if (!node._chState) {
+      node._chState = [];
+      for (let c = 0; c < ch; c++) node._chState.push(makeState());
     }
 
-    // Granular resample: read grains at intervals of hopIn, resample to grainSize, write at hopOut.
-    const hopIn = Math.round(hopOut * pf);
-    while (s.inputLen >= grainSize) {
-      // Extract grain.
-      for (let i = 0; i < grainSize; i++) {
-        // Linear interpolation for fractional resampling.
-        const srcIdx = i * pf;
-        const idx = Math.floor(srcIdx);
-        const frac = srcIdx - idx;
-        const s0 = idx < s.inputLen ? s.inputBuf[idx] : 0;
-        const s1 = (idx + 1) < s.inputLen ? s.inputBuf[idx + 1] : s0;
-        const sample = (s0 + frac * (s1 - s0)) * win[i];
-        if (s.outputLen + i < s.outputBuf.length) {
-          s.outputBuf[s.outputLen + i] += sample;
+    // How many input samples each grain reads from (may be < or > grainSize).
+    const readLen = Math.ceil(grainSize * pf);
+
+    for (let c = 0; c < ch; c++) {
+      const inp = e.inputBuffer.getChannelData(c);
+      const out = e.outputBuffer.getChannelData(c);
+      const s = node._chState[c];
+
+      // ---- append input ----
+      const inAvailBefore = s.inW - s.inR;
+      const neededIn = inAvailBefore + inp.length;
+      if (s.inW + inp.length > s.inBuf.length) {
+        const nb = new Float32Array(Math.max(neededIn * 2, bufSize * 4));
+        nb.set(s.inBuf.subarray(s.inR, s.inW));
+        s.inW = inAvailBefore;
+        s.inR = 0;
+        s.inBuf = nb;
+      }
+      s.inBuf.set(inp, s.inW);
+      s.inW += inp.length;
+
+      // ---- grow output buffer if needed ----
+      const outNeed = s.outW + grainSize + bLen;
+      if (outNeed > s.outBuf.length) {
+        const nb = new Float32Array(outNeed * 2);
+        nb.set(s.outBuf.subarray(0, s.outW));
+        s.outBuf = nb;
+      }
+
+      // ---- OLA: produce grains while enough input available ----
+      while ((s.inW - s.inR) >= readLen) {
+        const base = s.inR; // grain reads from base..base+readLen-1
+        for (let i = 0; i < grainSize; i++) {
+          const srcPos = i * pf;
+          const idx = (srcPos | 0) + base;
+          const frac = srcPos - (srcPos | 0);
+          const v0 = idx < s.inW ? s.inBuf[idx] : 0;
+          const v1 = (idx + 1) < s.inW ? s.inBuf[idx + 1] : v0;
+          s.outBuf[s.outW + i] += (v0 + frac * (v1 - v0)) * win[i];
         }
+        s.outW += hop;  // advance output by hop (overlap-add)
+        s.inR += hop;   // consume hop input (balanced I/O rate)
       }
-      s.outputLen = Math.max(s.outputLen, s.outputLen + grainSize);
 
-      // Advance.
-      const advance = Math.max(1, hopIn);
-      if (advance < s.inputLen) {
-        s.inputBuf.copyWithin(0, advance, s.inputLen);
-        s.inputLen -= advance;
-      } else {
-        s.inputLen = 0;
+      // ---- compact input when read cursor drifts far ----
+      if (s.inR > bufSize * 2) {
+        const remain = s.inW - s.inR;
+        s.inBuf.copyWithin(0, s.inR, s.inW);
+        s.inR = 0;
+        s.inW = remain;
       }
-      s.outputLen += 0; // outputLen already set above, advance read window by hopOut in output.
-      // Actually advance the output write position by hopOut.
-      // The overlap-add means we wrote at s.outputLen; next write starts hopOut later.
-      break; // Process one grain per block to stay real-time.
-    }
 
-    // Read output.
-    const avail = s.outputLen - s.outputRead;
-    const toRead = Math.min(output.length, avail);
-    for (let i = 0; i < toRead; i++) {
-      output[i] = s.outputBuf[s.outputRead + i];
-    }
-    for (let i = toRead; i < output.length; i++) {
-      output[i] = 0;
-    }
+      // ---- read output ----
+      const avail = s.outW - s.outR;
+      const rd = Math.min(bLen, Math.max(0, avail));
+      for (let i = 0; i < rd; i++) out[i] = s.outBuf[s.outR + i];
+      for (let i = rd; i < bLen; i++) out[i] = 0;
 
-    // Shift output buffer.
-    if (toRead > 0) {
-      s.outputRead += toRead;
-      if (s.outputRead > grainSize * 2) {
-        const shift = s.outputRead;
-        s.outputBuf.copyWithin(0, shift, s.outputLen);
-        s.outputLen -= shift;
-        s.outputRead = 0;
+      // Clear consumed output region for future OLA additions.
+      s.outBuf.fill(0, s.outR, s.outR + rd);
+      s.outR += rd;
+
+      // ---- compact output ----
+      if (s.outR > bufSize * 2) {
+        const shift = s.outR;
+        s.outBuf.copyWithin(0, shift, s.outW);
+        s.outW -= shift;
+        s.outR = 0;
+        s.outBuf.fill(0, s.outW);
       }
     }
+
+    for (let c = ch; c < outCh; c++)
+      e.outputBuffer.getChannelData(c).fill(0);
   };
 
   return node;
