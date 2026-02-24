@@ -544,6 +544,61 @@ button.danger{background:var(--danger);color:#fff}
   .preset-item:hover .preset-content,.preset-item:focus-within .preset-content{transform:translateX(-76px)}
 }
 
+/* -------- Loop Archive — search, categories, info -------- */
+.loops-search-wrap{margin-bottom:10px}
+.loops-search{width:100%;font-size:14px}
+
+.loops-category{margin-top:12px}
+.loops-category-header{
+  display:flex;align-items:center;gap:6px;
+  width:100%;background:none;border:none;box-shadow:none;
+  color:var(--text-3);font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;
+  padding:6px 2px;cursor:pointer;border-radius:0;
+}
+.loops-category-header:hover{color:var(--text-2)}
+.loops-category-header:active{transform:none}
+.loops-cat-chevron{font-size:10px;width:14px;text-align:center;flex-shrink:0}
+.loops-cat-name{flex:1;text-align:left}
+.loops-cat-count{font-size:10px;color:var(--text-3);font-weight:400}
+.loops-category.collapsed .list{display:none}
+
+.preset-info{
+  flex:0 0 40px;width:40px;
+  background:none;border:none;border-left:1px solid var(--border);
+  color:var(--text-3);font-size:16px;padding:0;box-shadow:none;
+  display:grid;place-items:center;cursor:pointer;border-radius:0;
+}
+.preset-info svg{width:16px;height:16px}
+.preset-info:hover{color:var(--accent);background:var(--accent-soft)}
+
+.user-preset-name{color:var(--accent)}
+.builtin-item .preset-play{color:var(--text)}
+
+/* Loop Info page */
+.loop-info-details{
+  margin-top:16px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow);
+}
+.loop-info-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;border-bottom:1px solid var(--border);
+}
+.loop-info-row:last-child{border-bottom:none}
+.loop-info-label{font-size:13px;font-weight:600;color:var(--text-2)}
+.loop-info-val{font-size:13px;color:var(--text)}
+.loop-info-desc-row{flex-direction:column;align-items:stretch;gap:6px}
+.loop-info-desc-input{resize:vertical;min-height:60px;font-size:13px}
+
+/* Trimmer description */
+.trim-desc-wrap{margin-bottom:12px}
+.trim-desc-label{
+  font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--text-2);margin-bottom:4px;display:block;
+}
+.trim-desc{width:100%;resize:vertical;min-height:40px;font-size:13px}
+
 /* -------- Loop Trimmer -------- */
 .trim-canvas-wrap{
   position:relative;margin:8px 0 12px;

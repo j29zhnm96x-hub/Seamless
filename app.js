@@ -18,6 +18,12 @@ const MAX_PERSISTED_UPLOADS = 25;
 // This avoids iOS/Safari instability when repeatedly re-putting Blob-heavy IndexedDB objects.
 const UPLOAD_NAME_OVERRIDES_KEY = 'seamlessplayer-upload-name-overrides';
 
+// Loop archive categories, descriptions, and category assignments.
+const LOOP_CATEGORIES_KEY = 'seamlessplayer-loop-categories';
+const LOOP_DESCRIPTIONS_KEY = 'seamlessplayer-loop-descriptions';
+const LOOP_CAT_ASSIGNMENTS_KEY = 'seamlessplayer-loop-cat-assignments';
+const DEFAULT_CATEGORIES = ['Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
+
 // Persist playlists across restarts via IndexedDB.
 const PLAYLIST_DB_NAME = 'seamlessplayer-playlists';
 const PLAYLIST_DB_VERSION = 1;
@@ -38,11 +44,20 @@ const I18N = {
     playlists_title: 'Playlists',
     playlists_new: '+ New',
     loops_title: 'Audio Loops',
-    loops_hint: 'Built-ins and anything you imported during this session.',
+    loops_hint: 'Browse by category or search your loops.',
     loops_import: 'Import Loop',
     loops_paste: 'Paste',
     loops_builtin: 'Built-in',
     loops_imported: 'IMPORTED',
+    loops_search_placeholder: 'Search loops…',
+    loops_no_results: 'No loops match your search.',
+    loops_new_category: '+ New Category',
+    loopinfo_back: 'Back',
+    loopinfo_desc_label: 'Description',
+    loopinfo_desc_placeholder: 'Add a description…',
+    loopinfo_category: 'Category',
+    loopinfo_filesize: 'File size',
+    loopinfo_type: 'Type',
     trimmer_info_hint: 'Drag the IN/OUT cursors to adjust loop points',
     trimmer_zoom: 'Zoom',
     trimmer_test: 'Test Loop',
@@ -54,6 +69,8 @@ const I18N = {
     trimmer_rename: 'Rename',
     trimmer_rename_prompt: 'Rename loop',
     trimmer_rename_placeholder: 'Loop name',
+    trimmer_desc_label: 'Description',
+    trimmer_desc_placeholder: 'Add a description…',
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
@@ -99,11 +116,20 @@ const I18N = {
     playlists_title: 'Playliste',
     playlists_new: '+ Novo',
     loops_title: 'Audio petlje',
-    loops_hint: 'Ugrađene petlje i sve što ste uvezli tijekom ove sesije.',
+    loops_hint: 'Pregledajte po kategoriji ili pretražite petlje.',
     loops_import: 'Uvezi petlju',
     loops_paste: 'Zalijepi',
     loops_builtin: 'Ugrađeno',
     loops_imported: 'UVEZENO',
+    loops_search_placeholder: 'Pretraži petlje…',
+    loops_no_results: 'Nema petlji za ovaj upit.',
+    loops_new_category: '+ Nova kategorija',
+    loopinfo_back: 'Natrag',
+    loopinfo_desc_label: 'Opis',
+    loopinfo_desc_placeholder: 'Dodaj opis…',
+    loopinfo_category: 'Kategorija',
+    loopinfo_filesize: 'Veličina',
+    loopinfo_type: 'Vrsta',
     trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja petlje',
     trimmer_zoom: 'Zum',
     trimmer_test: 'Testiraj petlju',
@@ -115,6 +141,8 @@ const I18N = {
     trimmer_rename: 'Preimenuj',
     trimmer_rename_prompt: 'Preimenuj petlju',
     trimmer_rename_placeholder: 'Naziv petlje',
+    trimmer_desc_label: 'Opis',
+    trimmer_desc_placeholder: 'Dodaj opis…',
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i petlje',
@@ -217,10 +245,25 @@ function applyLanguage(lang) {
   if (importLoopBtn) { importLoopBtn.textContent = t('loops_import'); importLoopBtn.setAttribute('aria-label', t('loops_import')); }
   const pasteLoopBtn = document.getElementById('pasteBtn');
   if (pasteLoopBtn) { pasteLoopBtn.textContent = t('loops_paste'); pasteLoopBtn.setAttribute('aria-label', t('loops_paste')); }
-  const loopsSectionTitles = document.querySelectorAll('#page-loops .list-section h3');
-  if (loopsSectionTitles && loopsSectionTitles.length >= 2) {
-    loopsSectionTitles[0].textContent = t('loops_builtin');
-    loopsSectionTitles[1].textContent = t('loops_imported');
+  const loopsSearchInput = document.getElementById('loopsSearch');
+  if (loopsSearchInput) loopsSearchInput.placeholder = t('loops_search_placeholder');
+
+  // Loop info page
+  const loopInfoBackBtn = document.getElementById('loopInfoBack');
+  if (loopInfoBackBtn) {
+    const lbl = loopInfoBackBtn.querySelector('svg');
+    const textNode = loopInfoBackBtn.lastChild;
+    if (textNode && textNode.nodeType === 3) textNode.textContent = ' ' + t('loopinfo_back');
+  }
+  const loopInfoDescLabel = document.querySelector('#page-loopinfo .loop-info-desc-row .loop-info-label');
+  if (loopInfoDescLabel) loopInfoDescLabel.textContent = t('loopinfo_desc_label');
+  const loopInfoDescInput = document.getElementById('loopInfoDescInput');
+  if (loopInfoDescInput) loopInfoDescInput.placeholder = t('loopinfo_desc_placeholder');
+  const loopInfoCatLabel = document.querySelectorAll('#page-loopinfo .loop-info-row .loop-info-label');
+  if (loopInfoCatLabel && loopInfoCatLabel.length >= 4) {
+    loopInfoCatLabel[1].textContent = t('loopinfo_category');
+    loopInfoCatLabel[2].textContent = t('loopinfo_filesize');
+    loopInfoCatLabel[3].textContent = t('loopinfo_type');
   }
 
   // Trimmer
@@ -246,6 +289,11 @@ function applyLanguage(lang) {
 
   const btnRename = document.getElementById('trimRename');
   if (btnRename) { btnRename.textContent = t('trimmer_rename'); btnRename.setAttribute('aria-label', t('trimmer_rename')); }
+
+  const trimDescLabel = document.querySelector('.trim-desc-label');
+  if (trimDescLabel) trimDescLabel.textContent = t('trimmer_desc_label');
+  const trimDescInput = document.getElementById('trimDesc');
+  if (trimDescInput) trimDescInput.placeholder = t('trimmer_desc_placeholder');
 
   // Settings page
   setText('#page-settings .page-header h2', t('settings_title'));
@@ -480,6 +528,121 @@ function setUploadNameOverride(id, name) {
   } catch {}
 }
 
+/* ================================================================
+   Loop Archive — categories, descriptions, utility helpers
+   ================================================================ */
+
+function stripFileExt(name) {
+  if (!name) return '';
+  return name.replace(/\.[^.]+$/, '');
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+}
+
+function getLoopCategories() {
+  try {
+    const raw = localStorage.getItem(LOOP_CATEGORIES_KEY);
+    if (!raw) return [...DEFAULT_CATEGORIES];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [...DEFAULT_CATEGORIES];
+    const set = new Set(arr);
+    DEFAULT_CATEGORIES.forEach(c => set.add(c));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  } catch { return [...DEFAULT_CATEGORIES]; }
+}
+
+function saveLoopCategories(cats) {
+  try { localStorage.setItem(LOOP_CATEGORIES_KEY, JSON.stringify(cats || [])); } catch {}
+}
+
+function addLoopCategory(name) {
+  const n = (name || '').trim();
+  if (!n) return false;
+  const cats = getLoopCategories();
+  if (cats.some(c => c.toLowerCase() === n.toLowerCase())) return false;
+  cats.push(n);
+  cats.sort((a, b) => a.localeCompare(b));
+  saveLoopCategories(cats);
+  return true;
+}
+
+function deleteLoopCategory(name) {
+  if (DEFAULT_CATEGORIES.includes(name)) return false;
+  const cats = getLoopCategories().filter(c => c !== name);
+  saveLoopCategories(cats);
+  const assignments = getLoopCatAssignments();
+  let changed = false;
+  for (const [id, cat] of Object.entries(assignments)) {
+    if (cat === name) { assignments[id] = 'Imported'; changed = true; }
+  }
+  if (changed) saveLoopCatAssignments(assignments);
+  return true;
+}
+
+function getLoopCatAssignments() {
+  try {
+    const raw = localStorage.getItem(LOOP_CAT_ASSIGNMENTS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch { return {}; }
+}
+
+function saveLoopCatAssignments(obj) {
+  try { localStorage.setItem(LOOP_CAT_ASSIGNMENTS_KEY, JSON.stringify(obj || {})); } catch {}
+}
+
+function getLoopCategory(presetIdOrKey) {
+  const key = String(presetIdOrKey || '');
+  if (!key) return 'Imported';
+  return getLoopCatAssignments()[key] || 'Imported';
+}
+
+function setLoopCategory(presetIdOrKey, category) {
+  const key = String(presetIdOrKey || '');
+  if (!key) return;
+  const assignments = getLoopCatAssignments();
+  assignments[key] = category || 'Imported';
+  saveLoopCatAssignments(assignments);
+}
+
+function getLoopDescriptions() {
+  try {
+    const raw = localStorage.getItem(LOOP_DESCRIPTIONS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch { return {}; }
+}
+
+function getLoopDescription(key) {
+  const k = String(key || '');
+  if (!k) return '';
+  try { return getLoopDescriptions()[k] || ''; } catch { return ''; }
+}
+
+function setLoopDescription(key, desc) {
+  const k = String(key || '');
+  if (!k) return;
+  const descs = getLoopDescriptions();
+  const d = (desc || '').trim();
+  if (d) descs[k] = d; else delete descs[k];
+  try { localStorage.setItem(LOOP_DESCRIPTIONS_KEY, JSON.stringify(descs)); } catch {}
+}
+
+// Session-only collapse state for category sections.
+const collapsedCategories = new Set();
+
+// Loop info page state.
+let loopInfoPreset = null;
+let loopInfoIsBuiltin = false;
+
+
 function addUserPresetFromBlob({ name, blob, saved }) {
   const presetObj = {
     id: (saved && saved.id) || makeUploadId(),
@@ -673,9 +836,9 @@ async function deleteUserPresetNow(preset) {
   }
 }
 const builtinPresets = [
-  { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
-  { name: '432hz.mp3', path: 'audio/432hz.mp3' },
-  { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3' }
+  { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3', category: 'Soundscapes' },
+  { name: '432hz.mp3', path: 'audio/432hz.mp3', category: 'Frequencies' },
+  { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3', category: 'Noises' }
 ];
 let currentBuffer = null;
 let currentSourceLabel = null;
@@ -1511,6 +1674,7 @@ function switchTab(tab) {
     playlists: document.getElementById('page-playlists'),
     'playlist-detail': document.getElementById('page-playlist-detail'),
     loops: document.getElementById('page-loops'),
+    loopinfo: document.getElementById('page-loopinfo'),
     trimmer: document.getElementById('page-trimmer'),
     settings: document.getElementById('page-settings')
   };
@@ -1522,7 +1686,7 @@ function switchTab(tab) {
   // Highlight the parent tab for sub-pages.
   let highlightTab = tab;
   if (tab === 'playlist-detail') highlightTab = 'playlists';
-  if (tab === 'trimmer') highlightTab = 'loops';
+  if (tab === 'trimmer' || tab === 'loopinfo') highlightTab = 'loops';
   const tabs = document.querySelectorAll('.tabbar .tab');
   tabs.forEach(btn => {
     const isActive = btn.getAttribute('data-tab') === highlightTab;
@@ -1916,8 +2080,21 @@ async function openTrimmer(preset) {
     trimDragging = null;
     const titleEl = document.getElementById('trimTitle');
     const infoEl = document.getElementById('trimInfo');
-    if (titleEl) titleEl.textContent = preset.name || 'Trim Loop';
+    const trimDisplayName = stripFileExt(preset.name || 'Trim Loop');
+    if (titleEl) titleEl.textContent = trimDisplayName;
     if (infoEl) infoEl.textContent = `Duration ${buf.duration.toFixed(2)}s`;
+
+    // Populate description field.
+    const trimDescEl = document.getElementById('trimDesc');
+    if (trimDescEl) {
+      const descKey = preset.id || '';
+      trimDescEl.value = getLoopDescription(descKey);
+      trimDescEl.placeholder = t('trimmer_desc_placeholder');
+      trimDescEl.onblur = () => {
+        if (descKey) setLoopDescription(descKey, trimDescEl.value);
+      };
+    }
+
     const zoomSlider = document.getElementById('trimZoom');
     if (zoomSlider) zoomSlider.value = '1';
     switchTab('trimmer');
@@ -2708,113 +2885,263 @@ function refreshLoopsPageSoon() {
 }
 
 function renderLoopsPage() {
-  const bl = document.getElementById('builtinListPage');
-  const ul = document.getElementById('uploadsListPage');
-  if (!bl || !ul) return;
-  bl.innerHTML = '';
-  ul.innerHTML = '';
+  const container = document.getElementById('loopsCategoryContainer');
+  if (!container) return;
+  container.innerHTML = '';
 
-  const mkBtn = (label, onClick) => {
-    const li = document.createElement('li');
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.addEventListener('click', onClick);
-    li.appendChild(btn);
-    return li;
-  };
+  const searchInput = document.getElementById('loopsSearch');
+  const query = (searchInput && searchInput.value || '').trim().toLowerCase();
+
+  const categories = getLoopCategories();
+  const catAssignments = getLoopCatAssignments();
+
+  // Build category → items map.
+  const catMap = {};
+  categories.forEach(c => { catMap[c] = []; });
 
   builtinPresets.forEach(p => {
-    bl.appendChild(mkBtn(p.name, async () => {
-      try {
-        setStatus(`Loading ${p.name}...`);
-        const buf = await loadBufferFromUrl(p.path);
-        clearPlayerPlaylistContext();
-        currentBuffer = buf;
-        currentSourceLabel = p.name;
-        currentPresetId = null;
-        currentPresetRef = null;
-        await startLoopFromBuffer(buf, 0.5, 0.03);
-        switchTab('player');
-      } catch {
-        setStatus(`Failed to load ${p.name}`);
-      }
-    }));
+    const cat = catAssignments[p.path] || p.category || 'Imported';
+    if (!catMap[cat]) catMap[cat] = [];
+    catMap[cat].push({ preset: p, isBuiltin: true });
   });
 
   userPresets.forEach(p => {
-    const li = document.createElement('li');
-    const row = document.createElement('div');
-    row.className = 'preset-item';
-    if (p.id) row.dataset.id = p.id;
+    const cat = (p.id && catAssignments[p.id]) || 'Imported';
+    if (!catMap[cat]) catMap[cat] = [];
+    catMap[cat].push({ preset: p, isBuiltin: false });
+  });
 
-    const content = document.createElement('div');
-    content.className = 'preset-content';
-
-    const playBtn = document.createElement('button');
-    playBtn.type = 'button';
-    playBtn.className = 'preset-play';
-    playBtn.textContent = p.name;
-    playBtn.addEventListener('click', async () => {
-      try {
-        setStatus(`Loading ${p.name}...`);
-        let buf = null;
-        if (p.blob) {
-          const ab = await p.blob.arrayBuffer();
-          buf = await decodeArrayBuffer(ab);
-        } else if (p.url) {
-          buf = await loadBufferFromUrl(p.url);
-        }
-        if (!buf) { setStatus('Failed to decode.'); return; }
-        clearPlayerPlaylistContext();
-        currentBuffer = buf;
-        currentSourceLabel = p.name;
-        currentPresetId = p.id || null;
-        currentPresetRef = p;
-        await startLoopFromBuffer(buf, 0.5, 0.03);
-        switchTab('player');
-      } catch {
-        setStatus(`Failed to load ${p.name}`);
-      }
-    });
-    content.appendChild(playBtn);
-
-    // Trim button
-    if (p.blob) {
-      const trimBtn = document.createElement('button');
-      trimBtn.type = 'button';
-      trimBtn.className = 'preset-trim';
-      trimBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
-      trimBtn.setAttribute('aria-label', `Trim ${p.name}`);
-      trimBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openTrimmer(p);
+  // Filter by search query.
+  const filteredCatMap = {};
+  for (const [cat, items] of Object.entries(catMap)) {
+    if (!query) {
+      filteredCatMap[cat] = items;
+    } else {
+      filteredCatMap[cat] = items.filter(({ preset, isBuiltin }) => {
+        const raw = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || '';
+        const name = stripFileExt(raw).toLowerCase();
+        const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
+        const desc = getLoopDescription(descKey).toLowerCase();
+        return name.includes(query) || desc.includes(query) || cat.toLowerCase().includes(query);
       });
-      content.appendChild(trimBtn);
+    }
+  }
+
+  const infoIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+  const trimIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+
+  const sortedCats = Object.keys(filteredCatMap).sort((a, b) => a.localeCompare(b));
+  let anyVisible = false;
+
+  for (const cat of sortedCats) {
+    const items = filteredCatMap[cat];
+    if (!items || !items.length) continue;
+    anyVisible = true;
+
+    const section = document.createElement('div');
+    section.className = 'loops-category';
+    const collapsed = collapsedCategories.has(cat);
+    if (collapsed) section.classList.add('collapsed');
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'loops-category-header';
+    header.innerHTML = `<span class="loops-cat-chevron">${collapsed ? '▸' : '▾'}</span><span class="loops-cat-name">${cat}</span><span class="loops-cat-count">${items.length}</span>`;
+    header.addEventListener('click', () => {
+      if (collapsedCategories.has(cat)) collapsedCategories.delete(cat);
+      else collapsedCategories.add(cat);
+      renderLoopsPage();
+    });
+    section.appendChild(header);
+
+    if (!collapsed) {
+      const ul = document.createElement('ul');
+      ul.className = 'list';
+
+      items.forEach(({ preset, isBuiltin }) => {
+        const rawName = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio';
+        const displayName = stripFileExt(rawName);
+        const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
+
+        const li = document.createElement('li');
+        const row = document.createElement('div');
+        row.className = 'preset-item' + (isBuiltin ? ' builtin-item' : '');
+        if (!isBuiltin && preset.id) row.dataset.id = preset.id;
+
+        const content = document.createElement('div');
+        content.className = 'preset-content';
+
+        // Play button
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'preset-play' + (isBuiltin ? '' : ' user-preset-name');
+        playBtn.textContent = displayName;
+        playBtn.addEventListener('click', async () => {
+          try {
+            setStatus(`Loading ${displayName}…`);
+            let buf = null;
+            if (isBuiltin) {
+              buf = await loadBufferFromUrl(preset.path);
+            } else if (preset.blob) {
+              const ab = await preset.blob.arrayBuffer();
+              buf = await decodeArrayBuffer(ab);
+            } else if (preset.url) {
+              buf = await loadBufferFromUrl(preset.url);
+            }
+            if (!buf) { setStatus('Failed to decode.'); return; }
+            clearPlayerPlaylistContext();
+            currentBuffer = buf;
+            currentSourceLabel = displayName;
+            currentPresetId = isBuiltin ? null : (preset.id || null);
+            currentPresetRef = isBuiltin ? null : preset;
+            await startLoopFromBuffer(buf, 0.5, 0.03);
+            switchTab('player');
+          } catch { setStatus(`Failed to load ${displayName}`); }
+        });
+        content.appendChild(playBtn);
+
+        // Info button
+        const infoBtn = document.createElement('button');
+        infoBtn.type = 'button';
+        infoBtn.className = 'preset-info';
+        infoBtn.innerHTML = infoIconSvg;
+        infoBtn.setAttribute('aria-label', `Info: ${displayName}`);
+        infoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openLoopInfo(preset, isBuiltin);
+        });
+        content.appendChild(infoBtn);
+
+        // Trim button (user presets with blob only)
+        if (!isBuiltin && preset.blob) {
+          const trimBtn = document.createElement('button');
+          trimBtn.type = 'button';
+          trimBtn.className = 'preset-trim';
+          trimBtn.innerHTML = trimIconSvg;
+          trimBtn.setAttribute('aria-label', `Trim ${displayName}`);
+          trimBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openTrimmer(preset);
+          });
+          content.appendChild(trimBtn);
+        }
+
+        row.appendChild(content);
+
+        // Delete button (user presets only, swipe-to-reveal)
+        if (!isBuiltin) {
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'preset-delete';
+          delBtn.textContent = 'Delete';
+          delBtn.setAttribute('aria-label', `Delete ${displayName}`);
+          delBtn.addEventListener('click', () => {
+            try { delBtn.disabled = true; delBtn.textContent = 'Deleting…'; } catch {}
+            deleteUserPresetNow(preset);
+          });
+          row.appendChild(delBtn);
+          li.appendChild(row);
+          ul.appendChild(li);
+          attachSwipeHandlers(row);
+        } else {
+          li.appendChild(row);
+          ul.appendChild(li);
+        }
+      });
+
+      section.appendChild(ul);
     }
 
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.className = 'preset-delete';
-    delBtn.textContent = 'Delete';
-    delBtn.setAttribute('aria-label', `Delete ${p.name}`);
-    delBtn.addEventListener('click', () => {
-      // One tap deletes (swipe-to-reveal is the confirmation step).
-      try {
-        delBtn.disabled = true;
-        delBtn.textContent = 'Deleting…';
-      } catch {}
-      deleteUserPresetNow(p);
-    });
+    container.appendChild(section);
+  }
 
-    row.appendChild(content);
-    row.appendChild(delBtn);
-    li.appendChild(row);
-    ul.appendChild(li);
+  if (!anyVisible && query) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = t('loops_no_results');
+    container.appendChild(empty);
+  }
 
-    attachSwipeHandlers(row);
-  });
   setTimeout(updateScrollState, 50);
+}
+
+/* ================================================================
+   Loop Info sub-page
+   ================================================================ */
+
+function openLoopInfo(preset, isBuiltin) {
+  loopInfoPreset = preset;
+  loopInfoIsBuiltin = isBuiltin;
+
+  const rawName = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio';
+  const displayName = stripFileExt(rawName);
+  const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
+  const desc = getLoopDescription(descKey);
+  const catAssignments = getLoopCatAssignments();
+  const cat = isBuiltin
+    ? (catAssignments[preset.path] || preset.category || 'Imported')
+    : (preset.id ? (catAssignments[preset.id] || 'Imported') : 'Imported');
+
+  const titleEl = document.getElementById('loopInfoTitle');
+  if (titleEl) titleEl.textContent = displayName;
+
+  // Description textarea
+  const descInput = document.getElementById('loopInfoDescInput');
+  if (descInput) {
+    descInput.value = desc;
+    descInput.placeholder = t('loopinfo_desc_placeholder');
+    descInput.onblur = () => {
+      setLoopDescription(descKey, descInput.value);
+    };
+  }
+
+  // Category select
+  const catSelect = document.getElementById('loopInfoCatSelect');
+  if (catSelect) {
+    catSelect.innerHTML = '';
+    const cats = getLoopCategories();
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      if (c === cat) opt.selected = true;
+      catSelect.appendChild(opt);
+    });
+    // + New Category option
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = t('loops_new_category');
+    catSelect.appendChild(newOpt);
+
+    catSelect.onchange = () => {
+      const key = isBuiltin ? preset.path : preset.id;
+      if (catSelect.value === '__new__') {
+        const name = prompt(t('loops_new_category').replace('+', '').trim() + ':');
+        if (!name || !name.trim()) { catSelect.value = cat; return; }
+        addLoopCategory(name.trim());
+        setLoopCategory(key, name.trim());
+        openLoopInfo(preset, isBuiltin);
+      } else {
+        setLoopCategory(key, catSelect.value);
+      }
+    };
+  }
+
+  // File size & type
+  const sizeEl = document.getElementById('loopInfoSize');
+  const typeEl = document.getElementById('loopInfoType');
+  let size = '—';
+  let type = '—';
+  if (!isBuiltin && preset.blob) {
+    size = formatBytes(preset.blob.size || 0);
+    type = preset.blob.type || 'unknown';
+  } else if (isBuiltin) {
+    type = 'audio/mpeg';
+  }
+  if (sizeEl) sizeEl.textContent = size;
+  if (typeEl) typeEl.textContent = type;
+
+  switchTab('loopinfo');
 }
 
 function stopLoop(rampOut = 0.05, pauseOutput = true) {
@@ -3021,6 +3348,9 @@ async function exportAppData() {
       playlists: playlists || [],
       uploads: uploadMeta,
       uploadNameOverrides: overrides,
+      loopCategories: (() => { try { return JSON.parse(localStorage.getItem(LOOP_CATEGORIES_KEY)) || []; } catch { return []; } })(),
+      loopDescriptions: (() => { try { return JSON.parse(localStorage.getItem(LOOP_DESCRIPTIONS_KEY)) || {}; } catch { return {}; } })(),
+      loopCatAssignments: (() => { try { return JSON.parse(localStorage.getItem(LOOP_CAT_ASSIGNMENTS_KEY)) || {}; } catch { return {}; } })(),
     };
 
     const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
@@ -3086,6 +3416,23 @@ async function importZipBackup(file) {
   try {
     if (data.uploadNameOverrides && typeof data.uploadNameOverrides === 'object') {
       localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(data.uploadNameOverrides));
+    }
+  } catch {}
+
+  // Restore loop archive metadata.
+  try {
+    if (data.loopCategories && Array.isArray(data.loopCategories)) {
+      localStorage.setItem(LOOP_CATEGORIES_KEY, JSON.stringify(data.loopCategories));
+    }
+  } catch {}
+  try {
+    if (data.loopDescriptions && typeof data.loopDescriptions === 'object') {
+      localStorage.setItem(LOOP_DESCRIPTIONS_KEY, JSON.stringify(data.loopDescriptions));
+    }
+  } catch {}
+  try {
+    if (data.loopCatAssignments && typeof data.loopCatAssignments === 'object') {
+      localStorage.setItem(LOOP_CAT_ASSIGNMENTS_KEY, JSON.stringify(data.loopCatAssignments));
     }
   } catch {}
 
@@ -3195,6 +3542,23 @@ async function importAppData(file) {
     try {
       if (data.uploadNameOverrides && typeof data.uploadNameOverrides === 'object') {
         localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(data.uploadNameOverrides));
+      }
+    } catch {}
+
+    // Restore loop archive metadata if present.
+    try {
+      if (data.loopCategories && Array.isArray(data.loopCategories)) {
+        localStorage.setItem(LOOP_CATEGORIES_KEY, JSON.stringify(data.loopCategories));
+      }
+    } catch {}
+    try {
+      if (data.loopDescriptions && typeof data.loopDescriptions === 'object') {
+        localStorage.setItem(LOOP_DESCRIPTIONS_KEY, JSON.stringify(data.loopDescriptions));
+      }
+    } catch {}
+    try {
+      if (data.loopCatAssignments && typeof data.loopCatAssignments === 'object') {
+        localStorage.setItem(LOOP_CAT_ASSIGNMENTS_KEY, JSON.stringify(data.loopCatAssignments));
       }
     } catch {}
 
@@ -4219,6 +4583,13 @@ function bindUI() {
     }
     });
   }
+
+  // ---- Loop Info / Search bindings ----
+  const loopInfoBack = document.getElementById('loopInfoBack');
+  loopInfoBack && loopInfoBack.addEventListener('click', () => { switchTab('loops'); });
+
+  const loopsSearch = document.getElementById('loopsSearch');
+  loopsSearch && loopsSearch.addEventListener('input', () => { renderLoopsPage(); });
 
   // ---- Trimmer bindings ----
   trimBack && trimBack.addEventListener('click', () => {

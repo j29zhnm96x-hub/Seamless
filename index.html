@@ -114,7 +114,11 @@
       <section id="page-loops" class="page" aria-label="Audio Loops Page">
         <div class="card">
           <h2>Audio Loops</h2>
-          <p class="hint">Built-ins and anything you imported during this session.</p>
+          <p class="hint">Browse by category or search your loops.</p>
+
+          <div class="loops-search-wrap">
+            <input id="loopsSearch" type="search" class="text-input loops-search" placeholder="Search loops…" aria-label="Search loops" />
+          </div>
 
           <div class="imports" aria-label="Import Loop">
             <button id="importLoop" type="button" aria-label="Import audio loop">Import Loop</button>
@@ -122,13 +126,35 @@
             <input id="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.aif,.aiff,.caf,.flac,.ogg" aria-label="Select audio file" class="hidden" />
           </div>
 
-          <div class="list-section">
-            <h3>Built-in</h3>
-            <ul id="builtinListPage" class="list"></ul>
+          <div id="loopsCategoryContainer"></div>
+        </div>
+      </section>
+
+      <!-- Loop Info sub-page -->
+      <section id="page-loopinfo" class="page" aria-label="Loop Info">
+        <button id="loopInfoBack" class="detail-back" aria-label="Back to loops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="detail-top">
+          <h2 id="loopInfoTitle" class="detail-title">Loop Info</h2>
+        </div>
+        <div class="loop-info-details">
+          <div class="loop-info-row loop-info-desc-row">
+            <span class="loop-info-label">Description</span>
+            <textarea id="loopInfoDescInput" class="text-input loop-info-desc-input" rows="3" placeholder="Add a description…"></textarea>
           </div>
-          <div class="list-section">
-            <h3>IMPORTED</h3>
-            <ul id="uploadsListPage" class="list"></ul>
+          <div class="loop-info-row">
+            <span class="loop-info-label">Category</span>
+            <select id="loopInfoCatSelect" class="settings-select" aria-label="Loop category"></select>
+          </div>
+          <div class="loop-info-row">
+            <span class="loop-info-label">File size</span>
+            <span id="loopInfoSize" class="loop-info-val">—</span>
+          </div>
+          <div class="loop-info-row">
+            <span class="loop-info-label">Type</span>
+            <span id="loopInfoType" class="loop-info-val">—</span>
           </div>
         </div>
       </section>
@@ -153,6 +179,11 @@
             <div class="trim-playhead-handle" aria-hidden="true"></div>
             <div id="trimCursorLabel" class="trim-playhead-label" aria-hidden="true">0.000s</div>
           </div>
+        </div>
+
+        <div class="trim-desc-wrap">
+          <label for="trimDesc" class="trim-desc-label">Description</label>
+          <textarea id="trimDesc" class="text-input trim-desc" rows="2" placeholder="Add a description…" aria-label="Loop description"></textarea>
         </div>
 
         <div class="trim-mark-actions" aria-label="Set loop points from playhead">
