@@ -280,6 +280,36 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--accent-soft);border:1px solid var(--accent-mid);
 }
 
+/* -------- Preserve-pitch toggle -------- */
+.preserve-pitch-row{
+  display:flex;align-items:center;gap:10px;
+  margin-top:8px;
+}
+.preserve-pitch-toggle{
+  position:relative;width:40px;height:22px;
+  border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border-2);
+  padding:0;cursor:pointer;box-shadow:none;
+  transition:background 200ms ease,border-color 200ms ease;
+}
+.preserve-pitch-toggle:active{transform:none}
+.preserve-pitch-toggle[aria-pressed="true"]{
+  background:var(--accent);border-color:var(--accent);
+}
+.preserve-pitch-dot{
+  position:absolute;top:2px;left:2px;width:16px;height:16px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  transition:transform 200ms ease;
+  pointer-events:none;
+}
+.preserve-pitch-toggle[aria-pressed="true"] .preserve-pitch-dot{
+  transform:translateX(18px);
+}
+.preserve-pitch-label{
+  font-size:13px;color:var(--text-2);cursor:pointer;
+  -webkit-user-select:none;user-select:none;
+}
+
 #loopInfo{font-size:13px;color:var(--text);font-weight:500}
 
 /* -------- Page headers -------- */

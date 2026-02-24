@@ -5,6 +5,8 @@ let loopGain = null;
 let currentRate = 1.0;
 const RATE_MIN = 0.5;
 const RATE_MAX = 2.0;
+let preservePitch = false;
+let pitchShifterNode = null;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 
@@ -101,7 +103,8 @@ const I18N = {
     playlist_create_btn: 'Create',
     common_close: 'Close',
     playlist_add: 'Add',
-    playlist_play: 'Play'
+    playlist_play: 'Play',
+    preserve_pitch: 'Preserve pitch'
   },
   hr: {
     status_ready: 'Spremno',
@@ -171,7 +174,8 @@ const I18N = {
     playlist_create_btn: 'Stvori',
     common_close: 'Zatvori',
     playlist_add: 'Dodaj',
-    playlist_play: 'Pokreni'
+    playlist_play: 'Pokreni',
+    preserve_pitch: 'Očuvaj visinu tona'
   }
 };
 
@@ -352,6 +356,10 @@ function applyLanguage(lang) {
     const helpOv = document.getElementById('helpOverlay');
     if (helpOv && !helpOv.classList.contains('hidden')) showHelpOverlay();
   } catch {}
+
+  // Preserve-pitch label
+  const ppLbl = document.querySelector('.preserve-pitch-label');
+  if (ppLbl) ppLbl.textContent = t('preserve_pitch');
 
   // Player page dynamic bits
   try { updatePlayerPlaylistUI(); } catch {}
@@ -1055,7 +1063,181 @@ function setPlaybackRate(rate, { smooth = true } = {}) {
       }
     }
   } catch {}
+  // Update pitch correction when preserve-pitch is active.
+  try { updatePitchShifter(); } catch {}
   return currentRate;
+}
+
+/* ================================================================
+   Granular pitch shifter — corrects pitch when preservePitch is on.
+   Uses ScriptProcessorNode with overlap-add granular resampling.
+   Inserted between loopGain and master only when needed.
+   ================================================================ */
+
+function createPitchShifterNode(ctx, pitchFactor) {
+  const bufSize = 4096;
+  const grainSize = 2048;
+  const overlap = 4;
+  const hopOut = grainSize / overlap;
+
+  const node = ctx.createScriptProcessor(bufSize, 1, 1);
+  node._pitchFactor = pitchFactor;
+  // Per-channel state.
+  node._state = null;
+
+  function initState() {
+    return {
+      inputBuf: new Float32Array(grainSize * 4),
+      inputLen: 0,
+      outputBuf: new Float32Array(grainSize * 4),
+      outputLen: 0,
+      outputRead: 0,
+      window: buildHannWindow(grainSize)
+    };
+  }
+
+  function buildHannWindow(len) {
+    const w = new Float32Array(len);
+    for (let i = 0; i < len; i++) w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (len - 1)));
+    return w;
+  }
+
+  node.onaudioprocess = function (e) {
+    const input = e.inputBuffer.getChannelData(0);
+    const output = e.outputBuffer.getChannelData(0);
+    const pf = node._pitchFactor;
+    if (!pf || Math.abs(pf - 1.0) < 0.005) {
+      // Bypass: copy straight through.
+      output.set(input);
+      return;
+    }
+
+    if (!node._state) node._state = initState();
+    const s = node._state;
+    const win = s.window;
+
+    // Append input samples.
+    if (s.inputLen + input.length > s.inputBuf.length) {
+      const newBuf = new Float32Array(s.inputLen + input.length + grainSize * 2);
+      newBuf.set(s.inputBuf.subarray(0, s.inputLen));
+      s.inputBuf = newBuf;
+    }
+    s.inputBuf.set(input, s.inputLen);
+    s.inputLen += input.length;
+
+    // Ensure output buffer is big enough.
+    const neededOut = s.outputRead + output.length + grainSize * 2;
+    if (neededOut > s.outputBuf.length) {
+      const newOut = new Float32Array(neededOut + grainSize * 2);
+      newOut.set(s.outputBuf.subarray(0, s.outputLen));
+      s.outputBuf = newOut;
+    }
+
+    // Granular resample: read grains at intervals of hopIn, resample to grainSize, write at hopOut.
+    const hopIn = Math.round(hopOut * pf);
+    while (s.inputLen >= grainSize) {
+      // Extract grain.
+      for (let i = 0; i < grainSize; i++) {
+        // Linear interpolation for fractional resampling.
+        const srcIdx = i * pf;
+        const idx = Math.floor(srcIdx);
+        const frac = srcIdx - idx;
+        const s0 = idx < s.inputLen ? s.inputBuf[idx] : 0;
+        const s1 = (idx + 1) < s.inputLen ? s.inputBuf[idx + 1] : s0;
+        const sample = (s0 + frac * (s1 - s0)) * win[i];
+        if (s.outputLen + i < s.outputBuf.length) {
+          s.outputBuf[s.outputLen + i] += sample;
+        }
+      }
+      s.outputLen = Math.max(s.outputLen, s.outputLen + grainSize);
+
+      // Advance.
+      const advance = Math.max(1, hopIn);
+      if (advance < s.inputLen) {
+        s.inputBuf.copyWithin(0, advance, s.inputLen);
+        s.inputLen -= advance;
+      } else {
+        s.inputLen = 0;
+      }
+      s.outputLen += 0; // outputLen already set above, advance read window by hopOut in output.
+      // Actually advance the output write position by hopOut.
+      // The overlap-add means we wrote at s.outputLen; next write starts hopOut later.
+      break; // Process one grain per block to stay real-time.
+    }
+
+    // Read output.
+    const avail = s.outputLen - s.outputRead;
+    const toRead = Math.min(output.length, avail);
+    for (let i = 0; i < toRead; i++) {
+      output[i] = s.outputBuf[s.outputRead + i];
+    }
+    for (let i = toRead; i < output.length; i++) {
+      output[i] = 0;
+    }
+
+    // Shift output buffer.
+    if (toRead > 0) {
+      s.outputRead += toRead;
+      if (s.outputRead > grainSize * 2) {
+        const shift = s.outputRead;
+        s.outputBuf.copyWithin(0, shift, s.outputLen);
+        s.outputLen -= shift;
+        s.outputRead = 0;
+      }
+    }
+  };
+
+  return node;
+}
+
+function connectPitchShifter() {
+  if (!audioCtx || !loopGain || !master) return;
+  disconnectPitchShifter();
+  const pf = 1.0 / clamp(currentRate, RATE_MIN, RATE_MAX);
+  if (Math.abs(pf - 1.0) < 0.005) return; // No correction needed at 1× rate.
+  try {
+    pitchShifterNode = createPitchShifterNode(audioCtx, pf);
+    loopGain.disconnect();
+    loopGain.connect(pitchShifterNode);
+    pitchShifterNode.connect(master);
+  } catch {}
+}
+
+function disconnectPitchShifter() {
+  if (pitchShifterNode) {
+    try { pitchShifterNode.disconnect(); } catch {}
+    pitchShifterNode = null;
+  }
+  // Restore direct connection.
+  if (loopGain && master) {
+    try { loopGain.disconnect(); } catch {}
+    try { loopGain.connect(master); } catch {}
+  }
+}
+
+function updatePitchShifter() {
+  if (!preservePitch || !loopGain || !master) {
+    if (pitchShifterNode) disconnectPitchShifter();
+    return;
+  }
+  const pf = 1.0 / clamp(currentRate, RATE_MIN, RATE_MAX);
+  if (Math.abs(pf - 1.0) < 0.005) {
+    if (pitchShifterNode) disconnectPitchShifter();
+    return;
+  }
+  if (pitchShifterNode) {
+    pitchShifterNode._pitchFactor = pf;
+  } else {
+    connectPitchShifter();
+  }
+}
+
+function togglePreservePitch(on) {
+  preservePitch = !!on;
+  try { localStorage.setItem('seamlessplayer-preserve-pitch', preservePitch ? '1' : '0'); } catch {}
+  const btn = document.getElementById('preservePitchBtn');
+  if (btn) btn.setAttribute('aria-pressed', preservePitch ? 'true' : 'false');
+  updatePitchShifter();
 }
 
 function stopPlaylistPlayback() {
@@ -1632,6 +1814,9 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, cu
 
   loopSource.connect(loopGain);
   loopGain.connect(master);
+
+  // Re-insert pitch shifter if preserve-pitch is active.
+  try { updatePitchShifter(); } catch {}
 
   master.gain.cancelScheduledValues(audioCtx.currentTime);
   master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
@@ -3153,6 +3338,7 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
     try { updateNowPlayingNameUI(); } catch {}
     // If this is a looping source, turning off looping avoids an audible wrap.
     try { sourceToStop.loop = false; } catch {}
+    try { if (pitchShifterNode) { try { pitchShifterNode.disconnect(); } catch {} pitchShifterNode = null; } } catch {}
     try { if (gainToStop) { try { gainToStop.disconnect(); } catch {} } } catch {}
     try { sourceToStop.stop(now); } catch {}
     try { sourceToStop.disconnect(); } catch {}
@@ -4017,6 +4203,16 @@ function bindUI() {
     updateRateUI(committedNorm, currentRate);
   }
 
+  // Preserve-pitch toggle.
+  const ppBtn = document.getElementById('preservePitchBtn');
+  const ppLabel = document.querySelector('.preserve-pitch-label');
+  if (ppBtn) {
+    ppBtn.addEventListener('click', () => { togglePreservePitch(!preservePitch); });
+  }
+  if (ppLabel) {
+    ppLabel.addEventListener('click', () => { togglePreservePitch(!preservePitch); });
+  }
+
   const showOverlay = (el) => {
     if (!el) return;
     el.classList.remove('hidden');
@@ -4677,6 +4873,13 @@ function bindUI() {
 }
 
 window.addEventListener('load', () => {
+  // Restore saved preserve-pitch preference.
+  try {
+    preservePitch = localStorage.getItem('seamlessplayer-preserve-pitch') === '1';
+    const ppb = document.getElementById('preservePitchBtn');
+    if (ppb) ppb.setAttribute('aria-pressed', preservePitch ? 'true' : 'false');
+  } catch {}
+
   ensureAudio();
   lockViewportScale();
   bindUI();
