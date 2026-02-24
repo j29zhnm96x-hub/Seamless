@@ -674,6 +674,7 @@ async function deleteUserPresetNow(preset) {
 }
 const builtinPresets = [
   { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3' },
+  { name: '432hz.mp3', path: 'audio/432hz.mp3' },
   { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3' }
 ];
 let currentBuffer = null;
