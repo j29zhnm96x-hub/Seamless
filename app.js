@@ -622,7 +622,13 @@ function getLoopDescriptions() {
 function getLoopDescription(key) {
   const k = String(key || '');
   if (!k) return '';
-  try { return getLoopDescriptions()[k] || ''; } catch { return ''; }
+  try {
+    const stored = getLoopDescriptions()[k];
+    if (stored) return stored;
+  } catch {}
+  // Fall back to hardcoded description from builtinPresets.
+  const bp = builtinPresets.find(p => p.path === k);
+  return (bp && bp.description) ? bp.description : '';
 }
 
 function setLoopDescription(key, desc) {
@@ -835,9 +841,17 @@ async function deleteUserPresetNow(preset) {
   }
 }
 const builtinPresets = [
-  { name: 'ambientalsynth.mp3', path: 'audio/ambientalsynth.mp3', category: 'Soundscapes' },
-  { name: '432hz.mp3', path: 'audio/432hz.mp3', category: 'Frequencies' },
-  { name: 'white_noise_432hz.mp3', path: 'audio/white_noise_432hz.mp3', category: 'Noises' }
+  // Frequencies
+  { name: '111hz.mp3',    path: 'audio/frequencies/111hz.mp3',    category: 'Frequencies', description: 'Promotes mental clarity and alignment; often used for angelic guidance and new beginnings in manifestation practices. Health benefits include stimulating the brain for improved focus and reducing mental fatigue, potentially supporting neurological health and cognitive function.' },
+  { name: '1008hz.mp3',  path: 'audio/frequencies/1008hz.mp3',  category: 'Frequencies', description: 'Sacred geometry resonance, unity consciousness. Health benefits include resonating with unity, potentially supporting the entire body\'s systems, aiding in holistic organ harmony and cellular coherence.' },
+  { name: '1080hz.mp3',  path: 'audio/frequencies/1080hz.mp3',  category: 'Frequencies', description: 'Associated with sacred geometry and enlightenment; used in advanced meditation for universal connection (extended harmonic). Health benefits include promoting enlightenment, supporting brain and pineal gland function, aiding in higher consciousness that benefits neurological health.' },
+  { name: '1116hz.mp3',  path: 'audio/frequencies/1116hz.mp3',  category: 'Frequencies', description: 'Amplification of intention, spiritual protection. Health benefits include amplifying protective energy, potentially supporting the immune system and organs like the thymus, aiding in spiritual and physical resilience.' },
+  // Nature
+  { name: 'rain_forest.mp3', path: 'audio/nature/rain_forest.mp3', category: 'Nature' },
+  // Noises
+  { name: 'white_noise_432hz.mp3', path: 'audio/noises/white_noise_432hz.mp3', category: 'Noises' },
+  // Soundscapes
+  { name: 'ambiental_synth.mp3', path: 'audio/soundscapes/ambiental_synth.mp3', category: 'Soundscapes' },
 ];
 let currentBuffer = null;
 let currentSourceLabel = null;
@@ -3963,10 +3977,10 @@ function bindUI() {
       return;
     }
     try {
-      const buf = await loadBufferFromUrl('audio/ambientalsynth.mp3');
+      const buf = await loadBufferFromUrl('audio/soundscapes/ambiental_synth.mp3');
       clearPlayerPlaylistContext();
       currentBuffer = buf;
-      currentSourceLabel = 'ambientalsynth.mp3';
+      currentSourceLabel = 'ambiental_synth.mp3';
       currentPresetId = null;
       currentPresetRef = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
