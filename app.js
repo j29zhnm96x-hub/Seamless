@@ -841,11 +841,42 @@ async function deleteUserPresetNow(preset) {
   }
 }
 const builtinPresets = [
-  // Frequencies
-  { name: '111hz.mp3',    path: 'audio/frequencies/111hz.mp3',    category: 'Frequencies', description: 'Promotes mental clarity and alignment; often used for angelic guidance and new beginnings in manifestation practices. Health benefits include stimulating the brain for improved focus and reducing mental fatigue, potentially supporting neurological health and cognitive function.' },
+  // Frequencies — sorted numerically. Files live in audio/frequencies/<name>.mp3.
+  // Entries without a physical file yet are pre-registered so descriptions and
+  // categories appear as soon as you drop the matching .mp3 into the folder.
+  { name: '111hz.mp3',   path: 'audio/frequencies/111hz.mp3',   category: 'Frequencies', description: 'Promotes mental clarity and alignment; often used for angelic guidance and new beginnings in manifestation practices. Health benefits include stimulating the brain for improved focus and reducing mental fatigue, potentially supporting neurological health and cognitive function.' },
+  { name: '123hz.mp3',   path: 'audio/frequencies/123hz.mp3',   category: 'Frequencies', description: 'Gentle grounding, emotional balance, early chakra alignment. Health benefits include stimulating the lower chakras, which may aid in supporting kidney and adrenal gland function, helping to alleviate stress-related imbalances in these organs.' },
+  { name: '147hz.mp3',   path: 'audio/frequencies/147hz.mp3',   category: 'Frequencies', description: 'Clarity of thought, removal of mental fog, supportive for focus. Health benefits include stimulating brain activity for enhanced cognitive processing, potentially benefiting the nervous system and reducing symptoms associated with brain fog or mild cognitive strain.' },
+  { name: '174hz.mp3',   path: 'audio/frequencies/174hz.mp3',   category: 'Frequencies', description: 'Relieves pain and stress; promotes a sense of security and grounding. Often linked to foundational energy. Health benefits include acting as a natural anesthetic for pain reduction, particularly supporting the musculoskeletal system and organs like the kidneys and bladder by easing physical tension and promoting overall bodily relaxation.' },
+  { name: '222hz.mp3',   path: 'audio/frequencies/222hz.mp3',   category: 'Frequencies', description: 'Enhances balance and partnerships; supports emotional healing and duality resolution. Health benefits include stimulating the sacral chakra, which may support reproductive organs and the urinary system, aiding in emotional regulation that indirectly benefits hormonal balance.' },
+  { name: '258hz.mp3',   path: 'audio/frequencies/258hz.mp3',   category: 'Frequencies', description: 'Cellular repair, nurturing energy, often paired with 285 Hz. Health benefits include promoting cellular regeneration, which can support organ tissue repair, particularly in the liver and skin, enhancing overall vitality and healing processes.' },
+  { name: '285hz.mp3',   path: 'audio/frequencies/285hz.mp3',   category: 'Frequencies', description: 'Enhances multidimensional awareness; aids in tissue regeneration and cellular healing. Health benefits include stimulating tissue and organ repair, boosting immunity, and supporting regeneration in organs like the skin, muscles, and internal tissues, helping with wounds and cellular health.' },
+  { name: '333hz.mp3',   path: 'audio/frequencies/333hz.mp3',   category: 'Frequencies', description: 'Fosters creativity and spiritual growth; linked to ascended masters and self-expression. Health benefits include stimulating the solar plexus chakra, which may support digestive organs like the stomach, liver, and pancreas, aiding in energy flow and reducing digestive discomfort.' },
+  { name: '369hz.mp3',   path: 'audio/frequencies/369hz.mp3',   category: 'Frequencies', description: 'Known as the "Tesla code" frequency; aids in manifestation, universal alignment, and removing negative energy. Health benefits include promoting overall vibrational harmony, which can indirectly support organ function by reducing stress, potentially benefiting the heart and nervous system through balanced energy.' },
+  { name: '396hz.mp3',   path: 'audio/frequencies/396hz.mp3',   category: 'Frequencies', description: 'Liberates guilt and fear; supports root chakra balance and emotional release. Health benefits include stimulating the root chakra, which aids organs like the kidneys, bladder, colon, and spine, helping to alleviate fear-related stress that impacts these areas.' },
+  { name: '417hz.mp3',   path: 'audio/frequencies/417hz.mp3',   category: 'Frequencies', description: 'Facilitates change and removes negative influences; resonates with the sacral chakra for creativity and undoing past traumas. Health benefits include stimulating the sacral chakra, supporting reproductive organs, bladder, and kidneys, aiding in hormonal balance and emotional healing that benefits these systems.' },
+  { name: '432hz.mp3',   path: 'audio/frequencies/432hz.mp3',   category: 'Frequencies', description: 'Often called the "universal frequency"; promotes harmony with nature, stress reduction, and alignment with cosmic patterns; linked to Tesla\'s theories for its mathematical resonance with energy and vibration. Health benefits include general stress relief that supports the heart and cardiovascular system, potentially aiding in overall organ harmony and reducing inflammation through vibrational alignment.' },
+  { name: '444hz.mp3',   path: 'audio/frequencies/444hz.mp3',   category: 'Frequencies', description: 'Strengthens protection and stability; encourages focus on practical foundations and angelic support. Health benefits include stimulating foundational energy, which may support the skeletal system and organs like the bones and joints, promoting stability and reducing physical vulnerabilities.' },
+  { name: '456hz.mp3',   path: 'audio/frequencies/456hz.mp3',   category: 'Frequencies', description: 'Harmonizing relationships, heart-centered calm. Health benefits include supporting the heart chakra, benefiting organs like the heart and lungs, aiding in emotional calm that reduces strain on the cardiovascular and respiratory systems.' },
+  { name: '528hz.mp3',   path: 'audio/frequencies/528hz.mp3',   category: 'Frequencies', description: 'Known as the "love frequency" or "miracle tone"; promotes DNA repair, transformation, and solar plexus chakra harmony. Health benefits include stimulating DNA repair at a cellular level, supporting organs like the stomach, liver, and pancreas through enhanced vitality and reduced stress hormones.' },
+  { name: '555hz.mp3',   path: 'audio/frequencies/555hz.mp3',   category: 'Frequencies', description: 'Facilitates change and transformation; promotes adaptability and personal freedom. Health benefits include supporting adaptive energy, which may benefit the endocrine system and organs like the adrenals, aiding in stress adaptation and hormonal flexibility.' },
+  { name: '567hz.mp3',   path: 'audio/frequencies/567hz.mp3',   category: 'Frequencies', description: 'Completion of cycles, spiritual insight, letting go. Health benefits include promoting release and insight, potentially supporting detox organs like the liver and kidneys, aiding in emotional and physical cycle completion.' },
+  { name: '639hz.mp3',   path: 'audio/frequencies/639hz.mp3',   category: 'Frequencies', description: 'Enhances relationships and communication; balances the heart chakra for harmony and connection. Health benefits include stimulating the heart chakra, supporting organs like the heart, lungs, and thymus gland, promoting emotional harmony that benefits cardiovascular health.' },
+  { name: '666hz.mp3',   path: 'audio/frequencies/666hz.mp3',   category: 'Frequencies', description: 'Balances material and spiritual aspects; aids in compassion and overcoming fears related to abundance. Health benefits include balancing energies that support the solar plexus, aiding organs like the pancreas and digestive tract, promoting compassion that reduces fear-induced stress.' },
+  { name: '693hz.mp3',   path: 'audio/frequencies/693hz.mp3',   category: 'Frequencies', description: 'Deep emotional release, forgiveness frequency variant. Health benefits include facilitating emotional release, which may support the liver and gallbladder, organs associated with processing emotions like anger and resentment.' },
+  { name: '714hz.mp3',   path: 'audio/frequencies/714hz.mp3',   category: 'Frequencies', description: 'Problem-solving energy, awakening intuition. Health benefits include stimulating intuitive centers, potentially benefiting the brain and pineal gland, aiding in cognitive problem-solving and reducing mental blocks.' },
+  { name: '741hz.mp3',   path: 'audio/frequencies/741hz.mp3',   category: 'Frequencies', description: 'Awakens intuition and self-expression; cleanses toxins and supports throat chakra clarity. Health benefits include stimulating the throat chakra, supporting organs like the thyroid, throat, and lungs, aiding in detoxification and clear communication that benefits respiratory health.' },
+  { name: '777hz.mp3',   path: 'audio/frequencies/777hz.mp3',   category: 'Frequencies', description: 'Enhances spiritual awakening and intuition; connected to divine wisdom and inner guidance. Health benefits include stimulating higher intuition, supporting the brain and nervous system, promoting wisdom that aids in overall mental and spiritual health.' },
+  { name: '825hz.mp3',   path: 'audio/frequencies/825hz.mp3',   category: 'Frequencies', description: 'Inner peace, balancing polarities, soothing overthinking. Health benefits include promoting peace that soothes the mind, potentially benefiting the brain and reducing overactivity in the nervous system.' },
+  { name: '852hz.mp3',   path: 'audio/frequencies/852hz.mp3',   category: 'Frequencies', description: 'Returns one to spiritual order; activates the third eye chakra for inner vision and awareness. Health benefits include stimulating the third eye chakra, supporting organs like the pituitary gland, eyes, and brain, aiding in vision and hormonal regulation.' },
+  { name: '888hz.mp3',   path: 'audio/frequencies/888hz.mp3',   category: 'Frequencies', description: 'Attracts abundance and infinite potential; supports karmic balance and prosperity. Health benefits include promoting abundance energy, which may support the endocrine system and organs like the thymus, aiding in immune balance and vitality.' },
+  { name: '936hz.mp3',   path: 'audio/frequencies/936hz.mp3',   category: 'Frequencies', description: 'Pineal gland activation, higher-self connection (extended 963 variant). Health benefits include stimulating the pineal gland, supporting brain function and melatonin production, aiding in sleep regulation and spiritual awareness.' },
+  { name: '963hz.mp3',   path: 'audio/frequencies/963hz.mp3',   category: 'Frequencies', description: 'Connects to higher consciousness; awakens the crown chakra for unity and enlightenment. Health benefits include stimulating the crown chakra, supporting the pineal gland and brain, promoting enlightenment that enhances overall neurological harmony.' },
+  { name: '999hz.mp3',   path: 'audio/frequencies/999hz.mp3',   category: 'Frequencies', description: 'Signifies completion and closure; facilitates letting go and transitioning to higher states of consciousness. Health benefits include promoting closure, which may support detox organs like the liver and kidneys, aiding in emotional and physical release.' },
   { name: '1008hz.mp3',  path: 'audio/frequencies/1008hz.mp3',  category: 'Frequencies', description: 'Sacred geometry resonance, unity consciousness. Health benefits include resonating with unity, potentially supporting the entire body\'s systems, aiding in holistic organ harmony and cellular coherence.' },
   { name: '1080hz.mp3',  path: 'audio/frequencies/1080hz.mp3',  category: 'Frequencies', description: 'Associated with sacred geometry and enlightenment; used in advanced meditation for universal connection (extended harmonic). Health benefits include promoting enlightenment, supporting brain and pineal gland function, aiding in higher consciousness that benefits neurological health.' },
   { name: '1116hz.mp3',  path: 'audio/frequencies/1116hz.mp3',  category: 'Frequencies', description: 'Amplification of intention, spiritual protection. Health benefits include amplifying protective energy, potentially supporting the immune system and organs like the thymus, aiding in spiritual and physical resilience.' },
+  { name: '1125hz.mp3',  path: 'audio/frequencies/1125hz.mp3',  category: 'Frequencies', description: 'Transformation through surrender, deep healing. Health benefits include facilitating deep transformation, supporting regenerative processes in organs like the liver and skin, aiding in profound healing and surrender.' },
   // Nature
   { name: 'rain_forest.mp3', path: 'audio/nature/rain_forest.mp3', category: 'Nature' },
   // Noises
@@ -3276,46 +3307,63 @@ function openLoopInfo(preset, isBuiltin) {
   const titleEl = document.getElementById('loopInfoTitle');
   if (titleEl) titleEl.textContent = displayName;
 
-  // Description textarea
+  // Description — read-only for built-ins, editable for user loops.
+  const descText = document.getElementById('loopInfoDescText');
   const descInput = document.getElementById('loopInfoDescInput');
-  if (descInput) {
-    descInput.value = desc;
-    descInput.placeholder = t('loopinfo_desc_placeholder');
-    descInput.onblur = () => {
-      setLoopDescription(descKey, descInput.value);
-    };
+  if (isBuiltin) {
+    if (descText) {
+      descText.textContent = desc || '';
+      descText.classList.toggle('hidden', !desc);
+    }
+    if (descInput) descInput.classList.add('hidden');
+  } else {
+    if (descText) descText.classList.add('hidden');
+    if (descInput) {
+      descInput.classList.remove('hidden');
+      descInput.value = desc;
+      descInput.placeholder = t('loopinfo_desc_placeholder');
+      descInput.onblur = () => {
+        setLoopDescription(descKey, descInput.value);
+      };
+    }
   }
 
-  // Category select
+  // Category select — hidden for built-ins, editable for user loops.
+  const catRow = document.getElementById('loopInfoCatRow');
   const catSelect = document.getElementById('loopInfoCatSelect');
-  if (catSelect) {
-    catSelect.innerHTML = '';
-    const cats = getLoopCategories();
-    cats.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c;
-      opt.textContent = c;
-      if (c === cat) opt.selected = true;
-      catSelect.appendChild(opt);
-    });
-    // + New Category option
-    const newOpt = document.createElement('option');
-    newOpt.value = '__new__';
-    newOpt.textContent = t('loops_new_category');
-    catSelect.appendChild(newOpt);
+  if (isBuiltin) {
+    if (catRow) catRow.classList.add('hidden');
+  } else {
+    if (catRow) catRow.classList.remove('hidden');
+    if (catSelect) {
+      catSelect.innerHTML = '';
+      const cats = getLoopCategories();
+      cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        if (c === cat) opt.selected = true;
+        catSelect.appendChild(opt);
+      });
+      // + New Category option
+      const newOpt = document.createElement('option');
+      newOpt.value = '__new__';
+      newOpt.textContent = t('loops_new_category');
+      catSelect.appendChild(newOpt);
 
-    catSelect.onchange = () => {
-      const key = isBuiltin ? preset.path : preset.id;
-      if (catSelect.value === '__new__') {
-        const name = prompt(t('loops_new_category').replace('+', '').trim() + ':');
-        if (!name || !name.trim()) { catSelect.value = cat; return; }
-        addLoopCategory(name.trim());
-        setLoopCategory(key, name.trim());
-        openLoopInfo(preset, isBuiltin);
-      } else {
-        setLoopCategory(key, catSelect.value);
-      }
-    };
+      catSelect.onchange = () => {
+        const key = isBuiltin ? preset.path : preset.id;
+        if (catSelect.value === '__new__') {
+          const name = prompt(t('loops_new_category').replace('+', '').trim() + ':');
+          if (!name || !name.trim()) { catSelect.value = cat; return; }
+          addLoopCategory(name.trim());
+          setLoopCategory(key, name.trim());
+          openLoopInfo(preset, isBuiltin);
+        } else {
+          setLoopCategory(key, catSelect.value);
+        }
+      };
+    }
   }
 
   // File size & type

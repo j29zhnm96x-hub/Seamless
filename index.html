@@ -148,9 +148,10 @@
         <div class="loop-info-details">
           <div class="loop-info-row loop-info-desc-row">
             <span class="loop-info-label">Description</span>
+            <p id="loopInfoDescText" class="loop-info-desc-text hidden" aria-live="polite"></p>
             <textarea id="loopInfoDescInput" class="text-input loop-info-desc-input" rows="3" placeholder="Add a description…"></textarea>
           </div>
-          <div class="loop-info-row">
+          <div id="loopInfoCatRow" class="loop-info-row">
             <span class="loop-info-label">Category</span>
             <select id="loopInfoCatSelect" class="settings-select" aria-label="Loop category"></select>
           </div>
