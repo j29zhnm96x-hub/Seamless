@@ -1611,6 +1611,18 @@ function ensureAudio() {
   }
 }
 
+function isMobileDevice() {
+  try {
+    if ('ontouchstart' in window && navigator.maxTouchPoints > 0) {
+      // Tablets / phones: screen width under a desktop threshold
+      const w = screen.width || window.innerWidth;
+      if (w < 1024) return true;
+    }
+    return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  } catch {}
+  return false;
+}
+
 function isLandscape() {
   try {
     if (window.matchMedia) return window.matchMedia('(orientation: landscape)').matches;
@@ -1619,6 +1631,16 @@ function isLandscape() {
 }
 
 function updateLandscapeVizState() {
+  // Landscape fullscreen viz only applies to mobile devices.
+  if (!isMobileDevice()) {
+    // Ensure landscape class is removed on desktop so the UI is never hidden.
+    document.documentElement.classList.remove('landscape');
+    try {
+      const shell = document.querySelector('.app-shell');
+      if (shell) shell.removeAttribute('aria-hidden');
+    } catch {}
+    return;
+  }
   const landscape = isLandscape();
   document.documentElement.classList.toggle('landscape', landscape);
   try {
@@ -1858,7 +1880,32 @@ function toggleDesktopViz() {
   if (wrap) { wrap.classList.toggle('hidden', !desktopVizActive); wrap.setAttribute('aria-hidden', desktopVizActive ? 'false' : 'true'); }
   if (btn) btn.setAttribute('aria-pressed', desktopVizActive ? 'true' : 'false');
   if (desktopVizActive) startDesktopViz();
-  else stopDesktopViz();
+  else { stopDesktopViz(); exitDesktopVizFullscreen(); }
+}
+
+function toggleDesktopVizFullscreen() {
+  const wrap = document.getElementById('desktopVizWrap');
+  if (!wrap) return;
+  const isFull = wrap.classList.contains('fullscreen');
+  if (isFull) {
+    exitDesktopVizFullscreen();
+  } else {
+    wrap.classList.add('fullscreen');
+    // Try native Fullscreen API for true fullscreen.
+    try {
+      if (wrap.requestFullscreen) wrap.requestFullscreen();
+      else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
+    } catch {}
+  }
+}
+
+function exitDesktopVizFullscreen() {
+  const wrap = document.getElementById('desktopVizWrap');
+  if (wrap) wrap.classList.remove('fullscreen');
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+  } catch {}
 }
 
 async function loadBufferFromUrl(url) {
@@ -4182,6 +4229,23 @@ function bindUI() {
 
   const desktopVizBtn = document.getElementById('desktopVizBtn');
   desktopVizBtn && desktopVizBtn.addEventListener('click', () => toggleDesktopViz());
+
+  const desktopVizFsBtn = document.getElementById('desktopVizFullscreenBtn');
+  desktopVizFsBtn && desktopVizFsBtn.addEventListener('click', () => toggleDesktopVizFullscreen());
+
+  // Sync fullscreen class when user exits via Escape key.
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      const wrap = document.getElementById('desktopVizWrap');
+      if (wrap) wrap.classList.remove('fullscreen');
+    }
+  });
+  document.addEventListener('webkitfullscreenchange', () => {
+    if (!document.webkitFullscreenElement) {
+      const wrap = document.getElementById('desktopVizWrap');
+      if (wrap) wrap.classList.remove('fullscreen');
+    }
+  });
 
   // Repeat button toggles playlist repeat mode.
   repeatBtn && repeatBtn.addEventListener('click', () => {
