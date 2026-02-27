@@ -1068,6 +1068,12 @@ let vizTimeData = null;
 let vizAutoPeak = 0;
 let vizBarScratch = [];
 let vizBarSmooth = [];
+let desktopVizActive = false;
+let desktopVizRafId = 0;
+let desktopVizCanvas = null;
+let desktopVizCtx = null;
+let desktopVizBarSmooth = [];
+let desktopVizAutoPeak = 0;
 let lastTouchEndAt = 0;
 
 const VIEWPORT_LOCK_CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
@@ -1749,6 +1755,110 @@ function startOutputIfNeeded() {
   if (!audioOut) return;
   const p = audioOut.play();
   if (p && p.catch) p.catch(() => {});
+}
+
+function startDesktopViz() {
+  ensureAudio();
+  if (!desktopVizCanvas) desktopVizCanvas = document.getElementById('desktopViz');
+  if (desktopVizCanvas && !desktopVizCtx) desktopVizCtx = desktopVizCanvas.getContext('2d');
+  if (!desktopVizCanvas || !desktopVizCtx || !analyser) return;
+  if (desktopVizRafId) return;
+
+  const freqBins = analyser.frequencyBinCount;
+  const freqData = new Uint8Array(freqBins);
+
+  const draw = () => {
+    desktopVizRafId = requestAnimationFrame(draw);
+    const cvs = desktopVizCanvas;
+    const ctx = desktopVizCtx;
+    if (!cvs || !ctx || !analyser) return;
+
+    // Resize canvas to match its CSS layout size.
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, cvs.clientWidth);
+    const h = Math.max(1, cvs.clientHeight);
+    const pw = Math.floor(w * dpr);
+    const ph = Math.floor(h * dpr);
+    if (cvs.width !== pw) cvs.width = pw;
+    if (cvs.height !== ph) cvs.height = ph;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+
+    analyser.getByteFrequencyData(freqData);
+    ctx.clearRect(0, 0, w, h);
+
+    const rootStyles = getComputedStyle(document.documentElement);
+    const accent = (rootStyles.getPropertyValue('--accent') || '').trim() || '#4a90e2';
+    const danger = (rootStyles.getPropertyValue('--danger') || '').trim() || '#e24a6a';
+
+    const binCount = freqData.length;
+    const nyquist = audioCtx ? (audioCtx.sampleRate / 2) : 22050;
+    const hzPerBin = nyquist / Math.max(1, binCount);
+    const startBin = Math.max(0, Math.floor(60 / Math.max(1e-6, hzPerBin)));
+    const endBin = Math.min(binCount - 1, Math.floor(18000 / Math.max(1e-6, hzPerBin)));
+    const usableBins = Math.max(1, endBin - startBin);
+
+    const bars = Math.min(usableBins, Math.max(64, Math.min(220, Math.floor(w / 5))));
+    const barW = w / Math.max(1, bars);
+
+    const grad = ctx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, accent);
+    grad.addColorStop(1, danger);
+    ctx.fillStyle = grad;
+
+    const maxBarH = h * 0.92;
+    const bottomPad = 4;
+
+    let peak = 0;
+    if (desktopVizBarSmooth.length < bars) desktopVizBarSmooth = new Array(bars).fill(0);
+    const scratch = new Array(bars);
+    for (let i = 0; i < bars; i++) {
+      const t = bars <= 1 ? 0 : i / (bars - 1);
+      const idx = startBin + Math.floor(t * usableBins);
+      const raw = (freqData[Math.min(binCount - 1, idx)] || 0) / 255;
+      scratch[i] = raw;
+      if (raw > peak) peak = raw;
+    }
+    desktopVizAutoPeak = (desktopVizAutoPeak * 0.985) + (peak * 0.015);
+    desktopVizAutoPeak = Math.max(0.06, Math.min(0.95, desktopVizAutoPeak));
+    const gain = Math.min(8, 1 / Math.max(0.08, desktopVizAutoPeak));
+
+    for (let i = 0; i < bars; i++) {
+      let v = Math.max(0, Math.min(1, (scratch[i] || 0) * gain));
+      v = Math.pow(v, 0.9);
+      const prev = desktopVizBarSmooth[i] || 0;
+      const eased = (prev * 0.88) + (v * 0.12);
+      desktopVizBarSmooth[i] = eased;
+      v = eased;
+      const bh = Math.max(2, v * maxBarH);
+      const x = i * barW;
+      const y = (h - bottomPad) - bh;
+      ctx.globalAlpha = 0.35 + v * 0.65;
+      ctx.fillRect(x + barW * 0.12, y, Math.max(1, barW * 0.76), bh);
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  draw();
+}
+
+function stopDesktopViz() {
+  if (desktopVizRafId) { cancelAnimationFrame(desktopVizRafId); desktopVizRafId = 0; }
+  if (desktopVizCanvas && desktopVizCtx) {
+    desktopVizCtx.clearRect(0, 0, desktopVizCanvas.width, desktopVizCanvas.height);
+  }
+  desktopVizBarSmooth = [];
+  desktopVizAutoPeak = 0;
+}
+
+function toggleDesktopViz() {
+  desktopVizActive = !desktopVizActive;
+  const wrap = document.getElementById('desktopVizWrap');
+  const btn = document.getElementById('desktopVizBtn');
+  if (wrap) { wrap.classList.toggle('hidden', !desktopVizActive); wrap.setAttribute('aria-hidden', desktopVizActive ? 'false' : 'true'); }
+  if (btn) btn.setAttribute('aria-pressed', desktopVizActive ? 'true' : 'false');
+  if (desktopVizActive) startDesktopViz();
+  else stopDesktopViz();
 }
 
 async function loadBufferFromUrl(url) {
@@ -4069,6 +4179,9 @@ function bindUI() {
   stopBtn && stopBtn.addEventListener('click', () => {
     try { stopPlaylistPlayback(); } catch {}
   });
+
+  const desktopVizBtn = document.getElementById('desktopVizBtn');
+  desktopVizBtn && desktopVizBtn.addEventListener('click', () => toggleDesktopViz());
 
   // Repeat button toggles playlist repeat mode.
   repeatBtn && repeatBtn.addEventListener('click', () => {

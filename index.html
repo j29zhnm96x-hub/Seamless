@@ -34,6 +34,9 @@
           <button id="repeat" class="transport-btn" aria-label="Repeat playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M3 11V9a4 4 0 014-4h13"/><path d="M7 22l-3-3 3-3"/><path d="M21 13v2a4 4 0 01-4 4H4"/></svg>
           </button>
+          <button id="desktopVizBtn" type="button" class="transport-btn desktop-only" aria-pressed="false" aria-label="Toggle visualizer">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><rect x="2" y="14" width="3" height="7" rx="1"/><rect x="7" y="9" width="3" height="12" rx="1"/><rect x="12" y="4" width="3" height="17" rx="1"/><rect x="17" y="11" width="3" height="10" rx="1"/></svg>
+          </button>
         </div>
 
         <div id="playerPlaylist" class="player-playlist hidden" aria-live="polite" aria-hidden="true"></div>
@@ -44,6 +47,10 @@
             <div id="wavePlayhead" class="wave-playhead hidden" aria-hidden="true"></div>
           </div>
           <div id="nowPlayingName" class="wave-nowplaying hidden" aria-hidden="true"></div>
+        </div>
+
+        <div id="desktopVizWrap" class="card desktop-only desktop-viz-card hidden" aria-hidden="true">
+          <canvas id="desktopViz" aria-hidden="true"></canvas>
         </div>
 
         <div class="card" aria-label="Overall volume">
