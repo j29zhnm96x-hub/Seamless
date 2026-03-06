@@ -24,6 +24,7 @@ const UPLOAD_NAME_OVERRIDES_KEY = 'seamlessplayer-upload-name-overrides';
 const LOOP_CATEGORIES_KEY = 'seamlessplayer-loop-categories';
 const LOOP_DESCRIPTIONS_KEY = 'seamlessplayer-loop-descriptions';
 const LOOP_CAT_ASSIGNMENTS_KEY = 'seamlessplayer-loop-cat-assignments';
+const LOOP_COLLAPSED_CATEGORIES_KEY = 'seamlessplayer-loop-collapsed-categories';
 const DEFAULT_CATEGORIES = ['Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
 
 // Persist playlists across restarts via IndexedDB.
@@ -655,6 +656,34 @@ function setLoopDescription(key, desc) {
 
 // Session-only collapse state for category sections.
 const collapsedCategories = new Set();
+
+function loadCollapsedCategoriesState() {
+  const categories = getLoopCategories();
+  try {
+    const raw = localStorage.getItem(LOOP_COLLAPSED_CATEGORIES_KEY);
+    if (!raw) {
+      collapsedCategories.clear();
+      categories.forEach(cat => collapsedCategories.add(cat));
+      localStorage.setItem(LOOP_COLLAPSED_CATEGORIES_KEY, JSON.stringify([...collapsedCategories]));
+      return;
+    }
+    const arr = JSON.parse(raw);
+    const stored = Array.isArray(arr) ? new Set(arr.map(v => String(v || ''))) : new Set();
+    collapsedCategories.clear();
+    categories.forEach(cat => {
+      if (stored.has(cat) || !stored.size) collapsedCategories.add(cat);
+    });
+    // Any newly added categories should default to collapsed as well.
+    localStorage.setItem(LOOP_COLLAPSED_CATEGORIES_KEY, JSON.stringify([...collapsedCategories]));
+  } catch {
+    collapsedCategories.clear();
+    categories.forEach(cat => collapsedCategories.add(cat));
+  }
+}
+
+function saveCollapsedCategoriesState() {
+  try { localStorage.setItem(LOOP_COLLAPSED_CATEGORIES_KEY, JSON.stringify([...collapsedCategories])); } catch {}
+}
 
 // Loop info page state.
 let loopInfoPreset = null;
@@ -3386,6 +3415,8 @@ function renderLoopsPage() {
   if (!container) return;
   container.innerHTML = '';
 
+  if (!collapsedCategories.size) loadCollapsedCategoriesState();
+
   const searchInput = document.getElementById('loopsSearch');
   const query = (searchInput && searchInput.value || '').trim().toLowerCase();
 
@@ -3447,6 +3478,7 @@ function renderLoopsPage() {
     header.addEventListener('click', () => {
       if (collapsedCategories.has(cat)) collapsedCategories.delete(cat);
       else collapsedCategories.add(cat);
+      saveCollapsedCategoriesState();
       renderLoopsPage();
     });
     section.appendChild(header);
@@ -4757,6 +4789,8 @@ function bindUI() {
       const handle = r.querySelector('.pl-handle');
       if (!handle) return;
       handle.addEventListener('pointerdown', (e) => {
+        // On touch devices keep the editor scrollable; only mouse initiates reorder.
+        if (e.pointerType && e.pointerType !== 'mouse') return;
         // Don't start drag if user interacts with the reps input.
         if (e.target && e.target.closest && e.target.closest('input')) return;
         draggingRow = r;
@@ -5239,6 +5273,7 @@ function bindUI() {
 }
 
 window.addEventListener('load', () => {
+  loadCollapsedCategoriesState();
   // Restore saved preserve-pitch preference.
   try {
     preservePitch = localStorage.getItem('seamlessplayer-preserve-pitch') === '1';
