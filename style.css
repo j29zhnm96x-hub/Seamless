@@ -828,7 +828,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   border:1px solid var(--border-2);border-radius:var(--radius-lg);
   background:var(--surface);box-shadow:var(--shadow);padding:18px;
 }
-.overlay#playlistOverlay .overlay-card{display:flex;flex-direction:column;min-height:0;width:min(480px,100%);max-height:min(82vh,640px)}
+.overlay#playlistOverlay .overlay-card{display:flex;flex-direction:column;min-height:0;width:min(480px,100%);max-height:min(82vh,640px);overflow:hidden}
 .overlay-card h2{margin:0 0 10px;font-size:16px;font-weight:700;letter-spacing:-.2px}
 .overlay-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
 #playlistCreateView{width:100%}
