@@ -8,6 +8,9 @@
   --accent: #5b8def;
   --accent-soft: rgba(91,141,239,0.10);
   --accent-mid: rgba(91,141,239,0.25);
+  --favorite: #9be2a8;
+  --favorite-soft: rgba(155,226,168,0.16);
+  --favorite-mid: rgba(155,226,168,0.42);
   --danger: #d94f4f;
   --danger-soft: rgba(217,79,79,0.10);
   --text: #dddde2;
@@ -213,6 +216,7 @@ button.danger{background:var(--danger);color:#fff}
   overflow:hidden;
   text-overflow:ellipsis;
 }
+.player-favorite-row{display:flex;justify-content:center;margin:-2px auto 12px}
 
 /* -------- Waveform -------- */
 .wave-wrap{position:relative}
@@ -253,6 +257,30 @@ button.danger{background:var(--danger);color:#fff}
   text-overflow:ellipsis;
   max-width:100%;
 }
+.favorite-toggle-btn{
+  width:34px;height:34px;padding:0;
+  display:grid;place-items:center;
+  border-radius:999px;
+  background:var(--surface-2);
+  border:1px solid var(--border-2);
+  color:var(--text-2);
+  box-shadow:none;
+  font-size:18px;font-weight:700;line-height:1;
+}
+.favorite-toggle-btn:hover{background:var(--surface)}
+.favorite-toggle-btn.active{color:var(--favorite);border-color:var(--favorite-mid);background:var(--favorite-soft)}
+
+.favorites-card{padding-bottom:10px}
+.favorites-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;color:var(--text-2);font-size:13px;font-weight:600}
+.favorites-count{color:var(--text);font-size:12px;font-weight:700}
+.favorites-island{display:grid;gap:8px;max-height:220px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding-right:2px}
+.favorites-empty{margin:0;padding:10px 2px;color:var(--text-3);font-size:12px;text-align:center}
+.favorite-entry{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2)}
+.favorite-entry-main{display:grid;gap:2px;min-width:0;text-align:left;background:none;border:none;box-shadow:none;padding:0}
+.favorite-entry-label{min-width:0;color:var(--text);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.favorite-entry-meta{display:flex;align-items:center;gap:6px;min-width:0}
+.favorite-entry-type{display:inline-flex;align-items:center;justify-content:center;min-height:20px;padding:0 8px;border-radius:999px;border:1px solid var(--border-2);color:var(--text-3);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.favorite-entry.active{border-color:var(--accent-mid);background:linear-gradient(180deg,var(--surface-2),rgba(91,141,239,0.08))}
 
 /* -------- Volume / Rate controls -------- */
 .controls,.imports{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
@@ -425,6 +453,7 @@ button.danger{background:var(--danger);color:#fff}
 .detail-actions{
   display:flex;gap:8px;padding:8px 0 16px;
 }
+.detail-favorite-btn{margin-left:auto;flex:0 0 auto}
 
 .detail-items{display:grid;gap:0}
 
@@ -495,17 +524,24 @@ button.danger{background:var(--danger);color:#fff}
   display:grid;grid-template-columns:1fr 1fr;gap:8px;
   padding-left:44px; /* align with name after handle */
 }
+.detail-ctrl-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .detail-ctrl-group{display:flex;flex-direction:column;gap:3px}
 .detail-ctrl-label{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.detail-ctrl-link{
+  padding:0;background:none;border:none;box-shadow:none;
+  color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.2px;
+  min-height:auto;
+}
+.detail-ctrl-link:hover{background:none;color:#7aa7ff}
 .detail-ctrl-group input[type=range]{
   width:100%;accent-color:var(--accent);height:22px;
 }
-.detail-ctrl-group input[type=number]{
+.detail-ctrl-group input[type=number],.detail-reps-input{
   width:100%;padding:6px 8px;background:var(--surface-2);
   border:1px solid var(--border-2);border-radius:6px;
   color:var(--text);font-size:13px;
 }
-.detail-ctrl-group input[type=number]:focus{
+.detail-ctrl-group input[type=number]:focus,.detail-reps-input:focus{
   outline:none;border-color:var(--accent);box-shadow:var(--focus);
 }
 .detail-ctrl-val{font-size:11px;color:var(--text-2);text-align:right}

@@ -40,6 +40,9 @@
         </div>
 
         <div id="playerPlaylist" class="player-playlist hidden" aria-live="polite" aria-hidden="true"></div>
+        <div id="playerPlaylistFavRow" class="player-favorite-row hidden" aria-hidden="true">
+          <button id="playerPlaylistFavBtn" type="button" class="favorite-toggle-btn" aria-pressed="false" aria-label="Add playlist to favorites">+</button>
+        </div>
         <div id="playerPlaylistCountdown" class="player-playlist-meta hidden" aria-live="polite" aria-hidden="true"></div>
 
         <div class="card">
@@ -48,6 +51,9 @@
             <div id="wavePlayhead" class="wave-playhead hidden" aria-hidden="true"></div>
           </div>
           <div id="nowPlayingName" class="wave-nowplaying hidden" aria-hidden="true"></div>
+          <div id="playerLoopFavRow" class="player-favorite-row hidden" aria-hidden="true">
+            <button id="playerLoopFavBtn" type="button" class="favorite-toggle-btn" aria-pressed="false" aria-label="Add loop to favorites">+</button>
+          </div>
         </div>
 
         <div id="desktopVizWrap" class="card desktop-only desktop-viz-card hidden" aria-hidden="true">
@@ -99,6 +105,14 @@
             </div>
           </div>
         </div>
+
+        <div class="card favorites-card" aria-label="Favorites">
+          <div class="favorites-head">
+            <span>Favorites</span>
+            <span id="favoritesCount" class="favorites-count" aria-live="polite">0</span>
+          </div>
+          <div id="favoritesIsland" class="favorites-island" aria-label="Favorite loops and playlists"></div>
+        </div>
       </section>
 
       <section id="page-playlists" class="page" aria-label="Playlists Page">
@@ -124,6 +138,7 @@
           </button>
           <button id="detailEdit" class="btn-ghost" aria-label="Edit playlist">Edit</button>
           <button id="detailDelete" class="btn-danger-text" aria-label="Delete playlist">Delete</button>
+          <button id="detailFavoriteBtn" type="button" class="favorite-toggle-btn detail-favorite-btn" aria-pressed="false" aria-label="Add playlist to favorites">+</button>
         </div>
         <div id="detailItems" class="detail-items"></div>
       </section>
@@ -165,6 +180,10 @@
           <div id="loopInfoCatRow" class="loop-info-row">
             <span class="loop-info-label">Category</span>
             <select id="loopInfoCatSelect" class="settings-select" aria-label="Loop category"></select>
+          </div>
+          <div class="loop-info-row">
+            <span class="loop-info-label">Favorite</span>
+            <button id="loopInfoFavoriteBtn" type="button" class="favorite-toggle-btn" aria-pressed="false" aria-label="Add loop to favorites">+</button>
           </div>
           <div class="loop-info-row">
             <span class="loop-info-label">File size</span>
@@ -326,6 +345,21 @@
       <div id="loopPickerList" class="picker-list" aria-label="Available loops"></div>
       <div class="overlay-actions">
         <button id="closeLoopPicker" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailLoopRepsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Choose repetitions">
+    <div class="overlay-card">
+      <h2>Add Loop</h2>
+      <p class="hint" id="detailLoopRepsText">How many repetitions should this loop use?</p>
+      <div class="row">
+        <label for="detailLoopRepsInput">Reps</label>
+        <input id="detailLoopRepsInput" class="text-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="1" />
+      </div>
+      <div class="overlay-actions">
+        <button id="confirmDetailLoopReps">Add Loop</button>
+        <button id="cancelDetailLoopReps" class="secondary">Back</button>
       </div>
     </div>
   </div>

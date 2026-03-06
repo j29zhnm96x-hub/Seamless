@@ -25,6 +25,7 @@ const LOOP_CATEGORIES_KEY = 'seamlessplayer-loop-categories';
 const LOOP_DESCRIPTIONS_KEY = 'seamlessplayer-loop-descriptions';
 const LOOP_CAT_ASSIGNMENTS_KEY = 'seamlessplayer-loop-cat-assignments';
 const LOOP_COLLAPSED_CATEGORIES_KEY = 'seamlessplayer-loop-collapsed-categories';
+const FAVORITES_KEY = 'seamlessplayer-favorites';
 const DEFAULT_CATEGORIES = ['Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
 
 // Persist playlists across restarts via IndexedDB.
@@ -701,6 +702,8 @@ function addUserPresetFromBlob({ name, blob, saved }) {
   userPresets.unshift(presetObj);
   currentPresetId = presetObj.id || null;
   currentPresetRef = presetObj;
+  currentPresetKey = presetObj.id ? `upload:${presetObj.id}` : null;
+  try { updateFavoritesUI(); } catch {}
   return presetObj;
 }
 
@@ -853,6 +856,7 @@ async function deleteUserPresetNow(preset) {
       stopLoop(0, true);
       currentBuffer = null;
       currentSourceLabel = null;
+      currentPresetKey = null;
       currentPresetId = null;
       currentPresetRef = null;
       try { setLoopInfo(''); } catch {}
@@ -870,6 +874,12 @@ async function deleteUserPresetNow(preset) {
   } catch {}
 
   const idToDelete = preset && preset.id;
+  const loopFavoriteKey = preset && preset.id ? `upload:${preset.id}` : (preset && preset.url ? `url:${preset.url}` : null);
+  if (loopFavoriteKey) {
+    favoriteEntries = favoriteEntries.filter(entry => !(entry && entry.kind === 'loop' && entry.key === loopFavoriteKey));
+    saveFavoriteEntries();
+    try { updateFavoritesUI(); } catch {}
+  }
 
   try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
   try { updateScrollState(); } catch {}
@@ -928,6 +938,7 @@ const builtinPresets = [
 ];
 let currentBuffer = null;
 let currentSourceLabel = null;
+let currentPresetKey = null;
 let currentPresetId = null;
 let currentPresetRef = null;
 
@@ -1036,6 +1047,7 @@ function updateNowPlayingNameUI() {
     el.classList.add('hidden');
     el.setAttribute('aria-hidden', 'true');
   }
+  try { updateCurrentLoopFavoriteButton(); } catch {}
 }
 const bufferCache = new Map();
 const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
@@ -1061,10 +1073,14 @@ let playlistCurrentLoopRepTotal = 0;
 let pendingDeletePlaylistId = null;
 let detailPlaylistId = null;
 let detailEditMode = false;
+let pendingDetailLoopChoice = null;
+let pendingDetailNewItemId = null;
+let favoriteEntries = loadFavoriteEntries();
 
 function setPlayerPlaylist(record) {
   playerPlaylist = record || null;
   playerPlaylistId = (record && record.id) ? record.id : null;
+  if (record && record.id && record.name) updateFavoriteEntryLabel('playlist', record.id, record.name);
   try { updatePlayerPlaylistUI(); } catch {}
 }
 
@@ -1098,6 +1114,299 @@ function updatePlayerPlaylistUI() {
       metaEl.setAttribute('aria-hidden', 'true');
     }
   }
+
+  try { updatePlayerPlaylistFavoriteButton(); } catch {}
+}
+
+function loadFavoriteEntries() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(entry => {
+      const kind = entry && entry.kind === 'playlist' ? 'playlist' : (entry && entry.kind === 'loop' ? 'loop' : '');
+      const key = entry && entry.key != null ? String(entry.key) : '';
+      if (!kind || !key) return null;
+      return {
+        kind,
+        key,
+        label: String((entry && entry.label) || (kind === 'playlist' ? 'Playlist' : 'Loop')),
+        addedAt: Number(entry && entry.addedAt) || Date.now()
+      };
+    }).filter(Boolean);
+  } catch {}
+  return [];
+}
+
+function saveFavoriteEntries() {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoriteEntries || [])); } catch {}
+}
+
+function getLoopFavoriteKeyForPreset(preset, isBuiltin) {
+  if (!preset) return null;
+  if (isBuiltin && preset.path) return `builtin:${preset.path}`;
+  if (!isBuiltin && preset.id) return `upload:${preset.id}`;
+  if (!isBuiltin && preset.url) return `url:${preset.url}`;
+  return null;
+}
+
+function resolveLoopFavoriteLabelByKey(presetKey, fallback = 'Loop') {
+  const key = String(presetKey || '');
+  if (!key) return fallback;
+  if (key.startsWith('builtin:')) {
+    const path = key.slice('builtin:'.length);
+    const preset = builtinPresets.find(p => p && p.path === path);
+    return stripFileExt((preset && preset.name) || path.split('/').pop() || fallback);
+  }
+  if (key.startsWith('upload:')) {
+    const id = key.slice('upload:'.length);
+    const preset = userPresets.find(p => p && String(p.id) === String(id));
+    const raw = (preset && preset.id && getUploadNameOverride(preset.id)) || (preset && preset.name) || fallback;
+    return stripFileExt(raw);
+  }
+  if (key.startsWith('url:')) {
+    const url = key.slice('url:'.length);
+    const preset = userPresets.find(p => p && p.url === url);
+    return stripFileExt((preset && preset.name) || url || fallback);
+  }
+  return fallback;
+}
+
+function findFavoriteIndex(kind, key) {
+  return favoriteEntries.findIndex(entry => entry && entry.kind === kind && entry.key === String(key));
+}
+
+function isFavorite(kind, key) {
+  if (!kind || key == null) return false;
+  return findFavoriteIndex(kind, key) >= 0;
+}
+
+function updateFavoriteEntryLabel(kind, key, label) {
+  const idx = findFavoriteIndex(kind, key);
+  if (idx < 0) return;
+  const nextLabel = String(label || '').trim();
+  if (!nextLabel || favoriteEntries[idx].label === nextLabel) return;
+  favoriteEntries[idx].label = nextLabel;
+  saveFavoriteEntries();
+}
+
+function toggleFavoriteEntry(entry) {
+  if (!entry || !entry.kind || entry.key == null) return false;
+  const key = String(entry.key);
+  const idx = findFavoriteIndex(entry.kind, key);
+  let active = false;
+  if (idx >= 0) {
+    favoriteEntries.splice(idx, 1);
+  } else {
+    favoriteEntries.unshift({
+      kind: entry.kind,
+      key,
+      label: String(entry.label || (entry.kind === 'playlist' ? 'Playlist' : 'Loop')),
+      addedAt: Date.now()
+    });
+    active = true;
+  }
+  saveFavoriteEntries();
+  try { updateFavoritesUI(); } catch {}
+  return active;
+}
+
+function updateFavoriteToggleButton(btn, active, label) {
+  if (!btn) return;
+  btn.classList.toggle('active', !!active);
+  btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  btn.setAttribute('aria-label', `${active ? 'Remove' : 'Add'} ${label} ${active ? 'from' : 'to'} favorites`);
+  btn.title = active ? 'Remove from favorites' : 'Add to favorites';
+  btn.textContent = '+';
+}
+
+function getCurrentLoopFavoriteEntry() {
+  if (!currentPresetKey || !currentSourceLabel) return null;
+  return {
+    kind: 'loop',
+    key: currentPresetKey,
+    label: stripFileExt(currentSourceLabel || resolveLoopFavoriteLabelByKey(currentPresetKey, 'Loop'))
+  };
+}
+
+function getCurrentPlaylistFavoriteEntry() {
+  if (!playerPlaylist || !playerPlaylist.id) return null;
+  return {
+    kind: 'playlist',
+    key: playerPlaylist.id,
+    label: String(playerPlaylist.name || 'Playlist')
+  };
+}
+
+function updateCurrentLoopFavoriteButton() {
+  const row = document.getElementById('playerLoopFavRow');
+  const btn = document.getElementById('playerLoopFavBtn');
+  const entry = getCurrentLoopFavoriteEntry();
+  const show = !!(entry && currentSourceLabel && String(currentSourceLabel).trim());
+  if (row) {
+    row.classList.toggle('hidden', !show);
+    row.setAttribute('aria-hidden', show ? 'false' : 'true');
+  }
+  if (!btn) return;
+  if (!show) {
+    btn.classList.remove('active');
+    btn.setAttribute('aria-pressed', 'false');
+    return;
+  }
+  updateFavoriteToggleButton(btn, isFavorite('loop', entry.key), 'loop');
+}
+
+function updatePlayerPlaylistFavoriteButton() {
+  const row = document.getElementById('playerPlaylistFavRow');
+  const btn = document.getElementById('playerPlaylistFavBtn');
+  const entry = getCurrentPlaylistFavoriteEntry();
+  const show = !!entry;
+  if (row) {
+    row.classList.toggle('hidden', !show);
+    row.setAttribute('aria-hidden', show ? 'false' : 'true');
+  }
+  if (!btn) return;
+  if (!show) {
+    btn.classList.remove('active');
+    btn.setAttribute('aria-pressed', 'false');
+    return;
+  }
+  updateFavoriteToggleButton(btn, isFavorite('playlist', entry.key), 'playlist');
+}
+
+function updateLoopInfoFavoriteButton() {
+  const btn = document.getElementById('loopInfoFavoriteBtn');
+  if (!btn || !loopInfoPreset) return;
+  const key = getLoopFavoriteKeyForPreset(loopInfoPreset, loopInfoIsBuiltin);
+  if (!key) {
+    btn.classList.add('hidden');
+    return;
+  }
+  btn.classList.remove('hidden');
+  const label = stripFileExt(((!loopInfoIsBuiltin && loopInfoPreset.id && getUploadNameOverride(loopInfoPreset.id)) || loopInfoPreset.name || 'Loop'));
+  updateFavoriteToggleButton(btn, isFavorite('loop', key), 'loop');
+  updateFavoriteEntryLabel('loop', key, label);
+}
+
+function updateDetailFavoriteButton() {
+  const btn = document.getElementById('detailFavoriteBtn');
+  if (!btn || !activePlaylist || !activePlaylist.id) return;
+  updateFavoriteToggleButton(btn, isFavorite('playlist', activePlaylist.id), 'playlist');
+  updateFavoriteEntryLabel('playlist', activePlaylist.id, activePlaylist.name || 'Playlist');
+}
+
+async function activateFavoriteEntry(entry) {
+  if (!entry) return;
+  if (entry.kind === 'playlist') {
+    try {
+      const rec = await loadPlaylistRecord(entry.key);
+      if (!rec) {
+        favoriteEntries = favoriteEntries.filter(f => !(f && f.kind === 'playlist' && f.key === entry.key));
+        saveFavoriteEntries();
+        updateFavoritesUI();
+        setStatus('Favorite playlist not found.');
+        return;
+      }
+      setPlayerPlaylist(rec);
+      switchTab('player');
+      await playActivePlaylist();
+      return;
+    } catch {
+      setStatus('Failed to load favorite playlist.');
+      return;
+    }
+  }
+
+  try {
+    const loaded = await loadBufferFromPresetKey(entry.key);
+    if (!loaded || !loaded.buffer) {
+      favoriteEntries = favoriteEntries.filter(f => !(f && f.kind === 'loop' && f.key === entry.key));
+      saveFavoriteEntries();
+      updateFavoritesUI();
+      setStatus('Favorite loop unavailable.');
+      return;
+    }
+    clearPlayerPlaylistContext();
+    currentBuffer = loaded.buffer;
+    currentSourceLabel = resolveLoopFavoriteLabelByKey(entry.key, entry.label || loaded.sourceLabel || 'Loop');
+    currentPresetKey = entry.key;
+    currentPresetId = loaded.presetId || null;
+    currentPresetRef = loaded.presetRef || null;
+    updateFavoriteEntryLabel('loop', entry.key, currentSourceLabel);
+    await startLoopFromBuffer(loaded.buffer, 0.5, 0.03);
+    switchTab('player');
+  } catch {
+    setStatus('Failed to load favorite loop.');
+  }
+}
+
+function renderFavoritesIsland() {
+  const container = document.getElementById('favoritesIsland');
+  const countEl = document.getElementById('favoritesCount');
+  if (!container) return;
+  container.innerHTML = '';
+  const items = [...favoriteEntries].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  if (countEl) countEl.textContent = String(items.length);
+
+  if (!items.length) {
+    const empty = document.createElement('p');
+    empty.className = 'favorites-empty';
+    empty.textContent = 'No favorites yet.';
+    container.appendChild(empty);
+    return;
+  }
+
+  items.forEach(entry => {
+    const row = document.createElement('div');
+    const active = entry.kind === 'playlist'
+      ? !!(playerPlaylistId && playerPlaylistId === entry.key)
+      : !!(currentPresetKey && currentPresetKey === entry.key);
+    row.className = 'favorite-entry' + (active ? ' active' : '');
+
+    const mainBtn = document.createElement('button');
+    mainBtn.type = 'button';
+    mainBtn.className = 'favorite-entry-main';
+
+    const label = document.createElement('span');
+    label.className = 'favorite-entry-label';
+    label.textContent = entry.kind === 'loop'
+      ? resolveLoopFavoriteLabelByKey(entry.key, entry.label || 'Loop')
+      : String(entry.label || 'Playlist');
+    mainBtn.appendChild(label);
+
+    const meta = document.createElement('span');
+    meta.className = 'favorite-entry-meta';
+    const type = document.createElement('span');
+    type.className = 'favorite-entry-type';
+    type.textContent = entry.kind;
+    meta.appendChild(type);
+    mainBtn.appendChild(meta);
+    mainBtn.addEventListener('click', async () => {
+      await activateFavoriteEntry(entry);
+      updateFavoritesUI();
+    });
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'favorite-toggle-btn active';
+    updateFavoriteToggleButton(toggleBtn, true, entry.kind);
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavoriteEntry(entry);
+    });
+
+    row.appendChild(mainBtn);
+    row.appendChild(toggleBtn);
+    container.appendChild(row);
+  });
+}
+
+function updateFavoritesUI() {
+  try { updateCurrentLoopFavoriteButton(); } catch {}
+  try { updatePlayerPlaylistFavoriteButton(); } catch {}
+  try { updateLoopInfoFavoriteButton(); } catch {}
+  try { updateDetailFavoriteButton(); } catch {}
+  try { renderFavoritesIsland(); } catch {}
 }
 
 function stopPlaylistCountdown() {
@@ -1580,6 +1889,7 @@ async function playActivePlaylist() {
 
       currentBuffer = loaded.buffer;
       currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
+      currentPresetKey = it.presetKey || null;
       currentPresetId = loaded.presetId || null;
       currentPresetRef = loaded.presetRef || null;
       playlistCurrentLoopRep = 1;
@@ -2221,6 +2531,7 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, cu
     if (!currentSourceLabel) currentSourceLabel = 'Loaded Loop';
     updateNowPlayingNameUI();
   } catch {}
+  try { updateFavoritesUI(); } catch {}
   updateMediaSession('playing');
 }
 
@@ -2257,6 +2568,7 @@ function switchTab(tab) {
   if (tab === 'player') setTimeout(drawWaveform, 0);
   if (tab === 'trimmer') setTimeout(drawTrimWaveform, 0);
   if (tab !== 'trimmer') stopTrimTest();
+  try { updateFavoritesUI(); } catch {}
   setTimeout(updateScrollState, 50);
 }
 
@@ -2380,6 +2692,7 @@ function renderPlaylistDetail() {
   const n = (rec.items && rec.items.length) || 0;
   if (infoEl) infoEl.textContent = `${n} loop${n !== 1 ? 's' : ''}`;
   if (editBtn) editBtn.textContent = detailEditMode ? 'Done' : 'Edit';
+  if (rec && rec.id && rec.name) updateFavoriteEntryLabel('playlist', rec.id, rec.name);
 
   itemsEl.innerHTML = '';
 
@@ -2405,6 +2718,57 @@ function renderPlaylistDetail() {
   } catch {
     try { updateScrollState(); } catch {}
   }
+  try { updateDetailFavoriteButton(); } catch {}
+}
+
+function selectTextInputValue(input) {
+  if (!input) return;
+  try { if (typeof input.select === 'function') input.select(); } catch {}
+  try {
+    const len = String(input.value || '').length;
+    if (typeof input.setSelectionRange === 'function') input.setSelectionRange(0, len);
+  } catch {}
+}
+
+function focusAndSelectTextInput(input) {
+  if (!input) return;
+  try { input.focus(); } catch {}
+  try { requestAnimationFrame(() => selectTextInputValue(input)); }
+  catch { selectTextInputValue(input); }
+}
+
+function openDetailLoopRepsPrompt(choice) {
+  if (!choice) return;
+  pendingDetailLoopChoice = choice;
+  const loopPickerOverlay = document.getElementById('loopPickerOverlay');
+  const repsOverlay = document.getElementById('detailLoopRepsOverlay');
+  const repsText = document.getElementById('detailLoopRepsText');
+  const repsInput = document.getElementById('detailLoopRepsInput');
+  if (repsText) repsText.textContent = `How many repetitions should ${stripFileExt(choice.label || 'this loop')} use?`;
+  if (loopPickerOverlay) loopPickerOverlay.classList.add('hidden');
+  if (repsOverlay) repsOverlay.classList.remove('hidden');
+  if (repsInput) {
+    repsInput.value = '1';
+    focusAndSelectTextInput(repsInput);
+  }
+  try { updateScrollState(); } catch {}
+}
+
+function scrollPlaylistDetailEditorToBottom() {
+  const itemsEl = document.getElementById('detailItems');
+  if (!itemsEl) return;
+  const addBtn = itemsEl.querySelector('.detail-add-btn');
+  const rows = Array.from(itemsEl.querySelectorAll('.detail-loop-edit'));
+  const target = addBtn || rows[rows.length - 1] || itemsEl;
+  const perform = () => {
+    try { target.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch {}
+    try {
+      const maxTop = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      window.scrollTo({ top: maxTop, behavior: 'smooth' });
+    } catch {}
+  };
+  try { requestAnimationFrame(() => setTimeout(perform, 50)); }
+  catch { perform(); }
 }
 
 function renderPlaylistDetailReadonly(container, rec) {
@@ -2522,20 +2886,47 @@ function renderPlaylistDetailEdit(container, rec) {
     // Reps input
     const repsGroup = document.createElement('div');
     repsGroup.className = 'detail-ctrl-group';
+    const repsHead = document.createElement('div');
+    repsHead.className = 'detail-ctrl-head';
     const repsLabel = document.createElement('div');
     repsLabel.className = 'detail-ctrl-label';
     repsLabel.textContent = 'Reps';
+    const repsEditBtn = document.createElement('button');
+    repsEditBtn.type = 'button';
+    repsEditBtn.className = 'detail-ctrl-link';
+    repsEditBtn.textContent = 'Edit';
     const repsInput = document.createElement('input');
-    repsInput.type = 'number';
-    repsInput.min = '1';
-    repsInput.step = '1';
+    repsInput.className = 'detail-reps-input';
+    repsInput.type = 'text';
+    repsInput.inputMode = 'numeric';
+    repsInput.setAttribute('pattern', '[0-9]*');
+    repsInput.setAttribute('enterkeyhint', 'done');
     repsInput.value = String(Math.max(1, parseInt(it.reps, 10) || 1));
     repsInput.setAttribute('aria-label', 'Repetitions');
-    repsInput.addEventListener('change', () => {
-      it.reps = Math.max(1, parseInt(repsInput.value, 10) || 1);
+    const commitRepsInput = () => {
+      const clean = String(repsInput.value || '').replace(/\D+/g, '');
+      const nextVal = Math.max(1, parseInt(clean, 10) || 1);
+      repsInput.value = String(nextVal);
+      it.reps = nextVal;
       saveDetailSoon();
+    };
+    repsEditBtn.addEventListener('click', () => focusAndSelectTextInput(repsInput));
+    repsInput.addEventListener('focus', () => selectTextInputValue(repsInput));
+    repsInput.addEventListener('click', () => selectTextInputValue(repsInput));
+    repsInput.addEventListener('input', () => {
+      repsInput.value = String(repsInput.value || '').replace(/\D+/g, '');
     });
-    repsGroup.appendChild(repsLabel);
+    repsInput.addEventListener('change', commitRepsInput);
+    repsInput.addEventListener('blur', commitRepsInput);
+    repsInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      commitRepsInput();
+      try { repsInput.blur(); } catch {}
+      e.preventDefault();
+    });
+    repsHead.appendChild(repsLabel);
+    repsHead.appendChild(repsEditBtn);
+    repsGroup.appendChild(repsHead);
     repsGroup.appendChild(repsInput);
 
     controls.appendChild(volGroup);
@@ -2567,6 +2958,20 @@ function renderPlaylistDetailEdit(container, rec) {
     openDetailLoopPicker();
   });
   container.appendChild(addBtn);
+
+  if (pendingDetailNewItemId) {
+    const newItemId = pendingDetailNewItemId;
+    pendingDetailNewItemId = null;
+    const newRow = Array.from(container.querySelectorAll('.detail-loop-edit'))
+      .find(r => r && r.dataset && r.dataset.itemId === newItemId);
+    const scrollTarget = addBtn || newRow || container;
+    try {
+      requestAnimationFrame(() => {
+        try { scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch {}
+        try { scrollPlaylistDetailEditorToBottom(); } catch {}
+      });
+    } catch {}
+  }
 
   container.onpointermove = (e) => {
     if (!draggingRow) return;
@@ -2607,15 +3012,7 @@ function openDetailLoopPicker() {
     b.type = 'button';
     b.textContent = ch.label;
     b.addEventListener('click', () => {
-      if (!activePlaylist) return;
-      if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
-      const item = { itemId: makePlaylistItemId(), presetKey: ch.presetKey, label: ch.label, reps: 1, volume: 1.0 };
-      activePlaylist.items.push(item);
-      savePlaylistRecord(activePlaylist).catch(() => {});
-      const ov = document.getElementById('loopPickerOverlay');
-      if (ov) ov.classList.add('hidden');
-      try { updateScrollState(); } catch {}
-      renderPlaylistDetail();
+      openDetailLoopRepsPrompt(ch);
     });
     loopPickerList.appendChild(b);
   });
@@ -3567,6 +3964,7 @@ function renderLoopsPage() {
             clearPlayerPlaylistContext();
             currentBuffer = buf;
             currentSourceLabel = displayName;
+            currentPresetKey = getLoopFavoriteKeyForPreset(preset, isBuiltin);
             currentPresetId = isBuiltin ? null : (preset.id || null);
             currentPresetRef = isBuiltin ? null : preset;
             await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -3732,6 +4130,8 @@ function openLoopInfo(preset, isBuiltin) {
   }
   if (sizeEl) sizeEl.textContent = size;
   if (typeEl) typeEl.textContent = type;
+
+  try { updateLoopInfoFavoriteButton(); } catch {}
 
   switchTab('loopinfo');
 }
@@ -4297,10 +4697,18 @@ function bindUI() {
   const detailPlay = document.getElementById('detailPlay');
   const detailEdit = document.getElementById('detailEdit');
   const detailDelete = document.getElementById('detailDelete');
+  const detailFavorite = document.getElementById('detailFavoriteBtn');
 
   const loopPickerOverlay = document.getElementById('loopPickerOverlay');
   const loopPickerList = document.getElementById('loopPickerList');
   const closeLoopPicker = document.getElementById('closeLoopPicker');
+  const loopInfoFavoriteBtn = document.getElementById('loopInfoFavoriteBtn');
+  const playerLoopFavBtn = document.getElementById('playerLoopFavBtn');
+  const playerPlaylistFavBtn = document.getElementById('playerPlaylistFavBtn');
+  const detailLoopRepsOverlay = document.getElementById('detailLoopRepsOverlay');
+  const detailLoopRepsInput = document.getElementById('detailLoopRepsInput');
+  const confirmDetailLoopReps = document.getElementById('confirmDetailLoopReps');
+  const cancelDetailLoopReps = document.getElementById('cancelDetailLoopReps');
   const pasteBtn = document.getElementById('pasteBtn');
   const urlInput = document.getElementById('urlInput');
   const loadUrl = document.getElementById('loadUrl');
@@ -4382,6 +4790,7 @@ function bindUI() {
       clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = 'ambiental_synth.mp3';
+      currentPresetKey = 'builtin:audio/soundscapes/ambiental_synth.mp3';
       currentPresetId = null;
       currentPresetRef = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
@@ -4415,6 +4824,7 @@ function bindUI() {
 
   // Initialize now-playing label state.
   try { updateNowPlayingNameUI(); } catch {}
+  try { updateFavoritesUI(); } catch {}
 
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
 
@@ -4476,6 +4886,11 @@ function bindUI() {
     const ov = document.getElementById('playlistDeleteOverlay');
     if (ov) ov.classList.remove('hidden');
     try { updateScrollState(); } catch {}
+  });
+
+  detailFavorite && detailFavorite.addEventListener('click', () => {
+    if (!activePlaylist || !activePlaylist.id) return;
+    toggleFavoriteEntry({ kind: 'playlist', key: activePlaylist.id, label: activePlaylist.name || 'Playlist' });
   });
 
   // Import Loop button (Audio Loops page)
@@ -4887,6 +5302,11 @@ function bindUI() {
 
   const closePicker = () => hideOverlay(loopPickerOverlay);
 
+  const closeDetailLoopRepsPrompt = (reopenPicker = false) => {
+    if (detailLoopRepsOverlay) hideOverlay(detailLoopRepsOverlay);
+    if (reopenPicker && loopPickerOverlay) showOverlay(loopPickerOverlay);
+  };
+
   const openLoopPicker = () => {
     if (!loopPickerList) return;
     loopPickerList.innerHTML = '';
@@ -4939,6 +5359,65 @@ function bindUI() {
 
   closeLoopPicker && closeLoopPicker.addEventListener('click', closePicker);
 
+  loopInfoFavoriteBtn && loopInfoFavoriteBtn.addEventListener('click', () => {
+    if (!loopInfoPreset) return;
+    const key = getLoopFavoriteKeyForPreset(loopInfoPreset, loopInfoIsBuiltin);
+    if (!key) return;
+    const rawName = ((!loopInfoIsBuiltin && loopInfoPreset.id && getUploadNameOverride(loopInfoPreset.id)) || loopInfoPreset.name || 'Loop');
+    toggleFavoriteEntry({ kind: 'loop', key, label: stripFileExt(rawName) });
+  });
+
+  playerLoopFavBtn && playerLoopFavBtn.addEventListener('click', () => {
+    const entry = getCurrentLoopFavoriteEntry();
+    if (!entry) return;
+    toggleFavoriteEntry(entry);
+  });
+
+  playerPlaylistFavBtn && playerPlaylistFavBtn.addEventListener('click', () => {
+    const entry = getCurrentPlaylistFavoriteEntry();
+    if (!entry) return;
+    toggleFavoriteEntry(entry);
+  });
+
+  if (detailLoopRepsInput) {
+    detailLoopRepsInput.addEventListener('focus', () => selectTextInputValue(detailLoopRepsInput));
+    detailLoopRepsInput.addEventListener('click', () => selectTextInputValue(detailLoopRepsInput));
+    detailLoopRepsInput.addEventListener('input', () => {
+      detailLoopRepsInput.value = String(detailLoopRepsInput.value || '').replace(/\D+/g, '');
+    });
+    detailLoopRepsInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      confirmDetailLoopReps && confirmDetailLoopReps.click();
+      e.preventDefault();
+    });
+  }
+
+  cancelDetailLoopReps && cancelDetailLoopReps.addEventListener('click', () => {
+    pendingDetailLoopChoice = null;
+    closeDetailLoopRepsPrompt(true);
+    try {
+      requestAnimationFrame(() => {
+        const firstLoopBtn = loopPickerList && loopPickerList.querySelector('button');
+        if (firstLoopBtn) firstLoopBtn.focus();
+      });
+    } catch {}
+  });
+
+  confirmDetailLoopReps && confirmDetailLoopReps.addEventListener('click', async () => {
+    if (!activePlaylist || !pendingDetailLoopChoice) return;
+    if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
+    const raw = detailLoopRepsInput ? String(detailLoopRepsInput.value || '') : '1';
+    const reps = Math.max(1, parseInt(raw.replace(/\D+/g, ''), 10) || 1);
+    const choice = pendingDetailLoopChoice;
+    const item = { itemId: makePlaylistItemId(), presetKey: choice.presetKey, label: choice.label, reps, volume: 1.0 };
+    activePlaylist.items.push(item);
+    pendingDetailNewItemId = item.itemId;
+    pendingDetailLoopChoice = null;
+    closeDetailLoopRepsPrompt(false);
+    try { await savePlaylistRecord(activePlaylist); } catch {}
+    renderPlaylistDetail();
+  });
+
   playlistPlay && playlistPlay.addEventListener('click', () => {
     if (activePlaylist) setPlayerPlaylist(activePlaylist);
     playActivePlaylist();
@@ -4958,6 +5437,8 @@ function bindUI() {
     if (!id) return;
     try {
       await deletePlaylistRecord(id);
+      favoriteEntries = favoriteEntries.filter(entry => !(entry && entry.kind === 'playlist' && entry.key === String(id)));
+      saveFavoriteEntries();
       // If deleting the currently loaded playlist, stop sequencing.
       if (activePlaylist && activePlaylist.id === id) {
         stopPlaylistPlayback();
@@ -4972,6 +5453,7 @@ function bindUI() {
       if (activeTab === 'playlist-detail' || activeTab === 'playlists') {
         switchTab('playlists');
       }
+      try { updateFavoritesUI(); } catch {}
       setStatus('Playlist deleted');
     } catch {
       setStatus('Failed to delete playlist');
@@ -4994,6 +5476,7 @@ function bindUI() {
       clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = f.name || 'File';
+      currentPresetKey = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try {
         const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
@@ -5016,6 +5499,7 @@ function bindUI() {
         clearPlayerPlaylistContext();
         currentBuffer = buf2;
         currentSourceLabel = f.name || 'File';
+        currentPresetKey = null;
         await startLoopFromBuffer(buf2, 0.5, 0.03);
         try {
           const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
@@ -5048,6 +5532,7 @@ function bindUI() {
               clearPlayerPlaylistContext();
               currentBuffer = buf;
               currentSourceLabel = `Clipboard ${type}`;
+              currentPresetKey = null;
               await startLoopFromBuffer(buf, 0.5, 0.03);
               try {
                 const saved = await savePersistedUpload({ name: `Clipboard ${type}`, blob });
@@ -5083,6 +5568,7 @@ function bindUI() {
           clearPlayerPlaylistContext();
           currentBuffer = buf;
           currentSourceLabel = text;
+          currentPresetKey = `url:${text}`;
           await startLoopFromBuffer(buf, 0.5, 0.03);
         } catch {
           setStatus('Failed to load pasted URL');
@@ -5099,6 +5585,7 @@ function bindUI() {
       clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = f.name || 'Pasted File';
+      currentPresetKey = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try {
         const saved = await savePersistedUpload({ name: f.name || 'Pasted File', blob: f });
@@ -5124,6 +5611,7 @@ function bindUI() {
       clearPlayerPlaylistContext();
       currentBuffer = buf;
       currentSourceLabel = url;
+      currentPresetKey = `url:${url}`;
       await startLoopFromBuffer(buf, 0.5, 0.03);
       try { userPresets.unshift({ name: url, url }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
     } catch (e) {
@@ -5172,6 +5660,7 @@ function bindUI() {
         clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = f.name || 'Dropped File';
+        currentPresetKey = null;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         try {
           const saved = await savePersistedUpload({ name: f.name || 'Dropped File', blob: f });
@@ -5198,6 +5687,7 @@ function bindUI() {
         clearPlayerPlaylistContext();
         currentBuffer = buf;
         currentSourceLabel = maybeUrl;
+        currentPresetKey = `url:${maybeUrl}`;
         await startLoopFromBuffer(buf, 0.5, 0.03);
         try { userPresets.unshift({ name: maybeUrl, url: maybeUrl }); if (activeTab === 'loops') renderLoopsPage(); } catch {}
       } catch {
