@@ -543,6 +543,19 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
 }
 
+function formatClockDuration(totalSec) {
+  const sec = Math.max(0, Math.ceil(Number(totalSec) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function getPlaylistDisplayDurationText(totalSec) {
+  return formatClockDuration(totalSec || 0);
+}
+
 function getLoopCategories() {
   try {
     const raw = localStorage.getItem(LOOP_CATEGORIES_KEY);
@@ -998,6 +1011,8 @@ let playlistPickIndex = -1;
 let playlistPlayToken = 0;
 let playlistIsPlaying = false;
 let playlistRepeat = false;
+let playlistCountdownTimer = 0;
+let playlistCountdownEndAt = 0;
 let pendingDeletePlaylistId = null;
 let detailPlaylistId = null;
 let detailEditMode = false;
@@ -1018,6 +1033,7 @@ function clearPlayerPlaylistContext() {
 
 function updatePlayerPlaylistUI() {
   const el = document.getElementById('playerPlaylist');
+  const metaEl = document.getElementById('playerPlaylistCountdown');
   if (!el) return;
 
   const pl = playerPlaylist;
@@ -1031,7 +1047,47 @@ function updatePlayerPlaylistUI() {
     el.textContent = '';
     el.classList.add('hidden');
     el.setAttribute('aria-hidden', 'true');
+    if (metaEl) {
+      metaEl.textContent = '';
+      metaEl.classList.add('hidden');
+      metaEl.setAttribute('aria-hidden', 'true');
+    }
   }
+}
+
+function stopPlaylistCountdown() {
+  if (playlistCountdownTimer) {
+    clearInterval(playlistCountdownTimer);
+    playlistCountdownTimer = 0;
+  }
+  playlistCountdownEndAt = 0;
+  const metaEl = document.getElementById('playerPlaylistCountdown');
+  if (metaEl) {
+    metaEl.textContent = '';
+    metaEl.classList.add('hidden');
+    metaEl.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function startPlaylistCountdown(endAt) {
+  const metaEl = document.getElementById('playerPlaylistCountdown');
+  if (!metaEl || !audioCtx || !Number.isFinite(endAt)) return;
+  stopPlaylistCountdown();
+  playlistCountdownEndAt = endAt;
+
+  const tick = () => {
+    if (!audioCtx || !playlistCountdownEndAt || !playerPlaylist) {
+      stopPlaylistCountdown();
+      return;
+    }
+    const remaining = Math.max(0, playlistCountdownEndAt - audioCtx.currentTime);
+    metaEl.textContent = `Ends in ${formatClockDuration(remaining)}`;
+    metaEl.classList.remove('hidden');
+    metaEl.setAttribute('aria-hidden', 'false');
+  };
+
+  tick();
+  playlistCountdownTimer = setInterval(tick, 250);
 }
 
 // Trimmer state
@@ -1306,18 +1362,19 @@ function togglePreservePitch(on) {
 function stopPlaylistPlayback() {
   playlistPlayToken++;
   playlistIsPlaying = false;
+  stopPlaylistCountdown();
 }
 
 function getAllLoopChoices() {
   const choices = [];
   for (const p of builtinPresets) {
     if (!p || !p.path) continue;
-    choices.push({ presetKey: `builtin:${p.path}`, label: p.name || p.path });
+    choices.push({ presetKey: `builtin:${p.path}`, label: stripFileExt(p.name || p.path) });
   }
   for (const p of userPresets) {
     if (!p) continue;
-    if (p.blob && p.id) choices.push({ presetKey: `upload:${p.id}`, label: p.name || 'Imported' });
-    else if (p.url) choices.push({ presetKey: `url:${p.url}`, label: p.name || p.url });
+    if (p.blob && p.id) choices.push({ presetKey: `upload:${p.id}`, label: stripFileExt(p.name || 'Imported') });
+    else if (p.url) choices.push({ presetKey: `url:${p.url}`, label: stripFileExt(p.name || p.url) });
   }
   return choices;
 }
@@ -1349,10 +1406,44 @@ async function loadBufferFromPresetKey(presetKey) {
   return null;
 }
 
+async function getPlaylistTotalDurationSec(record, rate = 1) {
+  if (!record || !Array.isArray(record.items) || !record.items.length) return 0;
+  const safeRate = Math.max(0.001, Number(rate) || 1);
+  const segByKey = new Map();
+
+  for (const it of record.items) {
+    if (!it || !it.presetKey || segByKey.has(it.presetKey)) continue;
+    try {
+      const loaded = await loadBufferFromPresetKey(it.presetKey);
+      if (!loaded || !loaded.buffer) { segByKey.set(it.presetKey, 0); continue; }
+      let seg = 0;
+      const ref = loaded.presetRef;
+      if (ref && ref.trimIn != null && ref.trimOut != null) {
+        seg = Math.max(0.02, ref.trimOut - ref.trimIn);
+      } else {
+        const pts = computeLoopPoints(loaded.buffer);
+        seg = Math.max(0.02, (pts.end - pts.start) || 0);
+      }
+      segByKey.set(it.presetKey, seg);
+    } catch {
+      segByKey.set(it.presetKey, 0);
+    }
+  }
+
+  let total = 0;
+  for (const it of record.items) {
+    if (!it || !it.presetKey) continue;
+    const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+    total += ((segByKey.get(it.presetKey) || 0) * reps) / safeRate;
+  }
+  return total;
+}
+
 async function playActivePlaylist() {
   const pl = playerPlaylist;
   if (!pl || !Array.isArray(pl.items) || !pl.items.length) {
     setStatus('Playlist is empty.');
+    stopPlaylistCountdown();
     return;
   }
   stopPlaylistPlayback();
@@ -1414,6 +1505,17 @@ async function playActivePlaylist() {
 
   // Play through the items, possibly repeating the whole sequence.
   do {
+    const cycleRate = clamp(currentRate, RATE_MIN, RATE_MAX);
+    const cycleTotalSec = items.reduce((sum, it) => {
+      if (!it || !it.presetKey) return sum;
+      const reps = Math.max(1, parseInt(it.reps, 10) || 1);
+      const seg = segByKey.get(it.presetKey) || 0;
+      return sum + ((seg * reps) / Math.max(0.001, cycleRate));
+    }, 0);
+    if (audioCtx && cycleTotalSec > 0) {
+      startPlaylistCountdown(audioCtx.currentTime + cycleTotalSec);
+    }
+
     for (const it of items) {
       if (playlistPlayToken !== token) return;
       if (!it || !it.presetKey) continue;
@@ -1447,6 +1549,7 @@ async function playActivePlaylist() {
 
   if (playlistPlayToken !== token) return;
   playlistIsPlaying = false;
+  stopPlaylistCountdown();
   stopLoop(0, true);
   setStatus('Playlist finished');
 } 
@@ -2122,9 +2225,16 @@ async function renderPlaylistsPage() {
     btn.type = 'button';
     btn.className = 'playlist-list-item';
 
+    const mainSpan = document.createElement('span');
+    mainSpan.className = 'pl-item-main';
+
     const nameSpan = document.createElement('span');
     nameSpan.className = 'pl-item-name';
     nameSpan.textContent = (pl && pl.name) ? pl.name : 'Playlist';
+
+    const durationSpan = document.createElement('span');
+    durationSpan.className = 'pl-item-duration';
+    durationSpan.textContent = 'Calculating…';
 
     const countSpan = document.createElement('span');
     countSpan.className = 'pl-item-count';
@@ -2135,7 +2245,9 @@ async function renderPlaylistsPage() {
     chevron.className = 'pl-item-chevron';
     chevron.textContent = '›';
 
-    btn.appendChild(nameSpan);
+    mainSpan.appendChild(nameSpan);
+    mainSpan.appendChild(durationSpan);
+    btn.appendChild(mainSpan);
     btn.appendChild(countSpan);
     btn.appendChild(chevron);
 
@@ -2159,6 +2271,12 @@ async function renderPlaylistsPage() {
     li.appendChild(btn);
     li.appendChild(playBtn);
     listEl.appendChild(li);
+
+    getPlaylistTotalDurationSec(pl).then((totalSec) => {
+      durationSpan.textContent = getPlaylistDisplayDurationText(totalSec);
+    }).catch(() => {
+      durationSpan.textContent = '—';
+    });
   }
   try { setTimeout(updateScrollState, 50); } catch {}
 }
@@ -2226,7 +2344,7 @@ function renderPlaylistDetailReadonly(container, rec) {
     header.className = 'detail-loop-header';
     const nameEl = document.createElement('div');
     nameEl.className = 'detail-loop-name';
-    nameEl.textContent = it.label || 'Loop';
+    nameEl.textContent = stripFileExt(it.label || 'Loop');
     const repsEl = document.createElement('div');
     repsEl.className = 'detail-loop-reps';
     const reps = Math.max(1, parseInt(it.reps, 10) || 1);
@@ -4522,7 +4640,7 @@ function bindUI() {
 
         const nameEl = document.createElement('div');
         nameEl.className = 'pl-name';
-        nameEl.textContent = label || 'Loop';
+        nameEl.textContent = stripFileExt(label || 'Loop');
 
         nameWrap.appendChild(handle);
         nameWrap.appendChild(nameEl);
@@ -4630,13 +4748,10 @@ function bindUI() {
       e.preventDefault();
     };
 
-    // Remove any previous listeners by re-binding fresh on each render.
-    playlistRows.onpointermove = null;
-    playlistRows.onpointerup = null;
-    playlistRows.onpointercancel = null;
-    playlistRows.addEventListener('pointermove', onMove);
-    playlistRows.addEventListener('pointerup', onUp);
-    playlistRows.addEventListener('pointercancel', onUp);
+    // Replace previous handlers so scrolling/reordering stays stable across re-renders.
+    playlistRows.onpointermove = onMove;
+    playlistRows.onpointerup = onUp;
+    playlistRows.onpointercancel = onUp;
 
     itemRows.forEach(r => {
       const handle = r.querySelector('.pl-handle');

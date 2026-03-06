@@ -202,6 +202,17 @@ button.danger{background:var(--danger);color:#fff}
   overflow:hidden;
   text-overflow:ellipsis;
 }
+.player-playlist-meta{
+  margin:-4px auto 12px;
+  max-width:100%;
+  color:var(--text-3);
+  font-size:11px;
+  font-weight:600;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
 
 /* -------- Waveform -------- */
 .wave-wrap{position:relative}
@@ -357,7 +368,7 @@ button.danger{background:var(--danger);color:#fff}
 .playlist-list-item{
   flex:1 1 auto;
   display:flex;align-items:center;
-  padding:13px 14px;
+  padding:10px 14px;
   background:transparent;
   border:none;
   color:var(--text);font-weight:500;font-size:14px;
@@ -367,7 +378,9 @@ button.danger{background:var(--danger);color:#fff}
   border-radius:0;
 }
 .playlist-list-item:hover,.playlist-list-item:active{background:transparent}
-.playlist-list-item .pl-item-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.playlist-list-item .pl-item-main{min-width:0;display:grid;gap:2px;flex:1 1 auto}
+.playlist-list-item .pl-item-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+.playlist-list-item .pl-item-duration{min-width:0;font-size:11px;color:var(--text-3);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1}
 .playlist-list-item .pl-item-count{
   margin-left:auto;font-size:12px;color:var(--text-3);font-weight:400;
 }
@@ -816,6 +829,8 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
 }
 .overlay-card h2{margin:0 0 10px;font-size:16px;font-weight:700;letter-spacing:-.2px}
 .overlay-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+#playlistEditView{display:flex;flex-direction:column;min-height:0}
+#playlistEditView.hidden{display:none}
 
 .text-input{
   width:100%;padding:10px 12px;border-radius:var(--radius);
@@ -825,7 +840,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
 .text-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--focus)}
 
 /* Playlist editor overlay rows */
-.playlist-rows{display:grid;gap:8px;margin-top:12px}
+.playlist-rows{display:grid;gap:8px;margin-top:12px;max-height:min(52vh,420px);overflow:auto;padding-right:2px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 .pl-row{
   display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;
   padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);
