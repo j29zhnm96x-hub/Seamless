@@ -2396,6 +2396,15 @@ function renderPlaylistDetail() {
   } else {
     renderPlaylistDetailReadonly(itemsEl, rec);
   }
+
+  try {
+    requestAnimationFrame(() => {
+      try { updateScrollState(); } catch {}
+      try { setTimeout(updateScrollState, 50); } catch {}
+    });
+  } catch {
+    try { updateScrollState(); } catch {}
+  }
 }
 
 function renderPlaylistDetailReadonly(container, rec) {
