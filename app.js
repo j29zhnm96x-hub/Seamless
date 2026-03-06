@@ -4826,6 +4826,7 @@ function bindUI() {
       handle.addEventListener('pointerdown', (e) => {
         // On touch devices keep the editor scrollable; only mouse initiates reorder.
         if (e.pointerType && e.pointerType !== 'mouse') return;
+        if (e.button != null && e.button !== 0) return;
         // Don't start drag if user interacts with the reps input.
         if (e.target && e.target.closest && e.target.closest('input')) return;
         draggingRow = r;

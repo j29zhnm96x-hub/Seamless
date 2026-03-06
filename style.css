@@ -822,14 +822,17 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   background:rgba(0,0,0,0.60);
   -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
 }
+.overlay#playlistOverlay{align-items:flex-start;overflow:auto;-webkit-overflow-scrolling:touch}
 .overlay-card{
   width:min(480px,100%);max-height:min(82vh,640px);overflow:auto;
   border:1px solid var(--border-2);border-radius:var(--radius-lg);
   background:var(--surface);box-shadow:var(--shadow);padding:18px;
 }
+.overlay#playlistOverlay .overlay-card{display:flex;flex-direction:column;min-height:0;width:min(480px,100%);max-height:min(82vh,640px)}
 .overlay-card h2{margin:0 0 10px;font-size:16px;font-weight:700;letter-spacing:-.2px}
 .overlay-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
-#playlistEditView{display:flex;flex-direction:column;min-height:0}
+#playlistCreateView{width:100%}
+#playlistEditView{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;overflow:hidden;width:100%}
 #playlistEditView.hidden{display:none}
 
 .text-input{
@@ -840,7 +843,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
 .text-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--focus)}
 
 /* Playlist editor overlay rows */
-.playlist-rows{display:grid;gap:8px;margin-top:12px;max-height:min(52vh,420px);overflow:auto;padding-right:2px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.playlist-rows{display:grid;gap:8px;margin-top:12px;flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;padding-right:2px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y}
 .pl-row{
   display:grid;grid-template-columns:1fr 100px;gap:8px;align-items:center;
   padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);
@@ -852,7 +855,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   width:36px;height:36px;display:grid;place-items:center;
   border-radius:6px;background:var(--surface);border:1px solid var(--border-2);
   color:var(--text-2);font-weight:800;font-size:14px;
-  -webkit-user-select:none;user-select:none;touch-action:none;cursor:grab;
+  -webkit-user-select:none;user-select:none;touch-action:pan-y;cursor:grab;
 }
 .pl-row.dragging .pl-handle{cursor:grabbing}
 .pl-name{
