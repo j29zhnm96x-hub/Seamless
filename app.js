@@ -1019,9 +1019,9 @@ function updateNowPlayingNameUI() {
     nameSpan.textContent = label;
     el.appendChild(nameSpan);
 
-    if (playlistIsPlaying && playlistCurrentItemIndex > 0 && playlistCurrentItemTotal > 0) {
+    if (playlistIsPlaying && playlistCurrentLoopRep > 0 && playlistCurrentLoopRepTotal > 0) {
       const progressSpan = document.createElement('span');
-      progressSpan.textContent = `${playlistCurrentItemIndex}/${playlistCurrentItemTotal}`;
+      progressSpan.textContent = `${playlistCurrentLoopRep}/${playlistCurrentLoopRepTotal}`;
       progressSpan.style.display = 'block';
       progressSpan.style.marginTop = '3px';
       progressSpan.style.fontSize = '11px';
@@ -1056,8 +1056,8 @@ let playlistIsPlaying = false;
 let playlistRepeat = false;
 let playlistCountdownTimer = 0;
 let playlistCountdownEndAt = 0;
-let playlistCurrentItemIndex = 0;
-let playlistCurrentItemTotal = 0;
+let playlistCurrentLoopRep = 0;
+let playlistCurrentLoopRepTotal = 0;
 let pendingDeletePlaylistId = null;
 let detailPlaylistId = null;
 let detailEditMode = false;
@@ -1407,8 +1407,8 @@ function togglePreservePitch(on) {
 function stopPlaylistPlayback() {
   playlistPlayToken++;
   playlistIsPlaying = false;
-  playlistCurrentItemIndex = 0;
-  playlistCurrentItemTotal = 0;
+  playlistCurrentLoopRep = 0;
+  playlistCurrentLoopRepTotal = 0;
   stopPlaylistCountdown();
   try { updateNowPlayingNameUI(); } catch {}
 }
@@ -1510,8 +1510,8 @@ async function playActivePlaylist() {
   try { updatePlayerPlaylistUI(); } catch {}
 
   const items = Array.isArray(pl.items) ? pl.items.slice() : [];
-  playlistCurrentItemTotal = items.length;
-  playlistCurrentItemIndex = 0;
+  playlistCurrentLoopRep = 0;
+  playlistCurrentLoopRepTotal = 0;
   if (!items.length) {
     playlistIsPlaying = false;
     setStatus('Playlist is empty.');
@@ -1582,7 +1582,8 @@ async function playActivePlaylist() {
       currentSourceLabel = it.label || loaded.sourceLabel || 'Playlist';
       currentPresetId = loaded.presetId || null;
       currentPresetRef = loaded.presetRef || null;
-      playlistCurrentItemIndex = idx + 1;
+      playlistCurrentLoopRep = 1;
+      playlistCurrentLoopRepTotal = reps;
       try { updateNowPlayingNameUI(); } catch {}
       setStatus(`Playlist: ${currentSourceLabel} \u00d7${reps}`);
 
@@ -1591,9 +1592,17 @@ async function playActivePlaylist() {
 
       // Wait for repetitions of the computed loop segment.
       const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, rateNow));
+      const repSec = Math.max(0.02, seg / Math.max(0.001, rateNow));
+      const startAt = (audioCtx ? audioCtx.currentTime : 0);
       const endAt = (audioCtx ? audioCtx.currentTime : 0) + totalSec;
       while (audioCtx && audioCtx.currentTime < endAt) {
         if (playlistPlayToken !== token) return;
+        const elapsed = Math.max(0, audioCtx.currentTime - startAt);
+        const currentRep = Math.min(reps, Math.max(1, Math.floor(elapsed / repSec) + 1));
+        if (currentRep !== playlistCurrentLoopRep) {
+          playlistCurrentLoopRep = currentRep;
+          try { updateNowPlayingNameUI(); } catch {}
+        }
         const remaining = endAt - audioCtx.currentTime;
         await new Promise(r => setTimeout(r, Math.min(50, Math.max(0, remaining * 1000))));
       }
@@ -1602,8 +1611,8 @@ async function playActivePlaylist() {
 
   if (playlistPlayToken !== token) return;
   playlistIsPlaying = false;
-  playlistCurrentItemIndex = 0;
-  playlistCurrentItemTotal = 0;
+  playlistCurrentLoopRep = 0;
+  playlistCurrentLoopRepTotal = 0;
   stopPlaylistCountdown();
   stopLoop(0, true);
   setStatus('Playlist finished');
