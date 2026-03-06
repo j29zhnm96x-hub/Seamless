@@ -2536,8 +2536,10 @@ function renderPlaylistDetailEdit(container, rec) {
     row.appendChild(controls);
     container.appendChild(row);
 
-    // Drag-to-reorder
+    // Drag-to-reorder (mouse only — touch scrolls the page)
     handle.addEventListener('pointerdown', (e) => {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      if (e.button != null && e.button !== 0) return;
       if (e.target && e.target.closest && e.target.closest('input')) return;
       draggingRow = row;
       dragPointerId = e.pointerId;
