@@ -655,6 +655,9 @@ button.danger{background:var(--danger);color:#fff}
 .builtin-item .preset-play{color:var(--text)}
 
 /* Loop Info page */
+.loop-info-top{display:flex;align-items:center;gap:10px}
+.loop-info-top .detail-title{flex:1;min-width:0}
+.loop-info-favorite-btn{flex:0 0 auto}
 .loop-info-details{
   margin-top:16px;
   border:1px solid var(--border);border-radius:var(--radius);

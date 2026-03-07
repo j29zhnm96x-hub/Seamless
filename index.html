@@ -168,8 +168,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Back
         </button>
-        <div class="detail-top">
+        <div class="detail-top loop-info-top">
           <h2 id="loopInfoTitle" class="detail-title">Loop Info</h2>
+          <button id="loopInfoFavoriteBtn" type="button" class="favorite-toggle-btn loop-info-favorite-btn" aria-pressed="false" aria-label="Add loop to favorites">+</button>
         </div>
         <div class="loop-info-details">
           <div class="loop-info-row loop-info-desc-row">
@@ -180,10 +181,6 @@
           <div id="loopInfoCatRow" class="loop-info-row">
             <span class="loop-info-label">Category</span>
             <select id="loopInfoCatSelect" class="settings-select" aria-label="Loop category"></select>
-          </div>
-          <div class="loop-info-row">
-            <span class="loop-info-label">Favorite</span>
-            <button id="loopInfoFavoriteBtn" type="button" class="favorite-toggle-btn" aria-pressed="false" aria-label="Add loop to favorites">+</button>
           </div>
           <div class="loop-info-row">
             <span class="loop-info-label">File size</span>
