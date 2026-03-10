@@ -932,6 +932,7 @@ const builtinPresets = [
   // Nature
   { name: 'rain_forest.mp3', path: 'audio/nature/rain_forest.mp3', category: 'Nature' },
   // Noises
+  { name: 'white_noise.mp3', path: 'audio/noises/white_noise.mp3', category: 'Noises', description: 'Continuous white noise for masking distractions, sleep support, focus, and relaxation.' },
   { name: 'white_noise_432hz.mp3', path: 'audio/noises/white_noise_432hz.mp3', category: 'Noises' },
   // Soundscapes
   { name: 'ambiental_synth.mp3', path: 'audio/soundscapes/ambiental_synth.mp3', category: 'Soundscapes' },
