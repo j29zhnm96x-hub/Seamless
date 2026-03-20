@@ -4719,6 +4719,7 @@ let padAssignments = new Array(PAD_COUNT).fill(null);
 
 let padActiveIndex = -1;      // currently playing pad
 let padQueuedIndex = -1;      // pad queued to play after current finishes
+let padQueuedOneShot = false;
 let padLastPlayedIndex = -1;  // for double-click "finish session"
 let padFinishing = false;     // double-click triggered finish
 let padSource = null;         // current AudioBufferSourceNode for pads
@@ -4962,6 +4963,7 @@ function stopPadPlayback(ramp = 0.05) {
   padPlaying = false;
   padActiveIndex = -1;
   padQueuedIndex = -1;
+  padQueuedOneShot = false;
   padFinishing = false;
   if (padSource) {
     try {
@@ -4993,6 +4995,14 @@ function stopPadPlayback(ramp = 0.05) {
 }
 
 async function startPadLoop(index) {
+  return startPadLoopInternal(index, false);
+}
+
+async function startPadLoopOnce(index) {
+  return startPadLoopInternal(index, true);
+}
+
+async function startPadLoopInternal(index, oneShot = false) {
   const a = padAssignments[index];
   if (!a) return;
 
@@ -5018,10 +5028,11 @@ async function startPadLoop(index) {
 
   const buffer = result.buffer;
   const pts = computeLoopPoints(buffer);
+  const playDuration = Math.max(0.01, pts.end - pts.start);
 
   padSource = audioCtx.createBufferSource();
   padSource.buffer = buffer;
-  padSource.loop = true;
+  padSource.loop = !oneShot;
   padSource.loopStart = pts.start;
   padSource.loopEnd = pts.end;
 
@@ -5047,27 +5058,49 @@ async function startPadLoop(index) {
     try { padGainNode.disconnect(); } catch {}
     try { padGainNode.connect(master); } catch {}
   }
-  padSource.start(audioCtx.currentTime);
+  if (oneShot) {
+    padSource.start(audioCtx.currentTime, pts.start, playDuration);
+  } else {
+    padSource.start(audioCtx.currentTime);
+  }
 
   padActiveIndex = index;
   padLastPlayedIndex = index;
   padPlaying = true;
   padQueuedIndex = -1;
-  padFinishing = false;
+  padQueuedOneShot = false;
+  padFinishing = !!oneShot;
 
-  setStatus(`Pad ${index + 1}: ${a.label || 'Playing'}`);
+  if (oneShot) {
+    const onEnded = () => {
+      if (padSource) padSource.removeEventListener('ended', onEnded);
+      try { disconnectPadPitchShifter(); } catch {}
+      padPlaying = false;
+      padActiveIndex = -1;
+      padFinishing = false;
+      padSource = null;
+      padGainNode = null;
+      setStatus(t('status_stopped'));
+      renderPadGrid();
+    };
+    padSource.addEventListener('ended', onEnded);
+  }
+
+  setStatus(`Pad ${index + 1}: ${a.label || 'Playing'}${oneShot ? ' (final)' : ''}`);
   renderPadGrid();
 }
 
-function schedulePadSwitch(nextIndex) {
+function schedulePadSwitch(nextIndex, oneShot = false) {
   if (!padSource || !padPlaying || !audioCtx) {
     // No current playback, start directly
-    startPadLoop(nextIndex);
+    if (oneShot) startPadLoopOnce(nextIndex);
+    else startPadLoop(nextIndex);
     return;
   }
 
   // Queue the next pad; we need to wait until current loop iteration ends
   padQueuedIndex = nextIndex;
+  padQueuedOneShot = !!oneShot;
   renderPadGrid();
 
   const a = padAssignments[padActiveIndex];
@@ -5086,11 +5119,13 @@ function schedulePadSwitch(nextIndex) {
   // Since we can't easily get startTime, use a simpler approach:
   // Stop looping so the source plays to loopEnd and ends, then start the next.
   padSource.loop = false;
+  padFinishing = true;
 
   const onEnded = () => {
     padSource.removeEventListener('ended', onEnded);
     if (padQueuedIndex === nextIndex) {
-      startPadLoop(nextIndex);
+      if (padQueuedOneShot) startPadLoopOnce(nextIndex);
+      else startPadLoop(nextIndex);
     }
   };
   padSource.addEventListener('ended', onEnded);
@@ -5379,7 +5414,14 @@ function bindPadsUI() {
         clearTimeout(dblClickTimer);
         dblClickTimer = 0;
         lastTapPad = -1;
-        if (padPlaying) schedulePadFinish();
+        if (!padAssignments[idx]) return;
+        if (!padPlaying) {
+          startPadLoopOnce(idx);
+        } else if (padActiveIndex === idx) {
+          schedulePadFinish();
+        } else {
+          schedulePadSwitch(idx, true);
+        }
         return;
       }
 
