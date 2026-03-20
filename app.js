@@ -4712,6 +4712,7 @@ const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
 const PAD_COUNT = 6;
 const padPickerCollapsedCategories = new Set();
+let padPickerLastOpenCategory = '';
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
 // Each assignment: { presetKey, label, rate, color }
@@ -4795,6 +4796,24 @@ function syncPadRateInput(commit = false) {
   if (commit) input.value = formatPadRateValue(normalized);
 }
 
+function setPadPickerExpandedCategory(category, categories) {
+  padPickerCollapsedCategories.clear();
+  if (!category) {
+    categories.forEach(cat => padPickerCollapsedCategories.add(cat));
+    return;
+  }
+  categories.forEach(cat => {
+    if (cat !== category) padPickerCollapsedCategories.add(cat);
+  });
+}
+
+function initializePadPickerView(categories) {
+  const remembered = padPickerLastOpenCategory && categories.includes(padPickerLastOpenCategory)
+    ? padPickerLastOpenCategory
+    : '';
+  setPadPickerExpandedCategory(remembered, categories);
+}
+
 function renderPadLoopPicker() {
   const list = document.getElementById('padLoopPickerList');
   if (!list) return;
@@ -4817,11 +4836,13 @@ function renderPadLoopPicker() {
     header.className = 'pad-picker-category-header';
     header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${category}</span></span><span class="pad-picker-count">${items.length}</span>`;
     header.addEventListener('click', () => {
-      if (padPickerCollapsedCategories.has(category)) padPickerCollapsedCategories.delete(category);
-      else padPickerCollapsedCategories.add(category);
+      const nextExpandedCategory = padPickerCollapsedCategories.has(category) ? category : '';
+      padPickerLastOpenCategory = category;
+      setPadPickerExpandedCategory(nextExpandedCategory, categories);
       renderPadLoopPicker();
     });
     section.appendChild(header);
+    section.dataset.category = category;
 
     const body = document.createElement('div');
     body.className = 'pad-picker-items';
@@ -4841,6 +4862,13 @@ function renderPadLoopPicker() {
     section.appendChild(body);
     list.appendChild(section);
   });
+
+  if (padPickerLastOpenCategory) {
+    const target = Array.from(list.querySelectorAll('.pad-picker-category')).find(el => el.dataset.category === padPickerLastOpenCategory);
+    if (target) {
+      try { target.scrollIntoView({ block: 'nearest' }); } catch {}
+    }
+  }
 }
 
 function loadPadAssignments() {
@@ -5073,6 +5101,7 @@ function openPadAssignModal(padIndex) {
   if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
 
   padAssignSelectedKey = (existing && existing.presetKey) || '';
+  initializePadPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderPadLoopPicker();
 
   if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
@@ -5086,9 +5115,6 @@ function openPadAssignModal(padIndex) {
   }
 
   overlay.classList.remove('hidden');
-  if (rateInput) {
-    try { rateInput.focus(); rateInput.select(); } catch {}
-  }
   try { updateScrollState(); } catch {}
 }
 
@@ -5363,11 +5389,40 @@ function bindPadsUI() {
 
   const rateInput = document.getElementById('padRateInput');
   if (rateInput) {
+    let mobileTapCount = 0;
+    const usesTouchSelectionMode = () => {
+      try { return !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches; } catch {}
+      return false;
+    };
+    const selectRateValue = () => {
+      try { rateInput.select(); } catch {}
+    };
+
     rateInput.addEventListener('input', () => {
       const cleaned = String(rateInput.value || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
       if (rateInput.value !== cleaned) rateInput.value = cleaned;
     });
-    rateInput.addEventListener('blur', () => syncPadRateInput(true));
+    rateInput.addEventListener('focus', () => {
+      mobileTapCount = 0;
+      if (!usesTouchSelectionMode()) {
+        setTimeout(selectRateValue, 0);
+      }
+    });
+    rateInput.addEventListener('pointerup', () => {
+      if (!usesTouchSelectionMode()) {
+        setTimeout(selectRateValue, 0);
+        return;
+      }
+      if (document.activeElement !== rateInput) return;
+      mobileTapCount += 1;
+      if (mobileTapCount >= 2) {
+        setTimeout(selectRateValue, 0);
+      }
+    });
+    rateInput.addEventListener('blur', () => {
+      mobileTapCount = 0;
+      syncPadRateInput(true);
+    });
     rateInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
