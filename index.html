@@ -75,15 +75,18 @@
           </div>
         </div>
 
-        <div class="card" aria-label="Playback rate">
+        <div class="card rate-card-compact" aria-label="Playback rate">
           <div class="rate-wrap">
             <div class="rate-label">
               <span>Rate</span>
               <span id="rateReadout" class="rate-readout" aria-live="polite">1.00×</span>
+              <button id="preservePitchBtn" type="button" class="preserve-pitch-toggle" aria-pressed="false" aria-label="Preserve pitch">
+                <span class="preserve-pitch-dot"></span>
+              </button>
             </div>
             <div
               id="rateJog"
-              class="rate-jog"
+              class="rate-jog rate-jog-compact"
               role="slider"
               tabindex="0"
               aria-label="Playback rate jog"
@@ -96,13 +99,6 @@
               <div class="rate-jog-center" aria-hidden="true"></div>
               <div id="rateJogThumb" class="rate-jog-thumb" aria-hidden="true"></div>
             </div>
-            <p class="hint">Drag left/right, then release to apply. Double-tap to reset.</p>
-            <div class="preserve-pitch-row">
-              <button id="preservePitchBtn" type="button" class="preserve-pitch-toggle" aria-pressed="false" aria-label="Preserve pitch">
-                <span class="preserve-pitch-dot"></span>
-              </button>
-              <label for="preservePitchBtn" class="preserve-pitch-label">Preserve pitch</label>
-            </div>
           </div>
         </div>
 
@@ -113,6 +109,21 @@
           </div>
           <div id="favoritesIsland" class="favorites-island" aria-label="Favorite loops and playlists"></div>
         </div>
+
+        <div class="card pads-card" aria-label="Pads">
+          <div class="pads-head">
+            <span>Pads</span>
+            <button id="padsSaveSession" type="button" class="btn-sm pads-save-btn" aria-label="Save pads session">Save</button>
+          </div>
+          <div id="padsGrid" class="pads-grid" aria-label="Performance pads">
+            <button type="button" class="pad" data-pad="1" aria-label="Pad 1 - Empty"><span class="pad-num">1</span></button>
+            <button type="button" class="pad" data-pad="2" aria-label="Pad 2 - Empty"><span class="pad-num">2</span></button>
+            <button type="button" class="pad" data-pad="3" aria-label="Pad 3 - Empty"><span class="pad-num">3</span></button>
+            <button type="button" class="pad" data-pad="4" aria-label="Pad 4 - Empty"><span class="pad-num">4</span></button>
+            <button type="button" class="pad" data-pad="5" aria-label="Pad 5 - Empty"><span class="pad-num">5</span></button>
+            <button type="button" class="pad" data-pad="6" aria-label="Pad 6 - Empty"><span class="pad-num">6</span></button>
+          </div>
+        </div>
       </section>
 
       <section id="page-playlists" class="page" aria-label="Playlists Page">
@@ -121,6 +132,11 @@
           <button id="newPlaylistFromPage" class="btn-sm" aria-label="New playlist">+ New</button>
         </div>
         <ul id="playlistsList" class="playlist-list" aria-label="Saved playlists"></ul>
+
+        <div class="page-header pads-sessions-header">
+          <h2>Pads Sessions</h2>
+        </div>
+        <ul id="padsSessionsList" class="playlist-list" aria-label="Saved pads sessions"></ul>
       </section>
 
       <section id="page-playlist-detail" class="page" aria-label="Playlist Detail">
@@ -373,6 +389,67 @@
   </div>
 
   <!-- playlistActionsOverlay removed — actions now live on the detail page -->
+
+  <!-- Pad Assignment overlay -->
+  <div id="padAssignOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Assign loop to pad">
+    <div class="overlay-card pad-assign-card">
+      <h2 id="padAssignTitle">Assign Pad</h2>
+      <div class="pad-assign-section">
+        <label class="pad-assign-label">Loop</label>
+        <div id="padLoopPickerList" class="picker-list pad-picker-list" aria-label="Available loops"></div>
+      </div>
+      <div class="pad-assign-section">
+        <label class="pad-assign-label" for="padRateInput">Rate</label>
+        <input id="padRateInput" class="text-input pad-rate-input" type="number" min="0.50" max="2.00" step="0.01" value="1.00" inputmode="decimal" />
+      </div>
+      <div class="pad-assign-section">
+        <label class="pad-assign-label">Color</label>
+        <div id="padColorPalette" class="pad-color-palette" aria-label="Color palette">
+          <button type="button" class="pad-color-swatch pad-swatch-blue" data-color="#5b8def" aria-label="Blue"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-red" data-color="#d94f4f" aria-label="Red"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-green" data-color="#9be2a8" aria-label="Green"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-yellow" data-color="#f5c542" aria-label="Yellow"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-purple" data-color="#c774e8" aria-label="Purple"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-orange" data-color="#ff8c42" aria-label="Orange"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-cyan" data-color="#42d4f5" aria-label="Cyan"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-pink" data-color="#f57dba" aria-label="Pink"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-silver" data-color="#bbb" aria-label="Silver"></button>
+        </div>
+      </div>
+      <div class="overlay-actions">
+        <button id="padAssignSave" type="button" aria-label="Save pad assignment">Save</button>
+        <button id="padAssignClear" type="button" class="btn-danger-text" aria-label="Clear pad assignment">Clear</button>
+        <button id="padAssignClose" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Save overlay -->
+  <div id="padSessionSaveOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Save pads session">
+    <div class="overlay-card">
+      <h2>Save Pads Session</h2>
+      <div class="row">
+        <label for="padSessionNameInput">Session name</label>
+        <input id="padSessionNameInput" class="text-input" type="text" autocomplete="off" placeholder="My session" />
+      </div>
+      <div class="overlay-actions">
+        <button id="padSessionSaveConfirm" type="button" aria-label="Save session">Save</button>
+        <button id="padSessionSaveCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Recall confirmation overlay -->
+  <div id="padSessionRecallOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Load pads session">
+    <div class="overlay-card">
+      <h2>Load Session</h2>
+      <p class="hint" id="padSessionRecallText">Replace current pad assignments with this session?</p>
+      <div class="overlay-actions">
+        <button id="padSessionRecallConfirm" type="button" aria-label="Confirm load">Load</button>
+        <button id="padSessionRecallCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>

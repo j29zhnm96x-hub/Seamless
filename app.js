@@ -106,7 +106,21 @@ const I18N = {
     common_close: 'Close',
     playlist_add: 'Add',
     playlist_play: 'Play',
-    preserve_pitch: 'Preserve pitch'
+    preserve_pitch: 'Preserve pitch',
+    pads_title: 'Pads',
+    pads_save: 'Save',
+    pads_sessions_title: 'Pads Sessions',
+    pads_no_sessions: 'No saved sessions yet.',
+    pads_assign_title: 'Assign Pad',
+    pads_loop_label: 'Loop',
+    pads_rate_label: 'Rate',
+    pads_color_label: 'Color',
+    pads_assign_save: 'Save',
+    pads_assign_clear: 'Clear',
+    pads_session_save_title: 'Save Pads Session',
+    pads_session_name_label: 'Session name',
+    pads_session_recall_title: 'Load Session',
+    pads_session_recall_text: 'Replace current pad assignments with this session?'
   },
   hr: {
     status_ready: 'Spremno',
@@ -177,7 +191,21 @@ const I18N = {
     common_close: 'Zatvori',
     playlist_add: 'Dodaj',
     playlist_play: 'Pokreni',
-    preserve_pitch: 'Očuvaj visinu tona'
+    preserve_pitch: 'Očuvaj visinu tona',
+    pads_title: 'Padovi',
+    pads_save: 'Spremi',
+    pads_sessions_title: 'Pad sesije',
+    pads_no_sessions: 'Nema spremljenih sesija.',
+    pads_assign_title: 'Dodijeli pad',
+    pads_loop_label: 'Petlja',
+    pads_rate_label: 'Brzina',
+    pads_color_label: 'Boja',
+    pads_assign_save: 'Spremi',
+    pads_assign_clear: 'Obriši',
+    pads_session_save_title: 'Spremi pad sesiju',
+    pads_session_name_label: 'Naziv sesije',
+    pads_session_recall_title: 'Učitaj sesiju',
+    pads_session_recall_text: 'Zamijeniti trenutne pad postavke ovom sesijom?'
   }
 };
 
@@ -239,6 +267,13 @@ function applyLanguage(lang) {
   setText('#page-playlists .page-header h2', t('playlists_title'));
   const newPl = document.getElementById('newPlaylistFromPage');
   if (newPl) { newPl.textContent = t('playlists_new'); newPl.setAttribute('aria-label', t('playlists_new')); }
+  setText('.pads-sessions-header h2', t('pads_sessions_title'));
+
+  // Pads island
+  const padsHead = document.querySelector('.pads-head > span');
+  if (padsHead) padsHead.textContent = t('pads_title');
+  const padsSaveBtn = document.getElementById('padsSaveSession');
+  if (padsSaveBtn) padsSaveBtn.textContent = t('pads_save');
 
   // Loops page
   setText('#page-loops .card h2', t('loops_title'));
@@ -2655,6 +2690,7 @@ async function renderPlaylistsPage() {
       durationSpan.textContent = '—';
     });
   }
+  try { renderPadSessionsList(); } catch {}
   try { setTimeout(updateScrollState, 50); } catch {}
 }
 
@@ -4665,6 +4701,570 @@ function showHelpOverlay() {
   try { updateScrollState(); } catch {}
 }
 
+/* ================================================================
+   PADS SYSTEM — real-time loop triggering
+   ================================================================ */
+const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
+const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
+const PAD_COUNT = 6;
+
+let padAssignments = new Array(PAD_COUNT).fill(null);
+// Each assignment: { presetKey, label, rate, color }
+
+let padActiveIndex = -1;      // currently playing pad
+let padQueuedIndex = -1;      // pad queued to play after current finishes
+let padLastPlayedIndex = -1;  // for double-click "finish session"
+let padFinishing = false;     // double-click triggered finish
+let padSource = null;         // current AudioBufferSourceNode for pads
+let padGainNode = null;
+let padPlaying = false;
+
+function loadPadAssignments() {
+  try {
+    const raw = localStorage.getItem(PADS_ASSIGNMENTS_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed) && parsed.length === PAD_COUNT) {
+      padAssignments = parsed.map(a => {
+        if (!a || !a.presetKey) return null;
+        return {
+          presetKey: String(a.presetKey),
+          label: String(a.label || ''),
+          rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
+          color: String(a.color || '#5b8def')
+        };
+      });
+    }
+  } catch {}
+}
+
+function savePadAssignments() {
+  try { localStorage.setItem(PADS_ASSIGNMENTS_KEY, JSON.stringify(padAssignments)); } catch {}
+}
+
+function loadPadSessions() {
+  try {
+    const raw = localStorage.getItem(PADS_SESSIONS_KEY);
+    return JSON.parse(raw || '[]').filter(s => s && s.name && Array.isArray(s.assignments));
+  } catch { return []; }
+}
+
+function savePadSessions(sessions) {
+  try { localStorage.setItem(PADS_SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
+}
+
+function renderPadGrid() {
+  const grid = document.getElementById('padsGrid');
+  if (!grid) return;
+  const pads = grid.querySelectorAll('.pad');
+  pads.forEach((el, i) => {
+    const a = padAssignments[i];
+    // Remove old dynamic children
+    const oldName = el.querySelector('.pad-loop-name');
+    if (oldName) oldName.remove();
+
+    if (a) {
+      el.style.background = a.color || 'var(--surface-2)';
+      el.setAttribute('aria-label', `Pad ${i + 1} - ${a.label || 'Assigned'}`);
+      const nameEl = document.createElement('span');
+      nameEl.className = 'pad-loop-name';
+      nameEl.textContent = a.label || '';
+      el.appendChild(nameEl);
+    } else {
+      el.style.background = '';
+      el.setAttribute('aria-label', `Pad ${i + 1} - Empty`);
+    }
+
+    el.classList.toggle('pad-active', i === padActiveIndex && padPlaying);
+    el.classList.toggle('pad-queued', i === padQueuedIndex);
+    el.classList.toggle('pad-finishing', i === padActiveIndex && padFinishing);
+  });
+}
+
+function stopPadPlayback(ramp = 0.05) {
+  padPlaying = false;
+  padActiveIndex = -1;
+  padQueuedIndex = -1;
+  padFinishing = false;
+  if (padSource) {
+    try {
+      if (padGainNode && audioCtx) {
+        const now = audioCtx.currentTime;
+        padGainNode.gain.cancelScheduledValues(now);
+        padGainNode.gain.setValueAtTime(padGainNode.gain.value, now);
+        padGainNode.gain.linearRampToValueAtTime(0, now + ramp);
+      }
+      setTimeout(() => {
+        try { padSource.stop(); } catch {}
+        try { padSource.disconnect(); } catch {}
+        try { if (padGainNode) padGainNode.disconnect(); } catch {}
+        padSource = null;
+        padGainNode = null;
+      }, (ramp + 0.05) * 1000);
+    } catch {}
+  }
+  renderPadGrid();
+}
+
+async function startPadLoop(index) {
+  const a = padAssignments[index];
+  if (!a) return;
+
+  ensureAudio();
+  if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+  startOutputIfNeeded();
+
+  // Stop any existing pad source immediately
+  if (padSource) {
+    try { padSource.stop(); } catch {}
+    try { padSource.disconnect(); } catch {}
+    try { if (padGainNode) padGainNode.disconnect(); } catch {}
+    padSource = null;
+    padGainNode = null;
+  }
+
+  const result = await loadBufferFromPresetKey(a.presetKey);
+  if (!result || !result.buffer) { setStatus('Pad: failed to load loop'); return; }
+
+  const buffer = result.buffer;
+  const pts = computeLoopPoints(buffer);
+
+  padSource = audioCtx.createBufferSource();
+  padSource.buffer = buffer;
+  padSource.loop = true;
+  padSource.loopStart = pts.start;
+  padSource.loopEnd = pts.end;
+
+  const rate = clamp(a.rate || 1.0, RATE_MIN, RATE_MAX);
+  try { padSource.playbackRate.setValueAtTime(rate, audioCtx.currentTime); } catch {}
+
+  padGainNode = audioCtx.createGain();
+  padGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  padGainNode.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+
+  padSource.connect(padGainNode);
+  padGainNode.connect(master);
+  padSource.start(audioCtx.currentTime);
+
+  padActiveIndex = index;
+  padLastPlayedIndex = index;
+  padPlaying = true;
+  padQueuedIndex = -1;
+  padFinishing = false;
+
+  setStatus(`Pad ${index + 1}: ${a.label || 'Playing'}`);
+  renderPadGrid();
+}
+
+function schedulePadSwitch(nextIndex) {
+  if (!padSource || !padPlaying || !audioCtx) {
+    // No current playback, start directly
+    startPadLoop(nextIndex);
+    return;
+  }
+
+  // Queue the next pad; we need to wait until current loop iteration ends
+  padQueuedIndex = nextIndex;
+  renderPadGrid();
+
+  const a = padAssignments[padActiveIndex];
+  if (!a || !padSource.buffer) { startPadLoop(nextIndex); return; }
+
+  const buffer = padSource.buffer;
+  const pts = computeLoopPoints(buffer);
+  const loopDuration = pts.end - pts.start;
+  if (loopDuration <= 0) { startPadLoop(nextIndex); return; }
+
+  const rate = clamp(a.rate || 1.0, RATE_MIN, RATE_MAX);
+  const now = audioCtx.currentTime;
+
+  // Determine where we are in the current loop iteration
+  // loopStart + ((currentTime - startTime) * rate) % loopDuration gives position
+  // Since we can't easily get startTime, use a simpler approach:
+  // Stop looping so the source plays to loopEnd and ends, then start the next.
+  padSource.loop = false;
+
+  const onEnded = () => {
+    padSource.removeEventListener('ended', onEnded);
+    if (padQueuedIndex === nextIndex) {
+      startPadLoop(nextIndex);
+    }
+  };
+  padSource.addEventListener('ended', onEnded);
+}
+
+function schedulePadFinish() {
+  if (!padSource || !padPlaying) return;
+  padFinishing = true;
+  padQueuedIndex = -1;
+  renderPadGrid();
+
+  // Let current loop play to end, then stop
+  padSource.loop = false;
+  const onEnded = () => {
+    padSource.removeEventListener('ended', onEnded);
+    padPlaying = false;
+    padActiveIndex = -1;
+    padFinishing = false;
+    padSource = null;
+    padGainNode = null;
+    setStatus(t('status_stopped'));
+    renderPadGrid();
+  };
+  padSource.addEventListener('ended', onEnded);
+}
+
+// ---- Pad Assignment Modal ----
+let padAssignTarget = -1;
+let padAssignSelectedKey = '';
+let padAssignSelectedColor = '#5b8def';
+
+function openPadAssignModal(padIndex) {
+  padAssignTarget = padIndex;
+  const existing = padAssignments[padIndex];
+
+  const overlay = document.getElementById('padAssignOverlay');
+  const title = document.getElementById('padAssignTitle');
+  const list = document.getElementById('padLoopPickerList');
+  const rateInput = document.getElementById('padRateInput');
+  const palette = document.getElementById('padColorPalette');
+
+  if (!overlay || !list) return;
+  if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
+
+  // Populate loop picker
+  list.innerHTML = '';
+  const choices = getAllLoopChoices();
+  padAssignSelectedKey = (existing && existing.presetKey) || '';
+  choices.forEach(ch => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = ch.label;
+    b.className = ch.presetKey === padAssignSelectedKey ? 'selected' : '';
+    b.addEventListener('click', () => {
+      padAssignSelectedKey = ch.presetKey;
+      list.querySelectorAll('button').forEach(x => x.classList.toggle('selected', x === b));
+    });
+    list.appendChild(b);
+  });
+
+  // Rate
+  if (rateInput) rateInput.value = (existing && existing.rate) ? existing.rate.toFixed(2) : '1.00';
+
+  // Color
+  padAssignSelectedColor = (existing && existing.color) || '#5b8def';
+  if (palette) {
+    palette.querySelectorAll('.pad-color-swatch').forEach(s => {
+      s.classList.toggle('selected', s.getAttribute('data-color') === padAssignSelectedColor);
+    });
+  }
+
+  overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closePadAssignModal() {
+  const overlay = document.getElementById('padAssignOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  padAssignTarget = -1;
+  try { updateScrollState(); } catch {}
+}
+
+function savePadAssignment() {
+  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
+  if (!padAssignSelectedKey) { closePadAssignModal(); return; }
+
+  const rateInput = document.getElementById('padRateInput');
+  const rate = clamp(parseFloat(rateInput && rateInput.value) || 1.0, RATE_MIN, RATE_MAX);
+
+  // Determine label from choices
+  const choices = getAllLoopChoices();
+  const match = choices.find(c => c.presetKey === padAssignSelectedKey);
+  const label = match ? match.label : '';
+
+  padAssignments[padAssignTarget] = {
+    presetKey: padAssignSelectedKey,
+    label,
+    rate,
+    color: padAssignSelectedColor
+  };
+  savePadAssignments();
+  renderPadGrid();
+  closePadAssignModal();
+}
+
+function clearPadAssignment() {
+  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
+  if (padActiveIndex === padAssignTarget) stopPadPlayback();
+  padAssignments[padAssignTarget] = null;
+  savePadAssignments();
+  renderPadGrid();
+  closePadAssignModal();
+}
+
+// ---- Session Save / Recall ----
+function openPadSessionSaveModal() {
+  const overlay = document.getElementById('padSessionSaveOverlay');
+  const input = document.getElementById('padSessionNameInput');
+  if (!overlay) return;
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const suggestion = `Session ${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  if (input) { input.value = suggestion; }
+  overlay.classList.remove('hidden');
+  if (input) { input.focus(); input.select(); }
+  try { updateScrollState(); } catch {}
+}
+
+function closePadSessionSaveModal() {
+  const overlay = document.getElementById('padSessionSaveOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function confirmSavePadSession() {
+  const input = document.getElementById('padSessionNameInput');
+  const name = (input && input.value || '').trim();
+  if (!name) { setStatus('Enter a session name.'); return; }
+
+  const sessions = loadPadSessions();
+  sessions.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name,
+    createdAt: Date.now(),
+    assignments: padAssignments.map(a => a ? { ...a } : null)
+  });
+  savePadSessions(sessions);
+  closePadSessionSaveModal();
+  setStatus(`Session "${name}" saved.`);
+  if (activeTab === 'playlists') renderPadSessionsList();
+}
+
+function renderPadSessionsList() {
+  const listEl = document.getElementById('padsSessionsList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const sessions = loadPadSessions();
+  if (!sessions.length) {
+    const li = document.createElement('li');
+    li.className = 'playlist-empty';
+    const div = document.createElement('div');
+    div.className = 'hint';
+    div.textContent = t('pads_no_sessions');
+    li.appendChild(div);
+    listEl.appendChild(li);
+    return;
+  }
+
+  sessions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  for (const session of sessions) {
+    const li = document.createElement('li');
+    li.className = 'playlist-list-row';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'playlist-list-item';
+
+    const mainSpan = document.createElement('span');
+    mainSpan.className = 'pl-item-main';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pl-item-name';
+    nameSpan.textContent = session.name;
+
+    const countSpan = document.createElement('span');
+    countSpan.className = 'pl-item-count';
+    const assigned = (session.assignments || []).filter(Boolean).length;
+    countSpan.textContent = `${assigned} pad${assigned !== 1 ? 's' : ''}`;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'pl-item-chevron';
+    chevron.textContent = '›';
+
+    mainSpan.appendChild(nameSpan);
+    btn.appendChild(mainSpan);
+    btn.appendChild(countSpan);
+    btn.appendChild(chevron);
+
+    btn.addEventListener('click', () => {
+      confirmRecallPadSession(session);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'playlist-list-play';
+    delBtn.setAttribute('aria-label', `Delete: ${session.name}`);
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const all = loadPadSessions();
+      const filtered = all.filter(s => s.id !== session.id);
+      savePadSessions(filtered);
+      renderPadSessionsList();
+      setStatus(`Session "${session.name}" deleted.`);
+    });
+
+    li.appendChild(btn);
+    li.appendChild(delBtn);
+    listEl.appendChild(li);
+  }
+}
+
+let pendingRecallSession = null;
+
+function confirmRecallPadSession(session) {
+  const hasAssignments = padAssignments.some(Boolean);
+  if (hasAssignments) {
+    pendingRecallSession = session;
+    const overlay = document.getElementById('padSessionRecallOverlay');
+    const text = document.getElementById('padSessionRecallText');
+    if (text) text.textContent = `Replace current pad assignments with "${session.name}"?`;
+    if (overlay) overlay.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
+  } else {
+    applyPadSession(session);
+  }
+}
+
+function applyPadSession(session) {
+  if (!session || !Array.isArray(session.assignments)) return;
+  for (let i = 0; i < PAD_COUNT; i++) {
+    const a = session.assignments[i];
+    padAssignments[i] = a ? {
+      presetKey: String(a.presetKey),
+      label: String(a.label || ''),
+      rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
+      color: String(a.color || '#5b8def')
+    } : null;
+  }
+  savePadAssignments();
+  stopPadPlayback(0.02);
+  renderPadGrid();
+  setStatus(`Session "${session.name}" loaded.`);
+  // Switch to player to see the pads
+  switchTab('player');
+}
+
+function bindPadsUI() {
+  const grid = document.getElementById('padsGrid');
+  if (!grid) return;
+
+  const longPressDelay = 500;
+  let longPressTimer = 0;
+  let longPressFired = false;
+  let dblClickTimer = 0;
+  let lastTapPad = -1;
+  const DBL_CLICK_MS = 350;
+
+  grid.querySelectorAll('.pad').forEach(padEl => {
+    const idx = parseInt(padEl.getAttribute('data-pad'), 10) - 1;
+
+    const startLongPress = (e) => {
+      longPressFired = false;
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        openPadAssignModal(idx);
+      }, longPressDelay);
+    };
+
+    const cancelLongPress = () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = 0; }
+    };
+
+    const handleTap = () => {
+      if (longPressFired) return;
+
+      const now = Date.now();
+      if (lastTapPad === idx && dblClickTimer && (now - dblClickTimer) < DBL_CLICK_MS) {
+        // Double tap — finish session
+        clearTimeout(dblClickTimer);
+        dblClickTimer = 0;
+        lastTapPad = -1;
+        if (padPlaying) schedulePadFinish();
+        return;
+      }
+
+      lastTapPad = idx;
+      dblClickTimer = now;
+
+      // Single tap with slight delay to distinguish from double tap
+      setTimeout(() => {
+        if (dblClickTimer !== now) return; // was consumed by double tap
+        dblClickTimer = 0;
+
+        if (!padAssignments[idx]) return; // nothing assigned
+        if (padActiveIndex === idx && padPlaying && !padFinishing) return; // same pad, already playing
+
+        if (padPlaying) {
+          schedulePadSwitch(idx);
+        } else {
+          startPadLoop(idx);
+        }
+      }, DBL_CLICK_MS + 20);
+    };
+
+    // Touch events
+    padEl.addEventListener('pointerdown', (e) => {
+      startLongPress(e);
+    });
+    padEl.addEventListener('pointerup', () => {
+      cancelLongPress();
+      handleTap();
+    });
+    padEl.addEventListener('pointerleave', cancelLongPress);
+    padEl.addEventListener('pointercancel', cancelLongPress);
+
+    // Prevent context menu on long press
+    padEl.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+
+  // Color palette
+  const palette = document.getElementById('padColorPalette');
+  if (palette) {
+    palette.addEventListener('click', (e) => {
+      const swatch = e.target.closest('.pad-color-swatch');
+      if (!swatch) return;
+      padAssignSelectedColor = swatch.getAttribute('data-color') || '#5b8def';
+      palette.querySelectorAll('.pad-color-swatch').forEach(s => s.classList.toggle('selected', s === swatch));
+    });
+  }
+
+  // Assign modal buttons
+  const saveBtn = document.getElementById('padAssignSave');
+  const clearBtn = document.getElementById('padAssignClear');
+  const closeBtn = document.getElementById('padAssignClose');
+  if (saveBtn) saveBtn.addEventListener('click', savePadAssignment);
+  if (clearBtn) clearBtn.addEventListener('click', clearPadAssignment);
+  if (closeBtn) closeBtn.addEventListener('click', closePadAssignModal);
+
+  // Save Session
+  const saveSessBtn = document.getElementById('padsSaveSession');
+  if (saveSessBtn) saveSessBtn.addEventListener('click', openPadSessionSaveModal);
+
+  const sessConfirm = document.getElementById('padSessionSaveConfirm');
+  const sessCancel = document.getElementById('padSessionSaveCancel');
+  if (sessConfirm) sessConfirm.addEventListener('click', confirmSavePadSession);
+  if (sessCancel) sessCancel.addEventListener('click', closePadSessionSaveModal);
+
+  // Recall confirmations
+  const recallConfirm = document.getElementById('padSessionRecallConfirm');
+  const recallCancel = document.getElementById('padSessionRecallCancel');
+  if (recallConfirm) recallConfirm.addEventListener('click', () => {
+    const overlay = document.getElementById('padSessionRecallOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    if (pendingRecallSession) applyPadSession(pendingRecallSession);
+    pendingRecallSession = null;
+    try { updateScrollState(); } catch {}
+  });
+  if (recallCancel) recallCancel.addEventListener('click', () => {
+    const overlay = document.getElementById('padSessionRecallOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    pendingRecallSession = null;
+    try { updateScrollState(); } catch {}
+  });
+}
+
 function bindUI() {
   const playBtn = document.getElementById('play');
   const stopBtn = document.getElementById('stop');
@@ -5822,6 +6422,9 @@ window.addEventListener('load', () => {
   ensureAudio();
   lockViewportScale();
   bindUI();
+  loadPadAssignments();
+  bindPadsUI();
+  renderPadGrid();
   setStatus(t('status_ready'));
   drawWaveform();
   switchTab('player');
