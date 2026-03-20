@@ -400,7 +400,15 @@
       </div>
       <div class="pad-assign-section">
         <label class="pad-assign-label" for="padRateInput">Rate</label>
-        <input id="padRateInput" class="text-input pad-rate-input" type="text" inputmode="decimal" autocomplete="off" value="1.00" />
+        <div class="pad-rate-row">
+          <input id="padRateInput" class="text-input pad-rate-input" type="text" inputmode="decimal" autocomplete="off" value="1.00" />
+          <div class="pad-preserve-pitch-row">
+            <button id="padPreservePitchBtn" type="button" class="preserve-pitch-toggle" aria-pressed="false" aria-label="Preserve pitch for this pad">
+              <span class="preserve-pitch-dot"></span>
+            </button>
+            <span class="pad-preserve-pitch-label">Pitch</span>
+          </div>
+        </div>
       </div>
       <div class="pad-assign-section">
         <label class="pad-assign-label">Color</label>

@@ -4723,6 +4723,7 @@ let padLastPlayedIndex = -1;  // for double-click "finish session"
 let padFinishing = false;     // double-click triggered finish
 let padSource = null;         // current AudioBufferSourceNode for pads
 let padGainNode = null;
+let padPitchShifterNode = null;
 let padPlaying = false;
 
 function getPadLoopChoicesByCategory() {
@@ -4882,10 +4883,35 @@ function loadPadAssignments() {
           presetKey: String(a.presetKey),
           label: String(a.label || ''),
           rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
-          color: String(a.color || '#5b8def')
+          color: String(a.color || '#5b8def'),
+          preservePitch: !!(a && a.preservePitch)
         };
       });
     }
+  } catch {}
+}
+
+function disconnectPadPitchShifter() {
+  if (padPitchShifterNode) {
+    try { padPitchShifterNode.disconnect(); } catch {}
+    padPitchShifterNode = null;
+  }
+  if (padGainNode && master) {
+    try { padGainNode.disconnect(); } catch {}
+    try { padGainNode.connect(master); } catch {}
+  }
+}
+
+function connectPadPitchShifter(rate) {
+  if (!audioCtx || !padGainNode || !master) return;
+  disconnectPadPitchShifter();
+  const pf = 1.0 / clamp(rate, RATE_MIN, RATE_MAX);
+  if (Math.abs(pf - 1.0) < 0.005) return;
+  try {
+    padPitchShifterNode = createPitchShifterNode(audioCtx, pf);
+    padGainNode.disconnect();
+    padGainNode.connect(padPitchShifterNode);
+    padPitchShifterNode.connect(master);
   } catch {}
 }
 
@@ -4948,6 +4974,7 @@ function stopPadPlayback(ramp = 0.05) {
       setTimeout(() => {
         try { padSource.stop(); } catch {}
         try { padSource.disconnect(); } catch {}
+        try { disconnectPadPitchShifter(); } catch {}
         try { if (padGainNode) padGainNode.disconnect(); } catch {}
         padSource = null;
         padGainNode = null;
@@ -5013,6 +5040,13 @@ async function startPadLoop(index) {
 
   padSource.connect(padGainNode);
   padGainNode.connect(master);
+  if (a.preservePitch) {
+    connectPadPitchShifter(rate);
+  } else {
+    disconnectPadPitchShifter();
+    try { padGainNode.disconnect(); } catch {}
+    try { padGainNode.connect(master); } catch {}
+  }
   padSource.start(audioCtx.currentTime);
 
   padActiveIndex = index;
@@ -5072,6 +5106,7 @@ function schedulePadFinish() {
   padSource.loop = false;
   const onEnded = () => {
     padSource.removeEventListener('ended', onEnded);
+    try { disconnectPadPitchShifter(); } catch {}
     padPlaying = false;
     padActiveIndex = -1;
     padFinishing = false;
@@ -5087,6 +5122,7 @@ function schedulePadFinish() {
 let padAssignTarget = -1;
 let padAssignSelectedKey = '';
 let padAssignSelectedColor = '#5b8def';
+let padAssignPreservePitch = false;
 
 function openPadAssignModal(padIndex) {
   padAssignTarget = padIndex;
@@ -5096,6 +5132,7 @@ function openPadAssignModal(padIndex) {
   const title = document.getElementById('padAssignTitle');
   const rateInput = document.getElementById('padRateInput');
   const palette = document.getElementById('padColorPalette');
+  const preservePitchBtn = document.getElementById('padPreservePitchBtn');
 
   if (!overlay) return;
   if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
@@ -5105,6 +5142,8 @@ function openPadAssignModal(padIndex) {
   renderPadLoopPicker();
 
   if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
+  padAssignPreservePitch = !!(existing && existing.preservePitch);
+  if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
 
   // Color
   padAssignSelectedColor = (existing && existing.color) || '#5b8def';
@@ -5142,7 +5181,8 @@ function savePadAssignment() {
     presetKey: padAssignSelectedKey,
     label,
     rate,
-    color: padAssignSelectedColor
+    color: padAssignSelectedColor,
+    preservePitch: padAssignPreservePitch
   };
   savePadAssignments();
   renderPadGrid();
@@ -5292,7 +5332,8 @@ function applyPadSession(session) {
       presetKey: String(a.presetKey),
       label: String(a.label || ''),
       rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
-      color: String(a.color || '#5b8def')
+      color: String(a.color || '#5b8def'),
+      preservePitch: !!(a && a.preservePitch)
     } : null;
   }
   savePadAssignments();
@@ -5387,13 +5428,16 @@ function bindPadsUI() {
     });
   }
 
+  const padPreservePitchBtn = document.getElementById('padPreservePitchBtn');
+  if (padPreservePitchBtn) {
+    padPreservePitchBtn.addEventListener('click', () => {
+      padAssignPreservePitch = !padAssignPreservePitch;
+      padPreservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
+    });
+  }
+
   const rateInput = document.getElementById('padRateInput');
   if (rateInput) {
-    let mobileTapCount = 0;
-    const usesTouchSelectionMode = () => {
-      try { return !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches; } catch {}
-      return false;
-    };
     const selectRateValue = () => {
       try { rateInput.select(); } catch {}
     };
@@ -5403,24 +5447,12 @@ function bindPadsUI() {
       if (rateInput.value !== cleaned) rateInput.value = cleaned;
     });
     rateInput.addEventListener('focus', () => {
-      mobileTapCount = 0;
-      if (!usesTouchSelectionMode()) {
-        setTimeout(selectRateValue, 0);
-      }
+      setTimeout(selectRateValue, 0);
     });
     rateInput.addEventListener('pointerup', () => {
-      if (!usesTouchSelectionMode()) {
-        setTimeout(selectRateValue, 0);
-        return;
-      }
-      if (document.activeElement !== rateInput) return;
-      mobileTapCount += 1;
-      if (mobileTapCount >= 2) {
-        setTimeout(selectRateValue, 0);
-      }
+      setTimeout(selectRateValue, 0);
     });
     rateInput.addEventListener('blur', () => {
-      mobileTapCount = 0;
       syncPadRateInput(true);
     });
     rateInput.addEventListener('keydown', (e) => {
