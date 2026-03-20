@@ -2507,6 +2507,8 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, cu
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
 
+  try { stopPadPlayback(0); } catch {}
+
   // Internal switch: stop old source, but keep HTMLAudio element playing.
   stopLoop(0, false);
 
@@ -2626,6 +2628,8 @@ async function renderPlaylistsPage() {
     div.textContent = 'No playlists yet. Tap + New to create one.';
     li.appendChild(div);
     listEl.appendChild(li);
+    try { renderPadSessionsList(); } catch {}
+    try { setTimeout(updateScrollState, 50); } catch {}
     return;
   }
 
@@ -4707,6 +4711,7 @@ function showHelpOverlay() {
 const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
 const PAD_COUNT = 6;
+const padPickerCollapsedCategories = new Set();
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
 // Each assignment: { presetKey, label, rate, color }
@@ -4718,6 +4723,125 @@ let padFinishing = false;     // double-click triggered finish
 let padSource = null;         // current AudioBufferSourceNode for pads
 let padGainNode = null;
 let padPlaying = false;
+
+function getPadLoopChoicesByCategory() {
+  const categories = getLoopCategories();
+  const catAssignments = getLoopCatAssignments();
+  const map = {};
+  categories.forEach(cat => { map[cat] = []; });
+
+  builtinPresets.forEach(preset => {
+    if (!preset || !preset.path) return;
+    const cat = catAssignments[preset.path] || preset.category || 'Imported';
+    if (!map[cat]) map[cat] = [];
+    map[cat].push({
+      presetKey: `builtin:${preset.path}`,
+      label: stripFileExt(preset.name || preset.path),
+      category: cat,
+      isBuiltin: true
+    });
+  });
+
+  userPresets.forEach(preset => {
+    if (!preset) return;
+    const cat = (preset.id && catAssignments[preset.id]) || 'Imported';
+    if (!map[cat]) map[cat] = [];
+    const presetKey = preset.blob && preset.id ? `upload:${preset.id}` : (preset.url ? `url:${preset.url}` : '');
+    if (!presetKey) return;
+    const rawName = (preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Imported';
+    map[cat].push({
+      presetKey,
+      label: stripFileExt(rawName),
+      category: cat,
+      isBuiltin: false
+    });
+  });
+
+  Object.values(map).forEach(items => items.sort((a, b) => a.label.localeCompare(b.label)));
+  return map;
+}
+
+function normalizePadRateValue(rawValue, fallback = 1.0) {
+  const raw = String(rawValue || '').trim().replace(/,/g, '.');
+  if (!raw) return clamp(fallback, RATE_MIN, RATE_MAX);
+
+  const digitsOnly = raw.replace(/\D/g, '');
+  let parsed = NaN;
+
+  if (/^\d+$/.test(raw) && digitsOnly) {
+    parsed = Number(digitsOnly) / 100;
+  } else {
+    const safe = raw.replace(/[^\d.]/g, '');
+    const firstDot = safe.indexOf('.');
+    const normalized = firstDot >= 0
+      ? `${safe.slice(0, firstDot + 1)}${safe.slice(firstDot + 1).replace(/\./g, '')}`
+      : safe;
+    parsed = Number.parseFloat(normalized);
+  }
+
+  if (!Number.isFinite(parsed)) parsed = fallback;
+  return clamp(parsed, RATE_MIN, RATE_MAX);
+}
+
+function formatPadRateValue(value) {
+  return clamp(Number(value) || 1, RATE_MIN, RATE_MAX).toFixed(2);
+}
+
+function syncPadRateInput(commit = false) {
+  const input = document.getElementById('padRateInput');
+  if (!input) return;
+  const fallback = padAssignTarget >= 0 && padAssignments[padAssignTarget] ? padAssignments[padAssignTarget].rate : 1.0;
+  const normalized = normalizePadRateValue(input.value, fallback || 1.0);
+  if (commit) input.value = formatPadRateValue(normalized);
+}
+
+function renderPadLoopPicker() {
+  const list = document.getElementById('padLoopPickerList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const byCategory = getPadLoopChoicesByCategory();
+  const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b));
+
+  categories.forEach(category => {
+    const items = byCategory[category];
+    if (!items || !items.length) return;
+
+    const section = document.createElement('div');
+    section.className = 'pad-picker-category';
+    const collapsed = padPickerCollapsedCategories.has(category);
+    if (collapsed) section.classList.add('collapsed');
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'pad-picker-category-header';
+    header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${category}</span></span><span class="pad-picker-count">${items.length}</span>`;
+    header.addEventListener('click', () => {
+      if (padPickerCollapsedCategories.has(category)) padPickerCollapsedCategories.delete(category);
+      else padPickerCollapsedCategories.add(category);
+      renderPadLoopPicker();
+    });
+    section.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'pad-picker-items';
+
+    items.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `pad-picker-item${item.presetKey === padAssignSelectedKey ? ' selected' : ''}`;
+      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? 'Built-in' : 'Imported'}</span>`;
+      button.addEventListener('click', () => {
+        padAssignSelectedKey = item.presetKey;
+        renderPadLoopPicker();
+      });
+      body.appendChild(button);
+    });
+
+    section.appendChild(body);
+    list.appendChild(section);
+  });
+}
 
 function loadPadAssignments() {
   try {
@@ -4802,6 +4926,14 @@ function stopPadPlayback(ramp = 0.05) {
       }, (ramp + 0.05) * 1000);
     } catch {}
   }
+  try {
+    if (master && audioCtx && !loopSource) {
+      const now = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0, now + Math.max(0, ramp));
+    }
+  } catch {}
   renderPadGrid();
 }
 
@@ -4812,6 +4944,10 @@ async function startPadLoop(index) {
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
+
+  try { stopPlaylistPlayback(); } catch {}
+  try { stopLoop(0, false); } catch {}
+  try { clearPlayerPlaylistContext(); } catch {}
 
   // Stop any existing pad source immediately
   if (padSource) {
@@ -4840,6 +4976,12 @@ async function startPadLoop(index) {
   padGainNode = audioCtx.createGain();
   padGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
   padGainNode.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+
+  try {
+    master.gain.cancelScheduledValues(audioCtx.currentTime);
+    master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
+    master.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+  } catch {}
 
   padSource.connect(padGainNode);
   padGainNode.connect(master);
@@ -4924,31 +5066,16 @@ function openPadAssignModal(padIndex) {
 
   const overlay = document.getElementById('padAssignOverlay');
   const title = document.getElementById('padAssignTitle');
-  const list = document.getElementById('padLoopPickerList');
   const rateInput = document.getElementById('padRateInput');
   const palette = document.getElementById('padColorPalette');
 
-  if (!overlay || !list) return;
+  if (!overlay) return;
   if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
 
-  // Populate loop picker
-  list.innerHTML = '';
-  const choices = getAllLoopChoices();
   padAssignSelectedKey = (existing && existing.presetKey) || '';
-  choices.forEach(ch => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = ch.label;
-    b.className = ch.presetKey === padAssignSelectedKey ? 'selected' : '';
-    b.addEventListener('click', () => {
-      padAssignSelectedKey = ch.presetKey;
-      list.querySelectorAll('button').forEach(x => x.classList.toggle('selected', x === b));
-    });
-    list.appendChild(b);
-  });
+  renderPadLoopPicker();
 
-  // Rate
-  if (rateInput) rateInput.value = (existing && existing.rate) ? existing.rate.toFixed(2) : '1.00';
+  if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
 
   // Color
   padAssignSelectedColor = (existing && existing.color) || '#5b8def';
@@ -4959,6 +5086,9 @@ function openPadAssignModal(padIndex) {
   }
 
   overlay.classList.remove('hidden');
+  if (rateInput) {
+    try { rateInput.focus(); rateInput.select(); } catch {}
+  }
   try { updateScrollState(); } catch {}
 }
 
@@ -4974,7 +5104,8 @@ function savePadAssignment() {
   if (!padAssignSelectedKey) { closePadAssignModal(); return; }
 
   const rateInput = document.getElementById('padRateInput');
-  const rate = clamp(parseFloat(rateInput && rateInput.value) || 1.0, RATE_MIN, RATE_MAX);
+  const rate = normalizePadRateValue(rateInput && rateInput.value, 1.0);
+  if (rateInput) rateInput.value = formatPadRateValue(rate);
 
   // Determine label from choices
   const choices = getAllLoopChoices();
@@ -5230,6 +5361,21 @@ function bindPadsUI() {
     });
   }
 
+  const rateInput = document.getElementById('padRateInput');
+  if (rateInput) {
+    rateInput.addEventListener('input', () => {
+      const cleaned = String(rateInput.value || '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+      if (rateInput.value !== cleaned) rateInput.value = cleaned;
+    });
+    rateInput.addEventListener('blur', () => syncPadRateInput(true));
+    rateInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        syncPadRateInput(true);
+      }
+    });
+  }
+
   // Assign modal buttons
   const saveBtn = document.getElementById('padAssignSave');
   const clearBtn = document.getElementById('padAssignClear');
@@ -5375,6 +5521,7 @@ function bindUI() {
   playBtn && playBtn.addEventListener('click', async () => {
     ensureAudio();
     startOutputIfNeeded();
+    try { stopPadPlayback(0); } catch {}
 
     // If a playlist is loaded in the Player page, Play restarts it.
     if (!playlistIsPlaying && playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
@@ -5428,6 +5575,7 @@ function bindUI() {
   try { updateFavoritesUI(); } catch {}
 
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
+  stopBtn && stopBtn.addEventListener('click', () => stopPadPlayback(0));
 
   // Stop should also stop playlist sequencing.
   stopBtn && stopBtn.addEventListener('click', () => {
