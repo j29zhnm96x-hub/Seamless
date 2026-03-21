@@ -86,18 +86,22 @@ const I18N = {
     settings_language: 'Language',
     settings_about: 'About',
     settings_help_main: 'Help',
-    settings_help_hint: 'How to use the app',
+    settings_help_hint: 'Controls, pads, playlists, backups',
     help_title: 'Help',
     help_player_h: 'Player',
-    help_player_p: 'Tap Play to start the loaded loop. Use the volume slider and rate jog to adjust playback. The Repeat button toggles whole-playlist looping.',
+    help_player_p: 'Tap Play to start the current loop or Stop to fade playback out. Use Volume for master level, Rate to speed up or slow down playback, and Preserve pitch if you want tempo changes without shifting pitch. When a playlist is playing, Repeat loops the whole playlist and the countdown row shows the remaining time for the current cycle. On desktop you can also toggle the visualizer and fullscreen it. On iPhone and iPad, start playback with a user tap first so the browser unlocks audio.',
+    help_favorites_h: 'Favorites',
+    help_favorites_p: 'Use the plus button beside the current loop, playlist, playlist detail view, or loop info page to pin items to Favorites. The Favorites island on the Player page becomes a quick launcher for saved loops and playlists, and tapping the plus again removes an item.',
+    help_pads_h: 'Pads',
+    help_pads_p: 'The Pads island gives you 9 performance pads. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary. Double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Use Save to store the current 9-pad layout as a Pads Session, then load or delete sessions from the Playlists tab. The circular ring above the grid shows loop progress while a pad is playing.',
     help_playlists_h: 'Playlists',
-    help_playlists_p: 'Create playlists and add loops to them. Tap a playlist to see its details — edit, reorder, or adjust per-loop volume.',
+    help_playlists_p: 'Create playlists from the Playlists tab, open one to play it, mark it as a favorite, rename it, or delete it. In edit mode you can add loops, change repetitions, adjust per-loop volume, and reorder rows by dragging on desktop. When a playlist plays, the app steps through each entry automatically and can repeat the whole sequence if Repeat is enabled.',
     help_loops_h: 'Audio Loops',
-    help_loops_p: 'Browse built-in loops or import your own. Imported loops have an edit button to adjust loop start/end points.',
+    help_loops_p: 'Browse built-in loops by category, search across all loops, or import your own audio. You can import with the file picker, paste audio from the clipboard when supported, and also use dropped or pasted files and links where available. Imported loops stay local to your browser, can be renamed, recategorized, described, favorited, trimmed, and then reused in playlists or pads.',
     help_trimmer_h: 'Trimmer',
-    help_trimmer_p: 'Drag the green IN and red OUT cursors to set loop boundaries. Zoom in for precision. Tap Test Loop to hear the result before saving.',
+    help_trimmer_p: 'Open Trim Loop from an imported loop when you need cleaner loop points. Drag the IN and OUT markers, move the playhead, use Set IN or Set OUT for exact placement, then zoom in for fine adjustment. Test Loop previews the current loop region, Save stores the new points, Reset returns to automatic points, and Rename lets you update the loop name.',
     help_settings_h: 'Settings',
-    help_settings_p: 'Export/import your data as JSON. Switch between dark and light themes.',
+    help_settings_p: 'Settings handles backup and appearance. Export creates a ZIP backup of playlists, saved loops, favorites, pad assignments, and other local data. Import restores backups from ZIP or older JSON files. You can also switch between dark and light themes and change the app language at any time.',
     help_close: 'Close',
     playlist_create_title: 'Create Playlist',
     playlist_name_label: 'Playlist name',
@@ -171,18 +175,22 @@ const I18N = {
     settings_language: 'Jezik',
     settings_about: 'O aplikaciji',
     settings_help_main: 'Pomoć',
-    settings_help_hint: 'Kako koristiti aplikaciju',
+    settings_help_hint: 'Kontrole, padovi, playliste, sigurnosne kopije',
     help_title: 'Pomoć',
     help_player_h: 'Reprodukcija',
-    help_player_p: 'Dodirnite Play za pokretanje učitane petlje. Koristite klizač glasnoće i kontrolu brzine za podešavanje reprodukcije. Gumb Repeat uključuje/isključuje ponavljanje playliste.',
+    help_player_p: 'Dodirnite Play za pokretanje trenutne petlje ili Stop za postupno gašenje reprodukcije. Koristite Volume za glavnu glasnoću, Rate za ubrzavanje ili usporavanje reprodukcije, a Preserve pitch ako želite mijenjati tempo bez promjene visine tona. Kad svira playlista, Repeat ponavlja cijelu playlistu, a red s odbrojavanjem pokazuje preostalo vrijeme trenutnog ciklusa. Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona. Na iPhoneu i iPadu prvo pokrenite zvuk dodirom kako bi preglednik otključao audio.',
+    help_favorites_h: 'Favoriti',
+    help_favorites_p: 'Koristite plus pokraj trenutne petlje, playliste, detalja playliste ili stranice s informacijama o petlji kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih petlji i playlista, a ponovni dodir na plus uklanja stavku.',
+    help_pads_h: 'Padovi',
+    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu petlje, vlastitog naziva, brzine, opcije očuvanja visine tona i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici petlje. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak petlje dok pad svira.',
     help_playlists_h: 'Playliste',
-    help_playlists_p: 'Stvorite playliste i dodajte petlje. Dodirnite playlistu za detalje — uređivanje, promjenu redoslijeda ili glasnoću po petlji.',
+    help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati petlje, mijenjati broj ponavljanja, prilagoditi glasnoću po petlji i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
     help_loops_h: 'Audio petlje',
-    help_loops_p: 'Pregledajte ugrađene petlje ili uvezite svoje. Uvezene petlje imaju gumb za uređivanje obrezivanja početka/kraja petlje.',
+    help_loops_p: 'Pregledajte ugrađene petlje po kategorijama, pretražujte sve petlje ili uvezite vlastiti audio. Uvoz možete napraviti biračem datoteka, lijepljenjem zvuka iz međuspremnika kada je podržano te povlačenjem ili lijepljenjem datoteka i poveznica gdje je dostupno. Uvezene petlje ostaju lokalno u pregledniku, mogu se preimenovati, premještati po kategorijama, opisivati, dodavati u favorite, obrezivati te ponovno koristiti u playlistama ili padovima.',
     help_trimmer_h: 'Trimer',
-    help_trimmer_p: 'Povucite zeleni IN i crveni OUT pokazivač za granice petlje. Zumirajte za preciznost. Dodirnite Testiraj petlju da čujete rezultat prije spremanja.',
+    help_trimmer_p: 'Otvorite Trim Loop na uvezenoj petlji kad trebate preciznije granice petlje. Povucite IN i OUT markere, pomičite playhead, koristite Set IN ili Set OUT za točno postavljanje, zatim zumirajte za finu prilagodbu. Test Loop reproducira trenutačni raspon, Save sprema nove točke, Reset vraća automatski izračunate točke, a Rename omogućuje promjenu naziva petlje.',
     help_settings_h: 'Postavke',
-    help_settings_p: 'Izvoz/uvoz podataka kao JSON. Prebacivanje između tamne i svijetle teme.',
+    help_settings_p: 'Postavke služe za sigurnosne kopije i izgled. Export stvara ZIP sigurnosnu kopiju playlista, spremljenih petlji, favorita, dodjela padova i ostalih lokalnih podataka. Import vraća sigurnosne kopije iz ZIP-a ili starijih JSON datoteka. U svakom trenutku možete promijeniti tamnu ili svijetlu temu te jezik aplikacije.',
     help_close: 'Zatvori',
     playlist_create_title: 'Nova playlista',
     playlist_name_label: 'Naziv playliste',
@@ -4686,6 +4694,10 @@ function showHelpOverlay() {
     <div class="help-content">
       <h3>${t('help_player_h')}</h3>
       <p>${t('help_player_p')}</p>
+      <h3>${t('help_favorites_h')}</h3>
+      <p>${t('help_favorites_p')}</p>
+      <h3>${t('help_pads_h')}</h3>
+      <p>${t('help_pads_p')}</p>
       <h3>${t('help_playlists_h')}</h3>
       <p>${t('help_playlists_p')}</p>
       <h3>${t('help_loops_h')}</h3>
