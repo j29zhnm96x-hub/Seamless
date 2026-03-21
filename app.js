@@ -4885,7 +4885,8 @@ function loadPadAssignments() {
           label: String(a.label || ''),
           rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
           color: String(a.color || '#5b8def'),
-          preservePitch: !!(a && a.preservePitch)
+           preservePitch: !!(a && a.preservePitch),
+           displayName: String(a.displayName || '')
         };
       });
     }
@@ -4942,11 +4943,12 @@ function renderPadGrid() {
     if (oldName) oldName.remove();
 
     if (a) {
+       const displayText = a.displayName || a.label || '';
       el.style.background = a.color || 'var(--surface-2)';
-      el.setAttribute('aria-label', `Pad ${i + 1} - ${a.label || 'Assigned'}`);
+       el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}`);
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
-      nameEl.textContent = a.label || '';
+       nameEl.textContent = displayText;
       el.appendChild(nameEl);
     } else {
       el.style.background = '';
@@ -5165,6 +5167,7 @@ function openPadAssignModal(padIndex) {
 
   const overlay = document.getElementById('padAssignOverlay');
   const title = document.getElementById('padAssignTitle');
+   const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
   const palette = document.getElementById('padColorPalette');
   const preservePitchBtn = document.getElementById('padPreservePitchBtn');
@@ -5176,6 +5179,7 @@ function openPadAssignModal(padIndex) {
   initializePadPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderPadLoopPicker();
 
+  if (displayNameInput) displayNameInput.value = (existing && existing.displayName) || '';
   if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
   padAssignPreservePitch = !!(existing && existing.preservePitch);
   if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
@@ -5203,7 +5207,9 @@ function savePadAssignment() {
   if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
   if (!padAssignSelectedKey) { closePadAssignModal(); return; }
 
+   const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
+   const displayName = displayNameInput ? displayNameInput.value.trim() : '';
   const rate = normalizePadRateValue(rateInput && rateInput.value, 1.0);
   if (rateInput) rateInput.value = formatPadRateValue(rate);
 
@@ -5215,6 +5221,7 @@ function savePadAssignment() {
   padAssignments[padAssignTarget] = {
     presetKey: padAssignSelectedKey,
     label,
+     displayName,
     rate,
     color: padAssignSelectedColor,
     preservePitch: padAssignPreservePitch
@@ -5366,6 +5373,7 @@ function applyPadSession(session) {
     padAssignments[i] = a ? {
       presetKey: String(a.presetKey),
       label: String(a.label || ''),
+       displayName: String(a.displayName || ''),
       rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
       color: String(a.color || '#5b8def'),
       preservePitch: !!(a && a.preservePitch)
