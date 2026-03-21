@@ -990,13 +990,46 @@ html.no-scroll,body.no-scroll{overflow:hidden!important}
 .rate-card-compact .rate-jog-compact .rate-jog-thumb{top:4px;bottom:4px;width:36px}
 
 /* -------- Pads island -------- */
-.pads-card{padding:14px}
+.pads-card{position:relative;padding:14px}
 .pads-head{
   display:flex;align-items:center;justify-content:space-between;
   margin-bottom:10px;
   font-size:14px;font-weight:700;color:var(--text);
 }
 .pads-save-btn{font-size:11px;padding:3px 10px;min-height:28px}
+
+.pad-countdown{
+  position:absolute;
+  top:8px;
+  left:50%;
+  z-index:2;
+  width:40px;
+  height:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  transform:translateX(-50%) scale(1);
+  opacity:1;
+  visibility:visible;
+  transition:opacity 160ms ease,transform 160ms ease,visibility 160ms ease;
+}
+.pad-countdown.is-inactive{
+  opacity:0;
+  visibility:hidden;
+  transform:translateX(-50%) scale(0.92);
+}
+.pad-countdown svg{display:block;overflow:visible}
+.pad-countback,
+.pad-countfront{stroke-width:3}
+.pad-countback{stroke:rgba(255,255,255,0.16)}
+.pad-countfront{
+  stroke:rgba(255,255,255,0.96);
+  stroke-dasharray:113.097;
+  stroke-dashoffset:113.097;
+}
+html.theme-light .pad-countback{stroke:rgba(0,0,0,0.12)}
+html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
 
 .pads-grid{
   display:grid;
@@ -1079,6 +1112,10 @@ html.no-scroll,body.no-scroll{overflow:hidden!important}
   pointer-events:none;
   z-index:1;
 }
+html.theme-light .pad-loop-name{
+  color:rgba(18,24,33,0.9);
+  text-shadow:0 1px 2px rgba(255,255,255,0.55);
+}
 
 /* -------- Pad assign overlay -------- */
 .pad-assign-card{max-height:min(88vh,680px);overflow:auto}
@@ -1114,21 +1151,14 @@ html.no-scroll,body.no-scroll{overflow:hidden!important}
 .pad-color-swatch{
   width:32px;height:32px;border-radius:8px;
   border:2px solid transparent;
+  background:var(--surface-2);
   cursor:pointer;padding:0;
   box-shadow:0 2px 4px rgba(0,0,0,0.25);
   transition:border-color 120ms ease,transform 120ms ease;
 }
 .pad-color-swatch:hover{transform:scale(1.1)}
 .pad-color-swatch.selected{border-color:#fff;box-shadow:0 0 0 2px var(--accent),0 2px 4px rgba(0,0,0,0.25)}
-.pad-swatch-blue{background:#5b8def}
-.pad-swatch-red{background:#d94f4f}
-.pad-swatch-green{background:#9be2a8}
-.pad-swatch-yellow{background:#f5c542}
-.pad-swatch-purple{background:#c774e8}
-.pad-swatch-orange{background:#ff8c42}
-.pad-swatch-cyan{background:#42d4f5}
-.pad-swatch-pink{background:#f57dba}
-.pad-swatch-silver{background:#bbb}
+html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
 
 /* -------- Pads sessions on playlists page -------- */
 .pads-sessions-header{margin-top:20px}

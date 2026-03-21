@@ -115,6 +115,12 @@
             <span>Pads</span>
             <button id="padsSaveSession" type="button" class="btn-sm pads-save-btn" aria-label="Save pads session">Save</button>
           </div>
+          <div id="padCountdown" class="pad-countdown is-inactive" aria-hidden="true" title="Pad loop progress">
+            <svg viewBox="0 0 40 40" width="40" height="40" focusable="false" aria-hidden="true">
+              <circle class="pad-countback" cx="20" cy="20" r="18" fill="none"></circle>
+              <circle class="pad-countfront" cx="20" cy="20" r="18" fill="none" stroke-linecap="round" transform="rotate(-90 20 20)"></circle>
+            </svg>
+          </div>
           <div id="padsGrid" class="pads-grid" aria-label="Performance pads">
             <button type="button" class="pad" data-pad="1" aria-label="Pad 1 - Empty"><span class="pad-num">1</span></button>
             <button type="button" class="pad" data-pad="2" aria-label="Pad 2 - Empty"><span class="pad-num">2</span></button>
@@ -420,15 +426,15 @@
       <div class="pad-assign-section">
         <label class="pad-assign-label">Color</label>
         <div id="padColorPalette" class="pad-color-palette" aria-label="Color palette">
-          <button type="button" class="pad-color-swatch pad-swatch-blue" data-color="#5b8def" aria-label="Blue"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-red" data-color="#d94f4f" aria-label="Red"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-green" data-color="#9be2a8" aria-label="Green"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-yellow" data-color="#f5c542" aria-label="Yellow"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-purple" data-color="#c774e8" aria-label="Purple"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-orange" data-color="#ff8c42" aria-label="Orange"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-cyan" data-color="#42d4f5" aria-label="Cyan"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-pink" data-color="#f57dba" aria-label="Pink"></button>
-          <button type="button" class="pad-color-swatch pad-swatch-silver" data-color="#bbb" aria-label="Silver"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-blue" data-color-key="blue" aria-label="Blue"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-red" data-color-key="red" aria-label="Red"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-green" data-color-key="green" aria-label="Green"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-yellow" data-color-key="yellow" aria-label="Yellow"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-purple" data-color-key="purple" aria-label="Purple"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-orange" data-color-key="orange" aria-label="Orange"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-cyan" data-color-key="cyan" aria-label="Cyan"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-pink" data-color-key="pink" aria-label="Pink"></button>
+          <button type="button" class="pad-color-swatch pad-swatch-silver" data-color-key="silver" aria-label="Silver"></button>
         </div>
       </div>
       <div class="overlay-actions">

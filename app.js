@@ -4656,6 +4656,8 @@ function applyTheme(theme) {
   document.querySelectorAll('.theme-opt').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);
   });
+  refreshPadColorPalette(theme);
+  renderPadGrid();
 }
 
 function loadSavedTheme() {
@@ -4711,11 +4713,65 @@ function showHelpOverlay() {
 const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
 const PAD_COUNT = 9;
+const PAD_COLOR_KEYS = Object.freeze(['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink', 'silver']);
+const PAD_COLOR_DEFAULT_KEY = 'blue';
+const PAD_DARK_COLOR_PALETTE = Object.freeze({
+  blue: '#2c5aa0',
+  red: '#8b2e2e',
+  green: '#3f7f4f',
+  yellow: '#9a7b1f',
+  purple: '#6f4b8b',
+  orange: '#a85f24',
+  cyan: '#2a7c88',
+  pink: '#9a4f72',
+  silver: '#5f636b'
+});
+const PAD_LIGHT_COLOR_PALETTE = Object.freeze({
+  blue: '#a9c8ff',
+  red: '#f6b0b0',
+  green: '#bfe3c2',
+  yellow: '#f5e7a3',
+  purple: '#dcc2f2',
+  orange: '#f4c59d',
+  cyan: '#b6e7ee',
+  pink: '#efbfd3',
+  silver: '#d6d9df'
+});
+const PAD_LEGACY_COLOR_KEY_MAP = Object.freeze({
+  '#5b8def': 'blue',
+  '#d94f4f': 'red',
+  '#9be2a8': 'green',
+  '#f5c542': 'yellow',
+  '#c774e8': 'purple',
+  '#ff8c42': 'orange',
+  '#42d4f5': 'cyan',
+  '#f57dba': 'pink',
+  '#bbb': 'silver',
+  '#bbbbbb': 'silver',
+  '#2c5aa0': 'blue',
+  '#8b2e2e': 'red',
+  '#3f7f4f': 'green',
+  '#9a7b1f': 'yellow',
+  '#6f4b8b': 'purple',
+  '#a85f24': 'orange',
+  '#2a7c88': 'cyan',
+  '#9a4f72': 'pink',
+  '#5f636b': 'silver',
+  '#a9c8ff': 'blue',
+  '#f6b0b0': 'red',
+  '#bfe3c2': 'green',
+  '#f5e7a3': 'yellow',
+  '#dcc2f2': 'purple',
+  '#f4c59d': 'orange',
+  '#b6e7ee': 'cyan',
+  '#efbfd3': 'pink',
+  '#d6d9df': 'silver'
+});
 const padPickerCollapsedCategories = new Set();
 let padPickerLastOpenCategory = '';
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
-// Each assignment: { presetKey, label, rate, color }
+// Each assignment: { presetKey, label, rate, colorKey, color }
 
 let padActiveIndex = -1;      // currently playing pad
 let padQueuedIndex = -1;      // pad queued to play after current finishes
@@ -4726,6 +4782,163 @@ let padSource = null;         // current AudioBufferSourceNode for pads
 let padGainNode = null;
 let padPitchShifterNode = null;
 let padPlaying = false;
+let padCountdownEl = null;
+let padCountdownRaf = 0;
+let padCountdownStartTime = 0;
+let padCountdownDuration = 0;
+let padCountdownRepeats = true;
+let padCountdownCircumference = 2 * Math.PI * 18;
+
+function ensurePadCountdownElement() {
+  if (padCountdownEl) return padCountdownEl;
+  padCountdownEl = document.getElementById('padCountdown');
+  if (!padCountdownEl) return null;
+  const front = padCountdownEl.querySelector('.pad-countfront');
+  if (front) {
+    const r = parseFloat(front.getAttribute('r')) || 18;
+    padCountdownCircumference = 2 * Math.PI * r;
+    front.style.strokeDasharray = String(padCountdownCircumference);
+    front.style.strokeDashoffset = String(padCountdownCircumference);
+  }
+  return padCountdownEl;
+}
+
+function stopPadCountdownFrame() {
+  if (!padCountdownRaf) return;
+  cancelAnimationFrame(padCountdownRaf);
+  padCountdownRaf = 0;
+}
+
+function updatePadCountdown() {
+  const el = ensurePadCountdownElement();
+  if (!el || !audioCtx || padCountdownDuration <= 0) {
+    stopPadCountdownFrame();
+    return;
+  }
+  const front = el.querySelector('.pad-countfront');
+  if (!front) return;
+
+  const elapsed = Math.max(0, audioCtx.currentTime - padCountdownStartTime);
+  const rawProgress = elapsed / padCountdownDuration;
+  const progress = padCountdownRepeats
+    ? rawProgress - Math.floor(rawProgress)
+    : Math.min(rawProgress, 1);
+  const offset = padCountdownCircumference * (1 - progress);
+  front.style.strokeDashoffset = String(offset);
+
+  if (!padCountdownRepeats && rawProgress >= 1) {
+    stopPadCountdownFrame();
+  }
+}
+
+function startPadCountdownFrame() {
+  if (padCountdownRaf) return;
+  const tick = () => {
+    padCountdownRaf = requestAnimationFrame(tick);
+    updatePadCountdown();
+  };
+  padCountdownRaf = requestAnimationFrame(tick);
+}
+
+function showPadCountdown(durationSeconds, repeats = true, startOffsetSeconds = 0) {
+  const el = ensurePadCountdownElement();
+  if (!el || !audioCtx) return;
+  padCountdownDuration = Math.max(0.0001, durationSeconds);
+  padCountdownRepeats = !!repeats;
+  padCountdownStartTime = audioCtx.currentTime - Math.max(0, startOffsetSeconds);
+  el.classList.remove('is-inactive');
+  el.setAttribute('aria-hidden', 'false');
+  updatePadCountdown();
+  startPadCountdownFrame();
+}
+
+function hidePadCountdown() {
+  const el = ensurePadCountdownElement();
+  if (!el) return;
+  stopPadCountdownFrame();
+  padCountdownDuration = 0;
+  el.classList.add('is-inactive');
+  el.setAttribute('aria-hidden', 'true');
+  const front = el.querySelector('.pad-countfront');
+  if (front) front.style.strokeDashoffset = String(padCountdownCircumference);
+}
+
+function normalizeHexColor(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text.startsWith('#')) return text;
+  if (text.length === 4) {
+    return `#${text[1]}${text[1]}${text[2]}${text[2]}${text[3]}${text[3]}`;
+  }
+  return text;
+}
+
+function getCurrentTheme() {
+  return document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
+}
+
+function getPadThemePalette(theme = getCurrentTheme()) {
+  return theme === 'light' ? PAD_LIGHT_COLOR_PALETTE : PAD_DARK_COLOR_PALETTE;
+}
+
+function getPadColorKeyFromLegacyColor(value) {
+  return PAD_LEGACY_COLOR_KEY_MAP[normalizeHexColor(value)] || '';
+}
+
+function normalizePadColorKey(colorKey, fallbackColor = '') {
+  const key = String(colorKey || '').trim().toLowerCase();
+  if (PAD_COLOR_KEYS.includes(key)) return key;
+  return getPadColorKeyFromLegacyColor(fallbackColor) || PAD_COLOR_DEFAULT_KEY;
+}
+
+function resolvePadDisplayColor(colorKey, theme = getCurrentTheme()) {
+  const palette = getPadThemePalette(theme);
+  const normalizedKey = normalizePadColorKey(colorKey);
+  return palette[normalizedKey] || palette[PAD_COLOR_DEFAULT_KEY];
+}
+
+function normalizePadAssignment(a, theme = getCurrentTheme()) {
+  if (!a || !a.presetKey) return null;
+  const colorKey = normalizePadColorKey(a.colorKey, a.color);
+  return {
+    presetKey: String(a.presetKey),
+    label: String(a.label || ''),
+    rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
+    colorKey,
+    color: resolvePadDisplayColor(colorKey, theme),
+    preservePitch: !!(a && a.preservePitch),
+    displayName: String(a.displayName || '')
+  };
+}
+
+function serializePadAssignment(a, theme = getCurrentTheme()) {
+  if (!a || !a.presetKey) return null;
+  const normalized = normalizePadAssignment(a, theme);
+  return normalized ? {
+    presetKey: normalized.presetKey,
+    label: normalized.label,
+    rate: normalized.rate,
+    colorKey: normalized.colorKey,
+    color: normalized.color,
+    preservePitch: normalized.preservePitch,
+    displayName: normalized.displayName
+  } : null;
+}
+
+function refreshPadColorPalette(theme = getCurrentTheme()) {
+  const paletteEl = document.getElementById('padColorPalette');
+  if (!paletteEl) return;
+  const palette = getPadThemePalette(theme);
+  paletteEl.querySelectorAll('.pad-color-swatch').forEach((swatch, index) => {
+    const colorKey = normalizePadColorKey(
+      swatch.getAttribute('data-color-key') || PAD_COLOR_KEYS[index],
+      swatch.getAttribute('data-color') || ''
+    );
+    const color = palette[colorKey] || palette[PAD_COLOR_DEFAULT_KEY];
+    swatch.setAttribute('data-color', color);
+    swatch.style.background = color;
+    swatch.classList.toggle('selected', colorKey === padAssignSelectedColorKey);
+  });
+}
 
 function getPadLoopChoicesByCategory() {
   const categories = getLoopCategories();
@@ -4879,16 +5092,7 @@ function loadPadAssignments() {
     const parsed = JSON.parse(raw || '[]');
     if (Array.isArray(parsed)) {
       padAssignments = Array.from({ length: PAD_COUNT }, (_, index) => {
-        const a = parsed[index];
-        if (!a || !a.presetKey) return null;
-        return {
-          presetKey: String(a.presetKey),
-          label: String(a.label || ''),
-          rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
-          color: String(a.color || '#5b8def'),
-          preservePitch: !!(a && a.preservePitch),
-          displayName: String(a.displayName || '')
-        };
+        return normalizePadAssignment(parsed[index]);
       });
     }
   } catch {}
@@ -4919,7 +5123,10 @@ function connectPadPitchShifter(rate) {
 }
 
 function savePadAssignments() {
-  try { localStorage.setItem(PADS_ASSIGNMENTS_KEY, JSON.stringify(padAssignments)); } catch {}
+  try {
+    const serialized = padAssignments.map(a => serializePadAssignment(a));
+    localStorage.setItem(PADS_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+  } catch {}
 }
 
 function loadPadSessions() {
@@ -4950,6 +5157,7 @@ function formatPadDisplayText(label) {
 function renderPadGrid() {
   const grid = document.getElementById('padsGrid');
   if (!grid) return;
+  const theme = getCurrentTheme();
   const pads = grid.querySelectorAll('.pad');
   pads.forEach((el, i) => {
     const a = padAssignments[i];
@@ -4958,9 +5166,10 @@ function renderPadGrid() {
     if (oldName) oldName.remove();
 
     if (a) {
-       const displayText = a.displayName || a.label || '';
-      el.style.background = a.color || 'var(--surface-2)';
-       el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}`);
+      const colorKey = normalizePadColorKey(a.colorKey, a.color);
+      const displayText = a.displayName || a.label || '';
+      el.style.background = resolvePadDisplayColor(colorKey, theme);
+      el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}`);
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
       nameEl.textContent = formatPadDisplayText(displayText);
@@ -4982,6 +5191,7 @@ function stopPadPlayback(ramp = 0.05) {
   padQueuedIndex = -1;
   padQueuedOneShot = false;
   padFinishing = false;
+  hidePadCountdown();
   if (padSource) {
     try {
       if (padGainNode && audioCtx) {
@@ -5038,10 +5248,15 @@ async function startPadLoopInternal(index, oneShot = false) {
     try { if (padGainNode) padGainNode.disconnect(); } catch {}
     padSource = null;
     padGainNode = null;
+    hidePadCountdown();
   }
 
   const result = await loadBufferFromPresetKey(a.presetKey);
-  if (!result || !result.buffer) { setStatus('Pad: failed to load loop'); return; }
+  if (!result || !result.buffer) {
+    hidePadCountdown();
+    setStatus('Pad: failed to load loop');
+    return;
+  }
 
   const buffer = result.buffer;
   const pts = computeLoopPoints(buffer);
@@ -5079,6 +5294,8 @@ async function startPadLoopInternal(index, oneShot = false) {
   } else {
     padSource.start(audioCtx.currentTime);
   }
+  const effectiveLoopDuration = (pts.end - pts.start) / Math.max(0.000001, rate);
+  showPadCountdown(effectiveLoopDuration, !oneShot);
 
   padActiveIndex = index;
   padLastPlayedIndex = index;
@@ -5091,6 +5308,7 @@ async function startPadLoopInternal(index, oneShot = false) {
     const onEnded = () => {
       if (padSource) padSource.removeEventListener('ended', onEnded);
       try { disconnectPadPitchShifter(); } catch {}
+      hidePadCountdown();
       padPlaying = false;
       padActiveIndex = -1;
       padFinishing = false;
@@ -5139,6 +5357,7 @@ function schedulePadSwitch(nextIndex, oneShot = false) {
 
   const onEnded = () => {
     padSource.removeEventListener('ended', onEnded);
+    hidePadCountdown();
     if (padQueuedIndex === nextIndex) {
       if (padQueuedOneShot) startPadLoopOnce(nextIndex);
       else startPadLoop(nextIndex);
@@ -5158,6 +5377,7 @@ function schedulePadFinish() {
   const onEnded = () => {
     padSource.removeEventListener('ended', onEnded);
     try { disconnectPadPitchShifter(); } catch {}
+    hidePadCountdown();
     padPlaying = false;
     padActiveIndex = -1;
     padFinishing = false;
@@ -5172,7 +5392,7 @@ function schedulePadFinish() {
 // ---- Pad Assignment Modal ----
 let padAssignTarget = -1;
 let padAssignSelectedKey = '';
-let padAssignSelectedColor = '#5b8def';
+let padAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
 let padAssignPreservePitch = false;
 
 function openPadAssignModal(padIndex) {
@@ -5199,12 +5419,8 @@ function openPadAssignModal(padIndex) {
   if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
 
   // Color
-  padAssignSelectedColor = (existing && existing.color) || '#5b8def';
-  if (palette) {
-    palette.querySelectorAll('.pad-color-swatch').forEach(s => {
-      s.classList.toggle('selected', s.getAttribute('data-color') === padAssignSelectedColor);
-    });
-  }
+  padAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
+  if (palette) refreshPadColorPalette();
 
   overlay.classList.remove('hidden');
   try { updateScrollState(); } catch {}
@@ -5235,9 +5451,10 @@ function savePadAssignment() {
   padAssignments[padAssignTarget] = {
     presetKey: padAssignSelectedKey,
     label,
-     displayName,
+    displayName,
     rate,
-    color: padAssignSelectedColor,
+    colorKey: padAssignSelectedColorKey,
+    color: resolvePadDisplayColor(padAssignSelectedColorKey),
     preservePitch: padAssignPreservePitch
   };
   savePadAssignments();
@@ -5284,7 +5501,7 @@ function confirmSavePadSession() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name,
     createdAt: Date.now(),
-    assignments: padAssignments.map(a => a ? { ...a } : null)
+    assignments: padAssignments.map(a => serializePadAssignment(a))
   });
   savePadSessions(sessions);
   closePadSessionSaveModal();
@@ -5383,15 +5600,7 @@ function confirmRecallPadSession(session) {
 function applyPadSession(session) {
   if (!session || !Array.isArray(session.assignments)) return;
   for (let i = 0; i < PAD_COUNT; i++) {
-    const a = session.assignments[i];
-    padAssignments[i] = a ? {
-      presetKey: String(a.presetKey),
-      label: String(a.label || ''),
-       displayName: String(a.displayName || ''),
-      rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
-      color: String(a.color || '#5b8def'),
-      preservePitch: !!(a && a.preservePitch)
-    } : null;
+    padAssignments[i] = normalizePadAssignment(session.assignments[i]);
   }
   savePadAssignments();
   stopPadPlayback(0.02);
@@ -5487,9 +5696,13 @@ function bindPadsUI() {
     palette.addEventListener('click', (e) => {
       const swatch = e.target.closest('.pad-color-swatch');
       if (!swatch) return;
-      padAssignSelectedColor = swatch.getAttribute('data-color') || '#5b8def';
-      palette.querySelectorAll('.pad-color-swatch').forEach(s => s.classList.toggle('selected', s === swatch));
+      padAssignSelectedColorKey = normalizePadColorKey(
+        swatch.getAttribute('data-color-key') || '',
+        swatch.getAttribute('data-color') || ''
+      );
+      refreshPadColorPalette();
     });
+    refreshPadColorPalette();
   }
 
   const padPreservePitchBtn = document.getElementById('padPreservePitchBtn');
