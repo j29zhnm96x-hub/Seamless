@@ -5057,8 +5057,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   try { padSource.playbackRate.setValueAtTime(rate, audioCtx.currentTime); } catch {}
 
   padGainNode = audioCtx.createGain();
-  padGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-  padGainNode.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+    padGainNode.gain.setValueAtTime(volumeVal, audioCtx.currentTime);
 
   try {
     master.gain.cancelScheduledValues(audioCtx.currentTime);
