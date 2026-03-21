@@ -4710,7 +4710,7 @@ function showHelpOverlay() {
    ================================================================ */
 const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
-const PAD_COUNT = 6;
+const PAD_COUNT = 9;
 const padPickerCollapsedCategories = new Set();
 let padPickerLastOpenCategory = '';
 
@@ -4877,16 +4877,17 @@ function loadPadAssignments() {
   try {
     const raw = localStorage.getItem(PADS_ASSIGNMENTS_KEY);
     const parsed = JSON.parse(raw || '[]');
-    if (Array.isArray(parsed) && parsed.length === PAD_COUNT) {
-      padAssignments = parsed.map(a => {
+    if (Array.isArray(parsed)) {
+      padAssignments = Array.from({ length: PAD_COUNT }, (_, index) => {
+        const a = parsed[index];
         if (!a || !a.presetKey) return null;
         return {
           presetKey: String(a.presetKey),
           label: String(a.label || ''),
           rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
           color: String(a.color || '#5b8def'),
-           preservePitch: !!(a && a.preservePitch),
-           displayName: String(a.displayName || '')
+          preservePitch: !!(a && a.preservePitch),
+          displayName: String(a.displayName || '')
         };
       });
     }
@@ -4932,6 +4933,20 @@ function savePadSessions(sessions) {
   try { localStorage.setItem(PADS_SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
 }
 
+function formatPadDisplayText(label) {
+  const text = String(label || '').trim();
+  if (text.length <= 10) return text;
+
+  const midpoint = Math.ceil(text.length / 2);
+  let splitIndex = text.lastIndexOf(' ', midpoint);
+  if (splitIndex <= 0) splitIndex = text.indexOf(' ', midpoint);
+  if (splitIndex <= 0) splitIndex = 10;
+
+  const firstLine = text.slice(0, splitIndex).trim();
+  const secondLine = text.slice(splitIndex).trim();
+  return secondLine ? `${firstLine}\n${secondLine}` : firstLine;
+}
+
 function renderPadGrid() {
   const grid = document.getElementById('padsGrid');
   if (!grid) return;
@@ -4948,7 +4963,7 @@ function renderPadGrid() {
        el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}`);
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
-       nameEl.textContent = displayText;
+      nameEl.textContent = formatPadDisplayText(displayText);
       el.appendChild(nameEl);
     } else {
       el.style.background = '';
