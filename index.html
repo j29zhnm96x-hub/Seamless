@@ -472,6 +472,18 @@
     </div>
   </div>
 
+  <!-- Session Delete confirmation overlay -->
+  <div id="padSessionDeleteOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Delete pads session">
+    <div class="overlay-card">
+      <h2>Delete Session</h2>
+      <p class="hint" id="padSessionDeleteText">Delete this pads session?</p>
+      <div class="overlay-actions">
+        <button id="padSessionDeleteConfirm" type="button" class="danger" aria-label="Confirm delete session">Delete</button>
+        <button id="padSessionDeleteCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <canvas id="viz" aria-hidden="true"></canvas>
   <audio id="audioOut" playsinline></audio>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

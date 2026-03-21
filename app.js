@@ -5568,11 +5568,7 @@ function renderPadSessionsList() {
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const all = loadPadSessions();
-      const filtered = all.filter(s => s.id !== session.id);
-      savePadSessions(filtered);
-      renderPadSessionsList();
-      setStatus(`Session "${session.name}" deleted.`);
+      confirmDeletePadSession(session);
     });
 
     li.appendChild(btn);
@@ -5582,6 +5578,7 @@ function renderPadSessionsList() {
 }
 
 let pendingRecallSession = null;
+let pendingDeletePadSession = null;
 
 function confirmRecallPadSession(session) {
   const hasAssignments = padAssignments.some(Boolean);
@@ -5595,6 +5592,34 @@ function confirmRecallPadSession(session) {
   } else {
     applyPadSession(session);
   }
+}
+
+function confirmDeletePadSession(session) {
+  if (!session) return;
+  pendingDeletePadSession = session;
+  const overlay = document.getElementById('padSessionDeleteOverlay');
+  const text = document.getElementById('padSessionDeleteText');
+  if (text) text.textContent = `Delete session "${session.name}"?`;
+  if (overlay) overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closePadSessionDeleteModal() {
+  const overlay = document.getElementById('padSessionDeleteOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  pendingDeletePadSession = null;
+  try { updateScrollState(); } catch {}
+}
+
+function confirmDeletePendingPadSession() {
+  const session = pendingDeletePadSession;
+  closePadSessionDeleteModal();
+  if (!session || !session.id) return;
+  const all = loadPadSessions();
+  const filtered = all.filter(s => s.id !== session.id);
+  savePadSessions(filtered);
+  renderPadSessionsList();
+  setStatus(`Session "${session.name}" deleted.`);
 }
 
 function applyPadSession(session) {
@@ -5773,6 +5798,11 @@ function bindPadsUI() {
     pendingRecallSession = null;
     try { updateScrollState(); } catch {}
   });
+
+  const deleteSessionConfirm = document.getElementById('padSessionDeleteConfirm');
+  const deleteSessionCancel = document.getElementById('padSessionDeleteCancel');
+  if (deleteSessionConfirm) deleteSessionConfirm.addEventListener('click', confirmDeletePendingPadSession);
+  if (deleteSessionCancel) deleteSessionCancel.addEventListener('click', closePadSessionDeleteModal);
 }
 
 function bindUI() {
