@@ -4396,6 +4396,24 @@ async function exportAppData() {
       });
     });
 
+    const exportedPadAssignments = (() => {
+      try { return padAssignments.map(a => serializePadAssignment(a)); } catch { return []; }
+    })();
+    const exportedPadSessions = (() => {
+      try {
+        return loadPadSessions().map(session => ({
+          id: session && session.id ? session.id : Date.now().toString(36),
+          name: session && session.name ? session.name : 'Session',
+          createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+          assignments: Array.isArray(session && session.assignments)
+            ? session.assignments.map(a => serializePadAssignment(a))
+            : []
+        }));
+      } catch {
+        return [];
+      }
+    })();
+
     const data = {
       app: 'seamlessplayer',
       version: 2,
@@ -4406,6 +4424,8 @@ async function exportAppData() {
       loopCategories: (() => { try { return JSON.parse(localStorage.getItem(LOOP_CATEGORIES_KEY)) || []; } catch { return []; } })(),
       loopDescriptions: (() => { try { return JSON.parse(localStorage.getItem(LOOP_DESCRIPTIONS_KEY)) || {}; } catch { return {}; } })(),
       loopCatAssignments: (() => { try { return JSON.parse(localStorage.getItem(LOOP_CAT_ASSIGNMENTS_KEY)) || {}; } catch { return {}; } })(),
+      padAssignments: exportedPadAssignments,
+      padSessions: exportedPadSessions,
     };
 
     const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
@@ -4490,6 +4510,25 @@ async function importZipBackup(file) {
       localStorage.setItem(LOOP_CAT_ASSIGNMENTS_KEY, JSON.stringify(data.loopCatAssignments));
     }
   } catch {}
+  try {
+    if (Array.isArray(data.padAssignments)) {
+      const serialized = Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(data.padAssignments[index]));
+      localStorage.setItem(PADS_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+      padAssignments = Array.from({ length: PAD_COUNT }, (_, index) => normalizePadAssignment(data.padAssignments[index]));
+      warmAssignedPadBuffers();
+    }
+  } catch {}
+  try {
+    if (Array.isArray(data.padSessions)) {
+      const sessions = data.padSessions.map((session, sessionIndex) => ({
+        id: session && session.id ? session.id : `imported-${Date.now().toString(36)}-${sessionIndex}`,
+        name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
+        createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+        assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+      }));
+      savePadSessions(sessions);
+    }
+  } catch {}
 
   // Import playlists.
   if (Array.isArray(data.playlists)) {
@@ -4568,6 +4607,8 @@ async function importZipBackup(file) {
   setStatus('Import complete');
   if (activeTab === 'playlists') renderPlaylistsPage();
   if (activeTab === 'loops') renderLoopsPage();
+  try { renderPadGrid(); } catch {}
+  try { renderPadSessionsList(); } catch {}
 }
 
 async function importAppData(file) {
@@ -4614,6 +4655,25 @@ async function importAppData(file) {
     try {
       if (data.loopCatAssignments && typeof data.loopCatAssignments === 'object') {
         localStorage.setItem(LOOP_CAT_ASSIGNMENTS_KEY, JSON.stringify(data.loopCatAssignments));
+      }
+    } catch {}
+    try {
+      if (Array.isArray(data.padAssignments)) {
+        const serialized = Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(data.padAssignments[index]));
+        localStorage.setItem(PADS_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+        padAssignments = Array.from({ length: PAD_COUNT }, (_, index) => normalizePadAssignment(data.padAssignments[index]));
+        warmAssignedPadBuffers();
+      }
+    } catch {}
+    try {
+      if (Array.isArray(data.padSessions)) {
+        const sessions = data.padSessions.map((session, sessionIndex) => ({
+          id: session && session.id ? session.id : `imported-${Date.now().toString(36)}-${sessionIndex}`,
+          name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
+          createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+          assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+        }));
+        savePadSessions(sessions);
       }
     } catch {}
 
@@ -4663,6 +4723,8 @@ async function importAppData(file) {
     setStatus('Import complete');
     if (activeTab === 'playlists') renderPlaylistsPage();
     if (activeTab === 'loops') renderLoopsPage();
+    try { renderPadGrid(); } catch {}
+    try { renderPadSessionsList(); } catch {}
   } catch (e) {
     setStatus('Import failed — invalid JSON');
   }
