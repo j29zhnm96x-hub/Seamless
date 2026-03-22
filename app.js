@@ -4808,6 +4808,7 @@ let padGainNode = null;
 let padPitchShifterNode = null;
 let padPlaying = false;
 const padBufferWarmPromises = new Map();
+let padStartRequestToken = 0;
 let padCountdownEl = null;
 let padCountdownRaf = 0;
 let padCountdownStartTime = 0;
@@ -5240,6 +5241,7 @@ function renderPadGrid() {
 }
 
 function stopPadPlayback(ramp = 0.05) {
+  padStartRequestToken++;
   padPlaying = false;
   padActiveIndex = -1;
   padQueuedIndex = -1;
@@ -5288,6 +5290,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   if (!a) return;
   const effectiveOneShot = !!oneShot || a.loop === false;
   const tapPerfNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+  const requestToken = ++padStartRequestToken;
 
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
@@ -5308,6 +5311,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   }
 
   const result = await loadBufferFromPresetKey(a.presetKey);
+  if (requestToken !== padStartRequestToken) return;
   if (!result || !result.buffer) {
     hidePadCountdown();
     setStatus('Pad: failed to load loop');
@@ -5347,6 +5351,11 @@ async function startPadLoopInternal(index, oneShot = false) {
     disconnectPadPitchShifter();
     try { padGainNode.disconnect(); } catch {}
     try { padGainNode.connect(master); } catch {}
+  }
+  if (requestToken !== padStartRequestToken) {
+    try { padSource.disconnect(); } catch {}
+    try { if (padGainNode) padGainNode.disconnect(); } catch {}
+    return;
   }
   if (effectiveOneShot) {
     padSource.start(startTime, pts.start, playDuration);
