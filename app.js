@@ -1809,8 +1809,12 @@ async function loadBufferFromPresetKey(presetKey) {
   if (kind === 'upload') {
     const preset = userPresets.find(p => p && String(p.id) === String(rest)) || null;
     if (!preset || !preset.blob) return null;
+    if (bufferCache.has(s)) {
+      return { buffer: bufferCache.get(s), sourceLabel: preset.name || 'Imported', presetId: preset.id || null, presetRef: preset };
+    }
     const ab = await preset.blob.arrayBuffer();
     const buf = await decodeArrayBuffer(ab);
+    bufferCache.set(s, buf);
     return { buffer: buf, sourceLabel: preset.name || 'Imported', presetId: preset.id || null, presetRef: preset };
   }
   return null;
@@ -4803,6 +4807,7 @@ let padSource = null;         // current AudioBufferSourceNode for pads
 let padGainNode = null;
 let padPitchShifterNode = null;
 let padPlaying = false;
+const padBufferWarmPromises = new Map();
 let padCountdownEl = null;
 let padCountdownRaf = 0;
 let padCountdownStartTime = 0;
@@ -5119,6 +5124,32 @@ function loadPadAssignments() {
       });
     }
   } catch {}
+  try { warmAssignedPadBuffers(); } catch {}
+}
+
+function warmPadAssignmentBuffer(assignment) {
+  const presetKey = assignment && assignment.presetKey;
+  if (!presetKey) return Promise.resolve(null);
+  if (padBufferWarmPromises.has(presetKey)) return padBufferWarmPromises.get(presetKey);
+
+  const warmPromise = loadBufferFromPresetKey(presetKey)
+    .catch(() => null)
+    .finally(() => {
+      padBufferWarmPromises.delete(presetKey);
+    });
+
+  padBufferWarmPromises.set(presetKey, warmPromise);
+  return warmPromise;
+}
+
+function warmAssignedPadBuffers() {
+  const seen = new Set();
+  for (const assignment of padAssignments) {
+    const presetKey = assignment && assignment.presetKey;
+    if (!presetKey || seen.has(presetKey)) continue;
+    seen.add(presetKey);
+    void warmPadAssignmentBuffer(assignment);
+  }
 }
 
 function disconnectPadPitchShifter() {
@@ -5256,6 +5287,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   const a = padAssignments[index];
   if (!a) return;
   const effectiveOneShot = !!oneShot || a.loop === false;
+  const tapPerfNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
 
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
@@ -5293,15 +5325,18 @@ async function startPadLoopInternal(index, oneShot = false) {
   padSource.loopEnd = pts.end;
 
   const rate = clamp(a.rate || 1.0, RATE_MIN, RATE_MAX);
-  try { padSource.playbackRate.setValueAtTime(rate, audioCtx.currentTime); } catch {}
+  const startTime = audioCtx.currentTime;
+  try { padSource.playbackRate.setValueAtTime(rate, startTime); } catch {}
 
   padGainNode = audioCtx.createGain();
-    padGainNode.gain.setValueAtTime(volumeVal, audioCtx.currentTime);
+  try {
+    padGainNode.gain.cancelScheduledValues(startTime);
+    padGainNode.gain.setValueAtTime(volumeVal, startTime);
+  } catch {}
 
   try {
-    master.gain.cancelScheduledValues(audioCtx.currentTime);
-    master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
-    master.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+    master.gain.cancelScheduledValues(startTime);
+    master.gain.setValueAtTime(volumeVal, startTime);
   } catch {}
 
   padSource.connect(padGainNode);
@@ -5314,10 +5349,19 @@ async function startPadLoopInternal(index, oneShot = false) {
     try { padGainNode.connect(master); } catch {}
   }
   if (effectiveOneShot) {
-    padSource.start(audioCtx.currentTime, pts.start, playDuration);
+    padSource.start(startTime, pts.start, playDuration);
   } else {
-    padSource.start(audioCtx.currentTime);
+    padSource.start(startTime);
   }
+  try {
+    const startedAtPerf = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+    console.debug('[pads] start', {
+      padIndex: index,
+      pointerLatencyMs: tapPerfNow && startedAtPerf ? Math.round((startedAtPerf - tapPerfNow) * 100) / 100 : null,
+      audioCtxTime: Math.round(startTime * 1000) / 1000,
+      mode: effectiveOneShot ? 'one-shot' : 'loop'
+    });
+  } catch {}
   const effectiveLoopDuration = (pts.end - pts.start) / Math.max(0.000001, rate);
   showPadCountdown(effectiveLoopDuration, !effectiveOneShot);
 
@@ -5499,6 +5543,7 @@ function savePadAssignment() {
     preservePitch: padAssignPreservePitch
   };
   savePadAssignments();
+  void warmPadAssignmentBuffer(padAssignments[padAssignTarget]);
   renderPadGrid();
   closePadAssignModal();
 }
@@ -5669,6 +5714,7 @@ function applyPadSession(session) {
     padAssignments[i] = normalizePadAssignment(session.assignments[i]);
   }
   savePadAssignments();
+  try { warmAssignedPadBuffers(); } catch {}
   stopPadPlayback(0.02);
   renderPadGrid();
   setStatus(`Session "${session.name}" loaded.`);
@@ -5690,10 +5736,15 @@ function bindPadsUI() {
   grid.querySelectorAll('.pad').forEach(padEl => {
     const idx = parseInt(padEl.getAttribute('data-pad'), 10) - 1;
 
-    const startLongPress = (e) => {
+    const startLongPress = () => {
       longPressFired = false;
       longPressTimer = setTimeout(() => {
         longPressFired = true;
+        dblClickTimer = 0;
+        lastTapPad = -1;
+        if (padActiveIndex === idx && padPlaying) {
+          stopPadPlayback(0.02);
+        }
         openPadAssignModal(idx);
       }, longPressDelay);
     };
@@ -5704,14 +5755,13 @@ function bindPadsUI() {
 
     const handleTap = () => {
       if (longPressFired) return;
+      if (!padAssignments[idx]) return;
 
       const now = Date.now();
       if (lastTapPad === idx && dblClickTimer && (now - dblClickTimer) < DBL_CLICK_MS) {
         // Double tap — finish session
-        clearTimeout(dblClickTimer);
         dblClickTimer = 0;
         lastTapPad = -1;
-        if (!padAssignments[idx]) return;
         if (!padPlaying) {
           startPadLoopOnce(idx);
         } else if (padActiveIndex === idx) {
@@ -5725,29 +5775,24 @@ function bindPadsUI() {
       lastTapPad = idx;
       dblClickTimer = now;
 
-      // Single tap with slight delay to distinguish from double tap
-      setTimeout(() => {
-        if (dblClickTimer !== now) return; // was consumed by double tap
-        dblClickTimer = 0;
+      if (padActiveIndex === idx && padPlaying && !padFinishing) return;
 
-        if (!padAssignments[idx]) return; // nothing assigned
-        if (padActiveIndex === idx && padPlaying && !padFinishing) return; // same pad, already playing
-
-        if (padPlaying) {
-          schedulePadSwitch(idx);
-        } else {
-          startPadLoop(idx);
-        }
-      }, DBL_CLICK_MS + 20);
+      if (padPlaying) {
+        schedulePadSwitch(idx);
+      } else {
+        startPadLoop(idx);
+      }
     };
 
-    // Touch events
     padEl.addEventListener('pointerdown', (e) => {
-      startLongPress(e);
+      if (e.pointerType !== 'mouse' || e.button === 0) {
+        e.preventDefault();
+      }
+      startLongPress();
+      handleTap();
     });
     padEl.addEventListener('pointerup', () => {
       cancelLongPress();
-      handleTap();
     });
     padEl.addEventListener('pointerleave', cancelLongPress);
     padEl.addEventListener('pointercancel', cancelLongPress);
