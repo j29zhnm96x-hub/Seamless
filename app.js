@@ -93,7 +93,7 @@ const I18N = {
     help_favorites_h: 'Favorites',
     help_favorites_p: 'Use the plus button beside the current loop, playlist, playlist detail view, or loop info page to pin items to Favorites. The Favorites island on the Player page becomes a quick launcher for saved loops and playlists, and tapping the plus again removes an item.',
     help_pads_h: 'Pads',
-    help_pads_p: 'The Pads island gives you 9 performance pads. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary. Double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Use Save to store the current 9-pad layout as a Pads Session, then load or delete sessions from the Playlists tab. The circular ring above the grid shows loop progress while a pad is playing.',
+    help_pads_p: 'The Pads island gives you 9 performance pads. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, repeat mode, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary. Turn Repeat off when you want the pad to fire once and stop like a sampler or ending hit. Double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Use Save to store the current 9-pad layout as a Pads Session, then load or delete sessions from the Playlists tab. The circular ring above the grid shows loop progress while a pad is playing.',
     help_playlists_h: 'Playlists',
     help_playlists_p: 'Create playlists from the Playlists tab, open one to play it, mark it as a favorite, rename it, or delete it. In edit mode you can add loops, change repetitions, adjust per-loop volume, and reorder rows by dragging on desktop. When a playlist plays, the app steps through each entry automatically and can repeat the whole sequence if Repeat is enabled.',
     help_loops_h: 'Audio Loops',
@@ -119,6 +119,7 @@ const I18N = {
     pads_loop_label: 'Loop',
     pads_rate_label: 'Rate',
     pads_color_label: 'Color',
+    pads_repeat_label: 'Repeat',
     pads_assign_save: 'Save',
     pads_assign_clear: 'Clear',
     pads_session_save_title: 'Save Pads Session',
@@ -182,7 +183,7 @@ const I18N = {
     help_favorites_h: 'Favoriti',
     help_favorites_p: 'Koristite plus pokraj trenutne petlje, playliste, detalja playliste ili stranice s informacijama o petlji kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih petlji i playlista, a ponovni dodir na plus uklanja stavku.',
     help_pads_h: 'Padovi',
-    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu petlje, vlastitog naziva, brzine, opcije očuvanja visine tona i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici petlje. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak petlje dok pad svira.',
+    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu petlje, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici petlje. Isključite Repeat kada želite da pad odsvira samo jednom i stane, kao sampler ili završni udarac. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak petlje dok pad svira.',
     help_playlists_h: 'Playliste',
     help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati petlje, mijenjati broj ponavljanja, prilagoditi glasnoću po petlji i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
     help_loops_h: 'Audio petlje',
@@ -208,6 +209,7 @@ const I18N = {
     pads_loop_label: 'Petlja',
     pads_rate_label: 'Brzina',
     pads_color_label: 'Boja',
+    pads_repeat_label: 'Ponovi',
     pads_assign_save: 'Spremi',
     pads_assign_clear: 'Obriši',
     pads_session_save_title: 'Spremi pad sesiju',
@@ -282,6 +284,13 @@ function applyLanguage(lang) {
   if (padsHead) padsHead.textContent = t('pads_title');
   const padsSaveBtn = document.getElementById('padsSaveSession');
   if (padsSaveBtn) padsSaveBtn.textContent = t('pads_save');
+  const padRepeatLabel = document.getElementById('padRepeatLabel');
+  if (padRepeatLabel) padRepeatLabel.textContent = t('pads_repeat_label');
+  const padRepeatBtn = document.getElementById('padRepeatBtn');
+  if (padRepeatBtn) {
+    padRepeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
+    padRepeatBtn.title = t('pads_repeat_label');
+  }
 
   // Loops page
   setText('#page-loops .card h2', t('loops_title'));
@@ -4917,6 +4926,7 @@ function normalizePadAssignment(a, theme = getCurrentTheme()) {
     rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
     colorKey,
     color: resolvePadDisplayColor(colorKey, theme),
+    loop: a.loop !== false,
     preservePitch: !!(a && a.preservePitch),
     displayName: String(a.displayName || '')
   };
@@ -4931,6 +4941,7 @@ function serializePadAssignment(a, theme = getCurrentTheme()) {
     rate: normalized.rate,
     colorKey: normalized.colorKey,
     color: normalized.color,
+    loop: normalized.loop !== false,
     preservePitch: normalized.preservePitch,
     displayName: normalized.displayName
   } : null;
@@ -5244,6 +5255,7 @@ async function startPadLoopOnce(index) {
 async function startPadLoopInternal(index, oneShot = false) {
   const a = padAssignments[index];
   if (!a) return;
+  const effectiveOneShot = !!oneShot || a.loop === false;
 
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
@@ -5276,7 +5288,7 @@ async function startPadLoopInternal(index, oneShot = false) {
 
   padSource = audioCtx.createBufferSource();
   padSource.buffer = buffer;
-  padSource.loop = !oneShot;
+  padSource.loop = !effectiveOneShot;
   padSource.loopStart = pts.start;
   padSource.loopEnd = pts.end;
 
@@ -5301,13 +5313,13 @@ async function startPadLoopInternal(index, oneShot = false) {
     try { padGainNode.disconnect(); } catch {}
     try { padGainNode.connect(master); } catch {}
   }
-  if (oneShot) {
+  if (effectiveOneShot) {
     padSource.start(audioCtx.currentTime, pts.start, playDuration);
   } else {
     padSource.start(audioCtx.currentTime);
   }
   const effectiveLoopDuration = (pts.end - pts.start) / Math.max(0.000001, rate);
-  showPadCountdown(effectiveLoopDuration, !oneShot);
+  showPadCountdown(effectiveLoopDuration, !effectiveOneShot);
 
   padActiveIndex = index;
   padLastPlayedIndex = index;
@@ -5316,20 +5328,23 @@ async function startPadLoopInternal(index, oneShot = false) {
   padQueuedOneShot = false;
   padFinishing = !!oneShot;
 
-  if (oneShot) {
+  if (effectiveOneShot) {
+    const sourceRef = padSource;
+    const gainRef = padGainNode;
     const onEnded = () => {
-      if (padSource) padSource.removeEventListener('ended', onEnded);
+      try { sourceRef.removeEventListener('ended', onEnded); } catch {}
       try { disconnectPadPitchShifter(); } catch {}
       hidePadCountdown();
+      if (padSource !== sourceRef) return;
       padPlaying = false;
       padActiveIndex = -1;
       padFinishing = false;
       padSource = null;
-      padGainNode = null;
+      if (padGainNode === gainRef) padGainNode = null;
       setStatus(t('status_stopped'));
       renderPadGrid();
     };
-    padSource.addEventListener('ended', onEnded);
+    sourceRef.addEventListener('ended', onEnded);
   }
 
   setStatus(`Pad ${index + 1}: ${a.label || 'Playing'}${oneShot ? ' (final)' : ''}`);
@@ -5367,15 +5382,16 @@ function schedulePadSwitch(nextIndex, oneShot = false) {
   padSource.loop = false;
   padFinishing = true;
 
+  const sourceRef = padSource;
   const onEnded = () => {
-    padSource.removeEventListener('ended', onEnded);
+    try { sourceRef.removeEventListener('ended', onEnded); } catch {}
     hidePadCountdown();
     if (padQueuedIndex === nextIndex) {
       if (padQueuedOneShot) startPadLoopOnce(nextIndex);
       else startPadLoop(nextIndex);
     }
   };
-  padSource.addEventListener('ended', onEnded);
+  sourceRef.addEventListener('ended', onEnded);
 }
 
 function schedulePadFinish() {
@@ -5386,10 +5402,12 @@ function schedulePadFinish() {
 
   // Let current loop play to end, then stop
   padSource.loop = false;
+  const sourceRef = padSource;
   const onEnded = () => {
-    padSource.removeEventListener('ended', onEnded);
+    try { sourceRef.removeEventListener('ended', onEnded); } catch {}
     try { disconnectPadPitchShifter(); } catch {}
     hidePadCountdown();
+    if (padSource !== sourceRef) return;
     padPlaying = false;
     padActiveIndex = -1;
     padFinishing = false;
@@ -5398,7 +5416,7 @@ function schedulePadFinish() {
     setStatus(t('status_stopped'));
     renderPadGrid();
   };
-  padSource.addEventListener('ended', onEnded);
+  sourceRef.addEventListener('ended', onEnded);
 }
 
 // ---- Pad Assignment Modal ----
@@ -5406,6 +5424,7 @@ let padAssignTarget = -1;
 let padAssignSelectedKey = '';
 let padAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
 let padAssignPreservePitch = false;
+let padAssignLoop = true;
 
 function openPadAssignModal(padIndex) {
   padAssignTarget = padIndex;
@@ -5417,6 +5436,8 @@ function openPadAssignModal(padIndex) {
   const rateInput = document.getElementById('padRateInput');
   const palette = document.getElementById('padColorPalette');
   const preservePitchBtn = document.getElementById('padPreservePitchBtn');
+  const repeatBtn = document.getElementById('padRepeatBtn');
+  const repeatLabel = document.getElementById('padRepeatLabel');
 
   if (!overlay) return;
   if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
@@ -5429,6 +5450,13 @@ function openPadAssignModal(padIndex) {
   if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
   padAssignPreservePitch = !!(existing && existing.preservePitch);
   if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
+  padAssignLoop = existing ? existing.loop !== false : true;
+  if (repeatBtn) {
+    repeatBtn.setAttribute('aria-pressed', padAssignLoop ? 'true' : 'false');
+    repeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
+    repeatBtn.title = t('pads_repeat_label');
+  }
+  if (repeatLabel) repeatLabel.textContent = t('pads_repeat_label');
 
   // Color
   padAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
@@ -5467,6 +5495,7 @@ function savePadAssignment() {
     rate,
     colorKey: padAssignSelectedColorKey,
     color: resolvePadDisplayColor(padAssignSelectedColorKey),
+    loop: padAssignLoop,
     preservePitch: padAssignPreservePitch
   };
   savePadAssignments();
@@ -5747,6 +5776,14 @@ function bindPadsUI() {
     padPreservePitchBtn.addEventListener('click', () => {
       padAssignPreservePitch = !padAssignPreservePitch;
       padPreservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
+    });
+  }
+
+  const padRepeatBtn = document.getElementById('padRepeatBtn');
+  if (padRepeatBtn) {
+    padRepeatBtn.addEventListener('click', () => {
+      padAssignLoop = !padAssignLoop;
+      padRepeatBtn.setAttribute('aria-pressed', padAssignLoop ? 'true' : 'false');
     });
   }
 

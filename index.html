@@ -415,11 +415,19 @@
         <label class="pad-assign-label" for="padRateInput">Rate</label>
         <div class="pad-rate-row">
           <input id="padRateInput" class="text-input pad-rate-input" type="text" inputmode="decimal" autocomplete="off" value="1.00" />
-          <div class="pad-preserve-pitch-row">
-            <button id="padPreservePitchBtn" type="button" class="preserve-pitch-toggle" aria-pressed="false" aria-label="Preserve pitch for this pad">
-              <span class="preserve-pitch-dot"></span>
-            </button>
-            <span class="pad-preserve-pitch-label">Pitch</span>
+          <div class="pad-assign-toggles">
+            <div class="pad-preserve-pitch-row">
+              <button id="padPreservePitchBtn" type="button" class="preserve-pitch-toggle" aria-pressed="false" aria-label="Preserve pitch for this pad">
+                <span class="preserve-pitch-dot"></span>
+              </button>
+              <span class="pad-preserve-pitch-label">Pitch</span>
+            </div>
+            <div class="pad-preserve-pitch-row pad-repeat-row">
+              <button id="padRepeatBtn" type="button" class="preserve-pitch-toggle repeat-toggle" aria-pressed="true" aria-label="Repeat">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+              </button>
+              <span id="padRepeatLabel" class="pad-preserve-pitch-label">Repeat</span>
+            </div>
           </div>
         </div>
       </div>
