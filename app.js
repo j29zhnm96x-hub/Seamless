@@ -72,7 +72,7 @@ const I18N = {
     loopinfo_category: 'Category',
     loopinfo_filesize: 'File size',
     loopinfo_type: 'Type',
-    trimmer_info_hint: 'Drag the IN/OUT cursors to adjust loop points',
+    trimmer_info_hint: 'Drag IN/OUT markers and use the lower waveform edges for fade-in and fade-out.',
     trimmer_zoom: 'Zoom',
     trimmer_test: 'Test Loop',
     trimmer_stop: 'Stop',
@@ -80,6 +80,11 @@ const I18N = {
     trimmer_reset: 'Reset',
     trimmer_set_in: 'Set IN',
     trimmer_set_out: 'Set OUT',
+    trimmer_readout_in: 'IN',
+    trimmer_readout_out: 'OUT',
+    trimmer_readout_length: 'Length',
+    trimmer_readout_fade_in: 'Fade In',
+    trimmer_readout_fade_out: 'Fade Out',
     trimmer_rename: 'Rename',
     trimmer_rename_prompt: 'Rename loop',
     trimmer_rename_placeholder: 'Loop name',
@@ -181,7 +186,7 @@ const I18N = {
     loopinfo_category: 'Kategorija',
     loopinfo_filesize: 'Veličina',
     loopinfo_type: 'Vrsta',
-    trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja loopa',
+    trimmer_info_hint: 'Povucite IN/OUT markere i koristite donje rubove vala za fade-in i fade-out.',
     trimmer_zoom: 'Zum',
     trimmer_test: 'Testiraj loop',
     trimmer_stop: 'Zaustavi',
@@ -189,6 +194,11 @@ const I18N = {
     trimmer_reset: 'Vrati',
     trimmer_set_in: 'Postavi IN',
     trimmer_set_out: 'Postavi OUT',
+    trimmer_readout_in: 'IN',
+    trimmer_readout_out: 'OUT',
+    trimmer_readout_length: 'Duljina',
+    trimmer_readout_fade_in: 'Fade In',
+    trimmer_readout_fade_out: 'Fade Out',
     trimmer_rename: 'Preimenuj',
     trimmer_rename_prompt: 'Preimenuj loop',
     trimmer_rename_placeholder: 'Naziv loopa',
@@ -429,6 +439,14 @@ function applyLanguage(lang) {
   if (btnSetIn) { btnSetIn.textContent = t('trimmer_set_in'); btnSetIn.setAttribute('aria-label', t('trimmer_set_in')); }
   const btnSetOut = document.getElementById('trimSetOut');
   if (btnSetOut) { btnSetOut.textContent = t('trimmer_set_out'); btnSetOut.setAttribute('aria-label', t('trimmer_set_out')); }
+  const trimReadoutLabels = document.querySelectorAll('#page-trimmer .trim-readout-label');
+  if (trimReadoutLabels && trimReadoutLabels.length >= 5) {
+    trimReadoutLabels[0].textContent = t('trimmer_readout_in');
+    trimReadoutLabels[1].textContent = t('trimmer_readout_out');
+    trimReadoutLabels[2].textContent = t('trimmer_readout_length');
+    trimReadoutLabels[3].textContent = t('trimmer_readout_fade_in');
+    trimReadoutLabels[4].textContent = t('trimmer_readout_fade_out');
+  }
 
   const btnRename = document.getElementById('trimRename');
   if (btnRename) { btnRename.textContent = t('trimmer_rename'); btnRename.setAttribute('aria-label', t('trimmer_rename')); }
@@ -841,6 +859,8 @@ function addUserPresetFromBlob({ name, blob, saved }) {
     persisted: !!(saved && saved.id),
     createdAt: (saved && saved.createdAt) || Date.now()
   };
+  if (saved && saved.fadeIn != null) presetObj.fadeIn = saved.fadeIn;
+  if (saved && saved.fadeOut != null) presetObj.fadeOut = saved.fadeOut;
   userPresets.unshift(presetObj);
   currentPresetId = presetObj.id || null;
   currentPresetRef = presetObj;
@@ -862,7 +882,7 @@ async function listPersistedUploads() {
   return items;
 }
 
-async function savePersistedUpload({ name, blob, trimIn, trimOut }) {
+async function savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOut }) {
   if (!blob) return null;
   const record = {
     id: makeUploadId(),
@@ -870,7 +890,9 @@ async function savePersistedUpload({ name, blob, trimIn, trimOut }) {
     blob,
     createdAt: Date.now(),
     ...(trimIn != null ? { trimIn } : {}),
-    ...(trimOut != null ? { trimOut } : {})
+    ...(trimOut != null ? { trimOut } : {}),
+    ...(fadeIn != null ? { fadeIn } : {}),
+    ...(fadeOut != null ? { fadeOut } : {})
   };
   const db = await openUploadsDb();
 
@@ -908,7 +930,9 @@ async function putPersistedUploadRecord(record) {
     blob: record.blob,
     createdAt,
     ...(record.trimIn != null ? { trimIn: record.trimIn } : {}),
-    ...(record.trimOut != null ? { trimOut: record.trimOut } : {})
+    ...(record.trimOut != null ? { trimOut: record.trimOut } : {}),
+    ...(record.fadeIn != null ? { fadeIn: record.fadeIn } : {}),
+    ...(record.fadeOut != null ? { fadeOut: record.fadeOut } : {})
   };
   const db = await openUploadsDb();
 
@@ -999,6 +1023,8 @@ async function hydratePersistedUploadsIntoUserPresets() {
       const preset = { id: it.id, name: overrideName || it.name || 'Audio', blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
       if (it.trimIn != null) preset.trimIn = it.trimIn;
       if (it.trimOut != null) preset.trimOut = it.trimOut;
+      if (it.fadeIn != null) preset.fadeIn = it.fadeIn;
+      if (it.fadeOut != null) preset.fadeOut = it.fadeOut;
       userPresets.unshift(preset);
     }
   } catch {}
@@ -1610,9 +1636,11 @@ let trimBuffer = null;
 let trimPreset = null;  // the userPresets entry being trimmed
 let trimIn = 0;
 let trimOut = 0;
+let trimFadeInSec = 0;
+let trimFadeOutSec = 0;
 let trimZoomLevel = 1;
 let trimViewStart = 0; // left edge of zoomed view (seconds)
-let trimDragging = null; // 'in' | 'out' | 'pan' | null
+let trimDragging = null; // 'in' | 'out' | 'fadeIn' | 'fadeOut' | 'pan' | null
 let trimDragStartX = 0;
 let trimPanStartView = 0;
 let trimTestSource = null;
@@ -3224,6 +3252,8 @@ async function openTrimmer(preset) {
       trimIn = pts.start;
       trimOut = pts.end;
     }
+    trimFadeInSec = clamp(Number(preset.fadeIn) || 0, 0, Math.max(0, trimOut - trimIn - 0.001));
+    trimFadeOutSec = clamp(Number(preset.fadeOut) || 0, 0, Math.max(0, trimOut - trimIn - trimFadeInSec - 0.001));
     trimCursorTime = clamp(trimIn, 0, Math.max(0, buf.duration || 0));
     trimZoomLevel = 1;
     trimViewStart = 0;
@@ -3261,9 +3291,65 @@ function refreshPresetReferenceAfterOverwrite(preset, { name, blob, trimIn, trim
   preset.persisted = true;
   preset.trimIn = trimIn;
   preset.trimOut = trimOut;
+  preset.fadeIn = trimFadeInSec;
+  preset.fadeOut = trimFadeOutSec;
   if (currentPresetRef && preset === currentPresetRef) {
     currentSourceLabel = stripFileExt(name);
   }
+}
+
+function clampTrimFadeDurations() {
+  const segmentDuration = Math.max(0, trimOut - trimIn);
+  if (!isFinite(segmentDuration) || segmentDuration <= 0) {
+    trimFadeInSec = 0;
+    trimFadeOutSec = 0;
+    return;
+  }
+  const maxTotal = Math.max(0, segmentDuration - 0.001);
+  trimFadeInSec = clamp(Number(trimFadeInSec) || 0, 0, maxTotal);
+  trimFadeOutSec = clamp(Number(trimFadeOutSec) || 0, 0, maxTotal);
+  const total = trimFadeInSec + trimFadeOutSec;
+  if (total > maxTotal) {
+    const overflow = total - maxTotal;
+    if (trimDragging === 'fadeIn') trimFadeInSec = Math.max(0, trimFadeInSec - overflow);
+    else if (trimDragging === 'fadeOut') trimFadeOutSec = Math.max(0, trimFadeOutSec - overflow);
+    else trimFadeOutSec = Math.max(0, trimFadeOutSec - overflow);
+  }
+}
+
+function applyFadeEnvelopeToBuffer(buffer, fadeInSec = 0, fadeOutSec = 0) {
+  if (!buffer) return buffer;
+  const sampleRate = buffer.sampleRate || 44100;
+  const fadeInSamples = Math.max(0, Math.floor((Number(fadeInSec) || 0) * sampleRate));
+  const fadeOutSamples = Math.max(0, Math.floor((Number(fadeOutSec) || 0) * sampleRate));
+  if (!fadeInSamples && !fadeOutSamples) return buffer;
+  for (let channelIndex = 0; channelIndex < buffer.numberOfChannels; channelIndex++) {
+    const channel = buffer.getChannelData(channelIndex);
+    const length = channel.length;
+    const safeFadeIn = Math.min(fadeInSamples, length);
+    const safeFadeOut = Math.min(fadeOutSamples, length);
+    for (let index = 0; index < safeFadeIn; index++) {
+      const gain = safeFadeIn <= 1 ? 1 : (index / (safeFadeIn - 1));
+      channel[index] *= gain;
+    }
+    for (let index = 0; index < safeFadeOut; index++) {
+      const sampleIndex = length - safeFadeOut + index;
+      if (sampleIndex < 0 || sampleIndex >= length) continue;
+      const gain = safeFadeOut <= 1 ? 0 : (1 - (index / (safeFadeOut - 1)));
+      channel[sampleIndex] *= gain;
+    }
+  }
+  return buffer;
+}
+
+async function renderCurrentTrimmedAudio(applyFades = true) {
+  const range = getCurrentTrimRange();
+  if (!trimBuffer || !range) return null;
+  const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+  if (!applyFades) return { rendered, range };
+  clampTrimFadeDurations();
+  applyFadeEnvelopeToBuffer(rendered, trimFadeInSec, trimFadeOutSec);
+  return { rendered, range };
 }
 
 function assignSavedLoopToPadTarget(saved, presetName) {
@@ -3296,7 +3382,9 @@ async function overwriteTrimmedLoopOriginal() {
 
   try {
     setStatus('Overwriting original loop…');
-    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+    const renderedResult = await renderCurrentTrimmedAudio(true);
+    if (!renderedResult || !renderedResult.rendered) { setStatus('Trim is too short'); return false; }
+    const rendered = renderedResult.rendered;
     const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
     const record = await getPersistedUploadRecord(trimPreset.id);
     if (!record) {
@@ -3310,6 +3398,8 @@ async function overwriteTrimmedLoopOriginal() {
       blob: wavBlob,
       trimIn: 0,
       trimOut: rendered.duration || range.segDur,
+      fadeIn: trimFadeInSec,
+      fadeOut: trimFadeOutSec,
       updatedAt: Date.now()
     };
     const saved = await putPersistedUploadRecord(nextRecord);
@@ -3464,9 +3554,35 @@ function drawTrimWaveform() {
   // Dimmed region outside trim
   const inPx = Math.round(((trimIn - vStart) / (vEnd - vStart)) * w);
   const outPx = Math.round(((trimOut - vStart) / (vEnd - vStart)) * w);
+  const fadeInPx = Math.round((((trimIn + trimFadeInSec) - vStart) / (vEnd - vStart)) * w);
+  const fadeOutPx = Math.round((((trimOut - trimFadeOutSec) - vStart) / (vEnd - vStart)) * w);
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   if (inPx > 0) ctx.fillRect(0, 0, Math.min(w, inPx), h);
   if (outPx < w) ctx.fillRect(Math.max(0, outPx), 0, w - outPx, h);
+
+  if (trimFadeInSec > 0 && fadeInPx > inPx) {
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.18)';
+    ctx.beginPath();
+    ctx.moveTo(inPx, h);
+    ctx.lineTo(inPx, 0);
+    ctx.lineTo(fadeInPx, h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(fadeInPx - 1, Math.floor(h * 0.58), 3, Math.ceil(h * 0.42));
+  }
+
+  if (trimFadeOutSec > 0 && fadeOutPx < outPx) {
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.18)';
+    ctx.beginPath();
+    ctx.moveTo(fadeOutPx, h);
+    ctx.lineTo(outPx, 0);
+    ctx.lineTo(outPx, h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f87171';
+    ctx.fillRect(fadeOutPx - 1, Math.floor(h * 0.58), 3, Math.ceil(h * 0.42));
+  }
 
   // IN cursor (green line)
   if (inPx >= 0 && inPx <= w) {
@@ -3491,9 +3607,13 @@ function updateTrimReadouts() {
   const inEl = document.getElementById('trimInTime');
   const outEl = document.getElementById('trimOutTime');
   const durEl = document.getElementById('trimDuration');
+  const fadeInEl = document.getElementById('trimFadeInTime');
+  const fadeOutEl = document.getElementById('trimFadeOutTime');
   if (inEl) inEl.textContent = `${trimIn.toFixed(3)}s`;
   if (outEl) outEl.textContent = `${trimOut.toFixed(3)}s`;
   if (durEl) durEl.textContent = `${Math.max(0, trimOut - trimIn).toFixed(3)}s`;
+  if (fadeInEl) fadeInEl.textContent = `${trimFadeInSec.toFixed(3)}s`;
+  if (fadeOutEl) fadeOutEl.textContent = `${trimFadeOutSec.toFixed(3)}s`;
 }
 
 function setTrimPointToPlayhead(which) {
@@ -3522,6 +3642,8 @@ function setTrimPointToPlayhead(which) {
     return;
   }
 
+  clampTrimFadeDurations();
+
   try {
     if (trimTestSource) {
       trimTestSource.loopStart = trimIn;
@@ -3549,11 +3671,18 @@ function handleTrimPointerDown(e) {
   const outPx = ((trimOut - vStart) / (vEnd - vStart)) * pixelWidth;
   const distIn = Math.abs(x - inPx);
   const distOut = Math.abs(x - outPx);
+  const fadeZoneHeight = rect.height * 0.32;
+  const activeWidth = Math.max(0, outPx - inPx);
+  const fadeEdgeWidth = Math.min(72, Math.max(32, activeWidth * 0.35));
 
   if (distIn <= grabRadius && distIn <= distOut) {
     trimDragging = 'in';
   } else if (distOut <= grabRadius) {
     trimDragging = 'out';
+  } else if (e.clientY >= rect.bottom - fadeZoneHeight && x >= inPx && x <= inPx + fadeEdgeWidth) {
+    trimDragging = 'fadeIn';
+  } else if (e.clientY >= rect.bottom - fadeZoneHeight && x <= outPx && x >= outPx - fadeEdgeWidth) {
+    trimDragging = 'fadeOut';
   } else {
     // Tap background: move playhead here for easier zoom focus.
     trimCursorTime = clamp(timeAtX, 0, Math.max(0, trimBuffer.duration || 0));
@@ -3592,7 +3721,12 @@ function handleTrimPointerMove(e) {
     trimIn = Math.max(0, Math.min(time, trimOut - 0.001));
   } else if (trimDragging === 'out') {
     trimOut = Math.max(trimIn + 0.001, Math.min(time, dur));
+  } else if (trimDragging === 'fadeIn') {
+    trimFadeInSec = Math.max(0, Math.min(time - trimIn, (trimOut - trimIn) - trimFadeOutSec - 0.001));
+  } else if (trimDragging === 'fadeOut') {
+    trimFadeOutSec = Math.max(0, Math.min(trimOut - time, (trimOut - trimIn) - trimFadeInSec - 0.001));
   }
+  clampTrimFadeDurations();
   updateTrimReadouts();
   drawTrimWaveform();
 }
@@ -3728,11 +3862,15 @@ async function playTrimTest() {
   // Stop any main playback to avoid overlap.
   stopLoop(0, false);
 
+  const renderedResult = await renderCurrentTrimmedAudio(true);
+  if (!renderedResult || !renderedResult.rendered) return;
+  const previewBuffer = renderedResult.rendered;
+
   trimTestSource = audioCtx.createBufferSource();
-  trimTestSource.buffer = trimBuffer;
+  trimTestSource.buffer = previewBuffer;
   trimTestSource.loop = true;
-  trimTestSource.loopStart = trimIn;
-  trimTestSource.loopEnd = trimOut;
+  trimTestSource.loopStart = 0;
+  trimTestSource.loopEnd = Math.max(0.001, previewBuffer.duration || 0.001);
   try { trimTestSource.playbackRate.setValueAtTime(1, audioCtx.currentTime); } catch {}
 
   trimTestGain = audioCtx.createGain();
@@ -3746,7 +3884,7 @@ async function playTrimTest() {
   master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
   master.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
 
-  trimTestSource.start(audioCtx.currentTime, trimIn);
+  trimTestSource.start(audioCtx.currentTime, 0);
   startOutputIfNeeded();
   setStatus('Playing trim preview…');
   startTrimCursorFollow();
@@ -3861,7 +3999,9 @@ async function createTrimmedLoopAsWav(customName = '') {
 
   try {
     setStatus('Rendering trimmed loop…');
-    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+    const renderedResult = await renderCurrentTrimmedAudio(true);
+    if (!renderedResult || !renderedResult.rendered) { setStatus('Trim is too short'); return; }
+    const rendered = renderedResult.rendered;
     setStatus('Encoding WAV…');
     const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
 
@@ -3872,7 +4012,9 @@ async function createTrimmedLoopAsWav(customName = '') {
       name,
       blob: wavBlob,
       trimIn: 0,
-      trimOut: rendered.duration || range.segDur
+      trimOut: rendered.duration || range.segDur,
+      fadeIn: trimFadeInSec,
+      fadeOut: trimFadeOutSec
     });
 
     addUserPresetFromBlob({ name, blob: wavBlob, saved });
@@ -3942,7 +4084,9 @@ async function createTrimmedLoopAsCompressed(customName = '') {
 
   try {
     setStatus('Rendering trimmed loop…');
-    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+    const renderedResult = await renderCurrentTrimmedAudio(true);
+    if (!renderedResult || !renderedResult.rendered) { setStatus('Trim is too short'); return; }
+    const rendered = renderedResult.rendered;
 
     // Try a smaller format first (Safari/iOS often supports audio/mp4).
     setStatus('Encoding compressed audio…');
@@ -3979,7 +4123,9 @@ async function createTrimmedLoopAsCompressed(customName = '') {
         name,
         blob: wavBlob,
         trimIn: 0,
-        trimOut: rendered.duration || range.segDur
+        trimOut: rendered.duration || range.segDur,
+        fadeIn: trimFadeInSec,
+        fadeOut: trimFadeOutSec
       });
 
       addUserPresetFromBlob({ name, blob: wavBlob, saved });
@@ -4000,7 +4146,9 @@ async function createTrimmedLoopAsCompressed(customName = '') {
       name,
       blob,
       trimIn: 0,
-      trimOut: rendered.duration || range.segDur
+      trimOut: rendered.duration || range.segDur,
+      fadeIn: trimFadeInSec,
+      fadeOut: trimFadeOutSec
     });
 
     addUserPresetFromBlob({ name, blob, saved });
@@ -4088,12 +4236,16 @@ async function resetTrimPoints() {
   const pts = computeLoopPoints(trimBuffer);
   trimIn = pts.start;
   trimOut = pts.end;
+  trimFadeInSec = 0;
+  trimFadeOutSec = 0;
   updateTrimReadouts();
   drawTrimWaveform();
   // Also clear persisted trim.
   if (trimPreset) {
     delete trimPreset.trimIn;
     delete trimPreset.trimOut;
+    delete trimPreset.fadeIn;
+    delete trimPreset.fadeOut;
     if (trimPreset.id) {
       try {
         const db = await openUploadsDb();
@@ -4107,6 +4259,8 @@ async function resetTrimPoints() {
         if (rec) {
           delete rec.trimIn;
           delete rec.trimOut;
+          delete rec.fadeIn;
+          delete rec.fadeOut;
           await idbTx(db, 'readwrite', (store) => store.put(rec));
         }
         try { db.close(); } catch {}

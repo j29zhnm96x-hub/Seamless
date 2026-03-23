@@ -749,13 +749,13 @@ button.danger{background:var(--danger);color:#fff}
 .trim-mark-actions button{flex:1 1 auto;min-width:0;text-align:center}
 
 .trim-readouts{
-  display:flex;gap:0;margin-bottom:10px;
+  display:grid;grid-template-columns:repeat(5, minmax(0, 1fr));gap:0;margin-bottom:10px;
   border:1px solid var(--border);border-radius:var(--radius);
   overflow:hidden;
   box-shadow:var(--shadow);
 }
 .trim-readout{
-  flex:1;display:flex;flex-direction:column;align-items:center;
+  display:flex;flex-direction:column;align-items:center;
   padding:8px 6px;background:var(--surface);
   border-right:1px solid var(--border);
 }
@@ -1202,6 +1202,9 @@ html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
 @media(max-width:520px){
   .controls button,.imports button{flex:1 1 auto}
   .detail-edit-controls{padding-left:0;grid-template-columns:1fr}
+  .trim-readouts{grid-template-columns:repeat(3, minmax(0, 1fr))}
+  .trim-readout:nth-child(3){border-right:none}
+  .trim-readout:nth-child(-n+3){border-bottom:1px solid var(--border)}
   .trim-actions{flex-direction:column}
   .trim-actions button{flex:none;width:100%}
 }
