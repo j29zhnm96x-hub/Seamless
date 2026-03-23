@@ -234,6 +234,20 @@
         </div>
         <div class="trim-canvas-wrap">
           <canvas id="trimCanvas" height="200" aria-label="Trim waveform"></canvas>
+          <div id="trimInHandle" class="trim-boundary-handle trim-boundary-handle-in" aria-label="Trim IN handle" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0.000s">
+            <div class="trim-boundary-line" aria-hidden="true"></div>
+            <div class="trim-boundary-label" aria-hidden="true">IN</div>
+          </div>
+          <div id="trimOutHandle" class="trim-boundary-handle trim-boundary-handle-out" aria-label="Trim OUT handle" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0.000s">
+            <div class="trim-boundary-line" aria-hidden="true"></div>
+            <div class="trim-boundary-label" aria-hidden="true">Out</div>
+          </div>
+          <div id="trimFadeInHandle" class="trim-fade-handle" aria-label="Fade in handle" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0.000s">
+            <div class="trim-fade-knob" aria-hidden="true"></div>
+          </div>
+          <div id="trimFadeOutHandle" class="trim-fade-handle" aria-label="Fade out handle" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0.000s">
+            <div class="trim-fade-knob" aria-hidden="true"></div>
+          </div>
           <div id="trimCursor" class="trim-playhead" aria-label="Playhead (drag to focus zoom)" tabindex="0">
             <div class="trim-playhead-line" aria-hidden="true"></div>
             <div class="trim-playhead-handle" aria-hidden="true"></div>

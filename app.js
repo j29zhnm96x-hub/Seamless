@@ -1641,6 +1641,8 @@ let trimFadeOutSec = 0;
 let trimZoomLevel = 1;
 let trimViewStart = 0; // left edge of zoomed view (seconds)
 let trimDragging = null; // 'in' | 'out' | 'fadeIn' | 'fadeOut' | 'pan' | null
+let trimDragPointerId = null;
+let trimDragCaptureEl = null;
 let trimDragStartX = 0;
 let trimPanStartView = 0;
 let trimTestSource = null;
@@ -3268,6 +3270,8 @@ async function openTrimmer(preset) {
     if (zoomSlider) zoomSlider.value = '1';
     switchTab('trimmer');
     updateTrimReadouts();
+    updateTrimHandlesUI();
+    updateTrimCursorUI();
     setTimeout(drawTrimWaveform, 0);
     setStatus('Trimmer ready');
   } catch (e) {
@@ -3484,6 +3488,56 @@ function updateTrimCursorUI(vStart = null, vEnd = null) {
   if (labelEl) labelEl.textContent = `${trimCursorTime.toFixed(3)}s`;
 }
 
+function setTrimHandlePosition(el, pct, extraAttrs = {}) {
+  if (!el) return;
+  const boundedPct = clamp(Number(pct) || 0, 0, 100);
+  el.style.left = `${boundedPct}%`;
+  if (extraAttrs.min != null) el.setAttribute('aria-valuemin', extraAttrs.min);
+  if (extraAttrs.max != null) el.setAttribute('aria-valuemax', extraAttrs.max);
+  if (extraAttrs.now != null) el.setAttribute('aria-valuenow', extraAttrs.now);
+  if (extraAttrs.text != null) el.setAttribute('aria-valuetext', extraAttrs.text);
+}
+
+function updateTrimHandlesUI(vStart = null, vEnd = null) {
+  if (!trimBuffer) return;
+  if (vStart == null || vEnd == null) {
+    const span = getTrimViewSpan();
+    vStart = span.start;
+    vEnd = span.end;
+  }
+  const spanDur = Math.max(0.000001, vEnd - vStart);
+  const trimDuration = Math.max(0, trimOut - trimIn);
+  const inPct = ((trimIn - vStart) / spanDur) * 100;
+  const outPct = ((trimOut - vStart) / spanDur) * 100;
+  const fadeInPct = (((trimIn + trimFadeInSec) - vStart) / spanDur) * 100;
+  const fadeOutPct = (((trimOut - trimFadeOutSec) - vStart) / spanDur) * 100;
+
+  setTrimHandlePosition(document.getElementById('trimInHandle'), inPct, {
+    min: '0',
+    max: (trimBuffer.duration || 0).toFixed(3),
+    now: trimIn.toFixed(3),
+    text: `${trimIn.toFixed(3)}s`
+  });
+  setTrimHandlePosition(document.getElementById('trimOutHandle'), outPct, {
+    min: '0',
+    max: (trimBuffer.duration || 0).toFixed(3),
+    now: trimOut.toFixed(3),
+    text: `${trimOut.toFixed(3)}s`
+  });
+  setTrimHandlePosition(document.getElementById('trimFadeInHandle'), fadeInPct, {
+    min: '0',
+    max: trimDuration.toFixed(3),
+    now: trimFadeInSec.toFixed(3),
+    text: `${trimFadeInSec.toFixed(3)}s`
+  });
+  setTrimHandlePosition(document.getElementById('trimFadeOutHandle'), fadeOutPct, {
+    min: '0',
+    max: trimDuration.toFixed(3),
+    now: trimFadeOutSec.toFixed(3),
+    text: `${trimFadeOutSec.toFixed(3)}s`
+  });
+}
+
 function stopTrimCursorFollow() {
   if (trimCursorFollowRaf) {
     try { cancelAnimationFrame(trimCursorFollowRaf); } catch {}
@@ -3588,18 +3642,15 @@ function drawTrimWaveform() {
   if (inPx >= 0 && inPx <= w) {
     ctx.fillStyle = '#4ade80';
     ctx.fillRect(inPx - 1, 0, 3, h);
-    ctx.font = `bold ${Math.round(11 * dpr)}px sans-serif`;
-    ctx.fillText('IN', Math.min(inPx + 4, w - 20 * dpr), 14 * dpr);
   }
 
   // OUT cursor (red line)
   if (outPx >= 0 && outPx <= w) {
     ctx.fillStyle = '#f87171';
     ctx.fillRect(outPx - 1, 0, 3, h);
-    ctx.font = `bold ${Math.round(11 * dpr)}px sans-serif`;
-    ctx.fillText('OUT', Math.max(outPx - 30 * dpr, 2), 14 * dpr);
   }
 
+  updateTrimHandlesUI(vStart, vEnd);
   updateTrimCursorUI(vStart, vEnd);
 }
 
@@ -3659,38 +3710,10 @@ function handleTrimPointerDown(e) {
   const cvs = document.getElementById('trimCanvas');
   if (!cvs || !trimBuffer) return;
   const rect = cvs.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const frac = x / rect.width;
-  const { start: vStart, end: vEnd } = getTrimViewSpan();
-  const timeAtX = vStart + frac * (vEnd - vStart);
 
-  // Determine which cursor is closest (within grab radius).
-  const pixelWidth = rect.width;
-  const grabRadius = 20; // px
-  const inPx = ((trimIn - vStart) / (vEnd - vStart)) * pixelWidth;
-  const outPx = ((trimOut - vStart) / (vEnd - vStart)) * pixelWidth;
-  const distIn = Math.abs(x - inPx);
-  const distOut = Math.abs(x - outPx);
-  const fadeZoneHeight = rect.height * 0.32;
-  const activeWidth = Math.max(0, outPx - inPx);
-  const fadeEdgeWidth = Math.min(72, Math.max(32, activeWidth * 0.35));
-
-  if (distIn <= grabRadius && distIn <= distOut) {
-    trimDragging = 'in';
-  } else if (distOut <= grabRadius) {
-    trimDragging = 'out';
-  } else if (e.clientY >= rect.bottom - fadeZoneHeight && x >= inPx && x <= inPx + fadeEdgeWidth) {
-    trimDragging = 'fadeIn';
-  } else if (e.clientY >= rect.bottom - fadeZoneHeight && x <= outPx && x >= outPx - fadeEdgeWidth) {
-    trimDragging = 'fadeOut';
-  } else {
-    // Tap background: move playhead here for easier zoom focus.
-    trimCursorTime = clamp(timeAtX, 0, Math.max(0, trimBuffer.duration || 0));
-    updateTrimCursorUI(vStart, vEnd);
-    trimDragging = 'pan';
-    trimDragStartX = e.clientX;
-    trimPanStartView = trimViewStart;
-  }
+  trimDragging = 'pan';
+  trimDragStartX = e.clientX;
+  trimPanStartView = trimViewStart;
   try { cvs.setPointerCapture(e.pointerId); } catch {}
   e.preventDefault();
 }
@@ -3733,9 +3756,43 @@ function handleTrimPointerMove(e) {
 
 function handleTrimPointerUp(e) {
   if (!trimDragging) return;
+  if (trimDragPointerId != null && e.pointerId !== trimDragPointerId && trimDragging !== 'pan') return;
   trimDragging = null;
+  const dragEl = trimDragCaptureEl;
+  trimDragPointerId = null;
+  trimDragCaptureEl = null;
   const cvs = document.getElementById('trimCanvas');
-  try { if (cvs) cvs.releasePointerCapture(e.pointerId); } catch {}
+  try {
+    if (dragEl) dragEl.releasePointerCapture(e.pointerId);
+    else if (cvs) cvs.releasePointerCapture(e.pointerId);
+  } catch {}
+}
+
+function beginTrimHandleDrag(mode, e) {
+  if (!trimBuffer) return;
+  trimDragging = mode;
+  trimDragPointerId = e.pointerId;
+  trimDragCaptureEl = e.currentTarget;
+  try { if (trimDragCaptureEl) trimDragCaptureEl.setPointerCapture(e.pointerId); } catch {}
+  handleTrimPointerMove(e);
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+function handleTrimInHandlePointerDown(e) {
+  beginTrimHandleDrag('in', e);
+}
+
+function handleTrimOutHandlePointerDown(e) {
+  beginTrimHandleDrag('out', e);
+}
+
+function handleTrimFadeInHandlePointerDown(e) {
+  beginTrimHandleDrag('fadeIn', e);
+}
+
+function handleTrimFadeOutHandlePointerDown(e) {
+  beginTrimHandleDrag('fadeOut', e);
 }
 
 function handleTrimCursorPointerDown(e) {
@@ -3746,6 +3803,7 @@ function handleTrimCursorPointerDown(e) {
   const cursorEl = e.currentTarget;
   try { cursorEl.setPointerCapture(e.pointerId); } catch {}
   handleTrimCursorPointerMove(e);
+  e.stopPropagation();
   e.preventDefault();
 }
 
@@ -3768,8 +3826,7 @@ function handleTrimCursorPointerUp(e) {
   if (!trimCursorDragging) return;
   if (trimCursorPointerId != null && e.pointerId !== trimCursorPointerId) return;
   trimCursorDragging = false;
-  const cursorEl = document.getElementById('trimCursor');
-  try { if (cursorEl) cursorEl.releasePointerCapture(e.pointerId); } catch {}
+  try { if (e.currentTarget) e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
   trimCursorPointerId = null;
 }
 
@@ -6432,6 +6489,11 @@ function bindUI() {
   const trimBack = document.getElementById('trimBack');
   const trimCanvas = document.getElementById('trimCanvas');
   const trimCursor = document.getElementById('trimCursor');
+  const trimCursorHandle = trimCursor ? trimCursor.querySelector('.trim-playhead-handle') : null;
+  const trimInHandle = document.getElementById('trimInHandle');
+  const trimOutHandle = document.getElementById('trimOutHandle');
+  const trimFadeInHandle = document.getElementById('trimFadeInHandle');
+  const trimFadeOutHandle = document.getElementById('trimFadeOutHandle');
   const trimZoom = document.getElementById('trimZoom');
   const trimPlayTest = document.getElementById('trimPlayTest');
   const trimStopTest = document.getElementById('trimStopTest');
@@ -7444,11 +7506,30 @@ function bindUI() {
     trimCanvas.addEventListener('pointercancel', handleTrimPointerUp);
   }
 
+  trimInHandle && trimInHandle.addEventListener('pointerdown', handleTrimInHandlePointerDown);
+  trimOutHandle && trimOutHandle.addEventListener('pointerdown', handleTrimOutHandlePointerDown);
+  trimFadeInHandle && trimFadeInHandle.addEventListener('pointerdown', handleTrimFadeInHandlePointerDown);
+  trimFadeOutHandle && trimFadeOutHandle.addEventListener('pointerdown', handleTrimFadeOutHandlePointerDown);
+  trimInHandle && trimInHandle.addEventListener('pointermove', handleTrimPointerMove);
+  trimOutHandle && trimOutHandle.addEventListener('pointermove', handleTrimPointerMove);
+  trimFadeInHandle && trimFadeInHandle.addEventListener('pointermove', handleTrimPointerMove);
+  trimFadeOutHandle && trimFadeOutHandle.addEventListener('pointermove', handleTrimPointerMove);
+  trimInHandle && trimInHandle.addEventListener('pointerup', handleTrimPointerUp);
+  trimOutHandle && trimOutHandle.addEventListener('pointerup', handleTrimPointerUp);
+  trimFadeInHandle && trimFadeInHandle.addEventListener('pointerup', handleTrimPointerUp);
+  trimFadeOutHandle && trimFadeOutHandle.addEventListener('pointerup', handleTrimPointerUp);
+  trimInHandle && trimInHandle.addEventListener('pointercancel', handleTrimPointerUp);
+  trimOutHandle && trimOutHandle.addEventListener('pointercancel', handleTrimPointerUp);
+  trimFadeInHandle && trimFadeInHandle.addEventListener('pointercancel', handleTrimPointerUp);
+  trimFadeOutHandle && trimFadeOutHandle.addEventListener('pointercancel', handleTrimPointerUp);
+
+  if (trimCursorHandle) {
+    trimCursorHandle.addEventListener('pointerdown', handleTrimCursorPointerDown);
+    trimCursorHandle.addEventListener('pointermove', handleTrimCursorPointerMove);
+    trimCursorHandle.addEventListener('pointerup', handleTrimCursorPointerUp);
+    trimCursorHandle.addEventListener('pointercancel', handleTrimCursorPointerUp);
+  }
   if (trimCursor) {
-    trimCursor.addEventListener('pointerdown', handleTrimCursorPointerDown);
-    trimCursor.addEventListener('pointermove', handleTrimCursorPointerMove);
-    trimCursor.addEventListener('pointerup', handleTrimCursorPointerUp);
-    trimCursor.addEventListener('pointercancel', handleTrimCursorPointerUp);
     trimCursor.addEventListener('keydown', handleTrimCursorKeyDown);
   }
 

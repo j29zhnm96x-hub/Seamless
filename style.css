@@ -707,7 +707,7 @@ button.danger{background:var(--danger);color:#fff}
   left:0;
   transform:translateX(-1px);
   width:2px;
-  pointer-events:auto;
+  pointer-events:none;
   touch-action:none;
 }
 .trim-playhead:focus-visible{outline:none;box-shadow:var(--focus);border-radius:2px}
@@ -715,6 +715,7 @@ button.danger{background:var(--danger);color:#fff}
   position:absolute;left:0;top:0;bottom:0;width:2px;
   background:var(--accent);
   opacity:.95;
+  pointer-events:none;
 }
 .trim-playhead-handle{
   position:absolute;
@@ -725,6 +726,7 @@ button.danger{background:var(--danger);color:#fff}
   background:var(--surface);
   border:1px solid var(--accent-mid);
   box-shadow:var(--shadow);
+  pointer-events:auto;
 }
 .trim-playhead-label{
   position:absolute;
@@ -739,6 +741,73 @@ button.danger{background:var(--danger);color:#fff}
   font-variant-numeric:tabular-nums;
   white-space:nowrap;
   pointer-events:none;
+}
+
+.trim-boundary-handle{
+  position:absolute;
+  top:0;bottom:0;
+  left:0;
+  width:2px;
+  transform:translateX(-1px);
+  pointer-events:none;
+  touch-action:none;
+}
+.trim-boundary-line{
+  position:absolute;left:0;top:0;bottom:0;width:2px;
+  opacity:.95;
+  pointer-events:none;
+}
+.trim-boundary-label{
+  position:absolute;
+  top:8px;
+  min-width:34px;height:20px;
+  display:grid;place-items:center;
+  padding:0 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.45);
+  box-shadow:var(--shadow);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.5px;
+  pointer-events:auto;
+}
+.trim-boundary-handle-in .trim-boundary-line{
+  background:#4ade80;
+}
+.trim-boundary-handle-in .trim-boundary-label{
+  background:#4ade80;
+  color:#10381f;
+}
+.trim-boundary-handle-in .trim-boundary-label{
+  left:8px;
+}
+.trim-boundary-handle-out .trim-boundary-line{
+  background:#f87171;
+}
+.trim-boundary-handle-out .trim-boundary-label{
+  background:#f87171;
+  color:#4b1111;
+}
+.trim-boundary-handle-out .trim-boundary-label{
+  right:8px;
+}
+
+.trim-fade-handle{
+  position:absolute;
+  bottom:10px;
+  left:0;
+  width:0;height:0;
+  pointer-events:none;
+  touch-action:none;
+}
+.trim-fade-knob{
+  width:18px;height:18px;
+  transform:translate(-50%, 0);
+  border-radius:999px;
+  background:#b5b8c3;
+  border:1px solid rgba(255,255,255,0.35);
+  box-shadow:var(--shadow);
+  pointer-events:auto;
 }
 
 .trim-mark-actions{
