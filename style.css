@@ -629,8 +629,17 @@ button.danger{background:var(--danger);color:#fff}
 }
 
 /* -------- Loop Archive — search, categories, info -------- */
-.loops-search-wrap{margin-bottom:10px}
-.loops-search{width:100%;font-size:14px}
+.loops-search-wrap{position:relative;margin-bottom:10px}
+.loops-search{width:100%;font-size:14px;padding-right:42px}
+.loops-search-clear{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:28px;height:28px;padding:0;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);
+  box-shadow:none;font-size:12px;font-weight:700;line-height:1;display:grid;place-items:center;
+}
+.loops-search-clear:hover{background:var(--surface);color:var(--text)}
+.loops-search-clear:active{transform:translateY(-50%)}
+.loops-search-clear.hidden{display:none}
 
 .loops-category{margin-top:12px}
 .loops-category-header{

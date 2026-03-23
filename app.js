@@ -55,6 +55,7 @@ const I18N = {
     loops_edited: 'EDITED',
     loops_imported: 'IMPORTED',
     loops_search_placeholder: 'Search loops…',
+    loops_search_clear: 'Clear search',
     loops_no_results: 'No loops match your search.',
     loops_new_category: '+ New Category',
     loop_category_edited: 'Edited',
@@ -160,6 +161,7 @@ const I18N = {
     loops_edited: 'UREĐENO',
     loops_imported: 'UVEZENO',
     loops_search_placeholder: 'Pretraži loopove…',
+    loops_search_clear: 'Očisti pretragu',
     loops_no_results: 'Nema loopova za ovaj upit.',
     loops_new_category: '+ Nova kategorija',
     loop_category_edited: 'Uređeno',
@@ -290,6 +292,16 @@ function applyTrimSaveOverlayTranslations(overlay = document.getElementById('tri
   if (cancel) cancel.textContent = t('common_cancel');
 }
 
+function updateLoopsSearchClearButton() {
+  const loopsSearchInput = document.getElementById('loopsSearch');
+  const clearBtn = document.getElementById('loopsSearchClear');
+  if (!clearBtn) return;
+  clearBtn.setAttribute('aria-label', t('loops_search_clear'));
+  clearBtn.title = t('loops_search_clear');
+  const hasValue = !!(loopsSearchInput && String(loopsSearchInput.value || '').length);
+  clearBtn.classList.toggle('hidden', !hasValue);
+}
+
 function getStoredLang() {
   try {
     const v = localStorage.getItem(LANG_STORAGE_KEY);
@@ -367,6 +379,7 @@ function applyLanguage(lang) {
   if (pasteLoopBtn) { pasteLoopBtn.textContent = t('loops_paste'); pasteLoopBtn.setAttribute('aria-label', t('loops_paste')); }
   const loopsSearchInput = document.getElementById('loopsSearch');
   if (loopsSearchInput) loopsSearchInput.placeholder = t('loops_search_placeholder');
+  updateLoopsSearchClearButton();
 
   // Loop info page
   const loopInfoBackBtn = document.getElementById('loopInfoBack');
@@ -4064,7 +4077,7 @@ function renderLoopsPage() {
 
     const section = document.createElement('div');
     section.className = 'loops-category';
-    const collapsed = collapsedCategories.has(cat);
+    const collapsed = query ? false : collapsedCategories.has(cat);
     if (collapsed) section.classList.add('collapsed');
 
     const header = document.createElement('button');
@@ -7101,7 +7114,18 @@ function bindUI() {
   loopInfoBack && loopInfoBack.addEventListener('click', () => { switchTab('loops'); });
 
   const loopsSearch = document.getElementById('loopsSearch');
-  loopsSearch && loopsSearch.addEventListener('input', () => { renderLoopsPage(); });
+  loopsSearch && loopsSearch.addEventListener('input', () => {
+    updateLoopsSearchClearButton();
+    renderLoopsPage();
+  });
+  const loopsSearchClear = document.getElementById('loopsSearchClear');
+  loopsSearchClear && loopsSearchClear.addEventListener('click', () => {
+    if (!loopsSearch) return;
+    loopsSearch.value = '';
+    updateLoopsSearchClearButton();
+    renderLoopsPage();
+    try { loopsSearch.focus(); } catch {}
+  });
 
   // ---- Trimmer bindings ----
   trimBack && trimBack.addEventListener('click', () => {
