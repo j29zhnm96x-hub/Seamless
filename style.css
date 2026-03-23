@@ -1181,9 +1181,9 @@ html.theme-light .pad-loop-name{
 }
 .repeat-toggle[aria-pressed="true"] svg{color:#fff;opacity:1}
 
-.pad-color-palette{display:flex;flex-wrap:wrap;gap:8px}
+.pad-color-palette{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}
 .pad-color-swatch{
-  width:32px;height:32px;border-radius:8px;
+  width:100%;aspect-ratio:1;border-radius:8px;
   border:2px solid transparent;
   background:var(--surface-2);
   cursor:pointer;padding:0;
