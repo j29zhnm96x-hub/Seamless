@@ -26,7 +26,7 @@ const LOOP_DESCRIPTIONS_KEY = 'seamlessplayer-loop-descriptions';
 const LOOP_CAT_ASSIGNMENTS_KEY = 'seamlessplayer-loop-cat-assignments';
 const LOOP_COLLAPSED_CATEGORIES_KEY = 'seamlessplayer-loop-collapsed-categories';
 const FAVORITES_KEY = 'seamlessplayer-favorites';
-const DEFAULT_CATEGORIES = ['Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
+const DEFAULT_CATEGORIES = ['Edited', 'Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
 
 // Persist playlists across restarts via IndexedDB.
 const PLAYLIST_DB_NAME = 'seamlessplayer-playlists';
@@ -52,10 +52,18 @@ const I18N = {
     loops_import: 'Import Loop',
     loops_paste: 'Paste',
     loops_builtin: 'Built-in',
+    loops_edited: 'EDITED',
     loops_imported: 'IMPORTED',
     loops_search_placeholder: 'Search loops…',
     loops_no_results: 'No loops match your search.',
     loops_new_category: '+ New Category',
+    loop_category_edited: 'Edited',
+    loop_category_frequencies: 'Frequencies',
+    loop_category_imported: 'Imported',
+    loop_category_nature: 'Nature',
+    loop_category_noises: 'Noises',
+    loop_category_rythmical_loops: 'Rythmical loops',
+    loop_category_soundscapes: 'Soundscapes',
     loopinfo_back: 'Back',
     loopinfo_desc_label: 'Description',
     loopinfo_desc_placeholder: 'Add a description…',
@@ -73,6 +81,12 @@ const I18N = {
     trimmer_rename: 'Rename',
     trimmer_rename_prompt: 'Rename loop',
     trimmer_rename_placeholder: 'Loop name',
+    trim_save_title: 'Save Trim',
+    trim_save_hint: 'Choose how you want to save this trim.',
+    trim_save_name_hint: 'Name for the new saved loop',
+    trim_save_points_original: 'Save trim points (original)',
+    trim_save_create_wav: 'Create new trimmed loop (WAV)',
+    trim_save_create_compressed: 'Create new trimmed loop (smaller file)',
     settings_title: 'Settings',
     settings_data: 'Data',
     settings_export_main: 'Export Playlists & Loops',
@@ -97,7 +111,7 @@ const I18N = {
     help_playlists_h: 'Playlists',
     help_playlists_p: 'Create playlists from the Playlists tab, open one to play it, mark it as a favorite, rename it, or delete it. In edit mode you can add loops, change repetitions, adjust per-loop volume, and reorder rows by dragging on desktop. When a playlist plays, the app steps through each entry automatically and can repeat the whole sequence if Repeat is enabled.',
     help_loops_h: 'Audio Loops',
-    help_loops_p: 'Browse built-in loops by category, search across all loops, or import your own audio. You can import with the file picker, paste audio from the clipboard when supported, and also use dropped or pasted files and links where available. Imported loops stay local to your browser, can be renamed, recategorized, described, favorited, trimmed, and then reused in playlists or pads.',
+    help_loops_p: 'Browse built-in loops by category, search across all loops, or import your own audio. You can import with the file picker, paste audio from the clipboard when supported, and also use dropped or pasted files and links where available. Imported loops stay local to your browser, can be renamed, recategorized, described, favorited, trimmed, and then reused in playlists or pads. Newly saved trimmed loops are stored in the Edited category.',
     help_trimmer_h: 'Trimmer',
     help_trimmer_p: 'Open Trim Loop from an imported loop when you need cleaner loop points. Drag the IN and OUT markers, move the playhead, use Set IN or Set OUT for exact placement, then zoom in for fine adjustment. Test Loop previews the current loop region, Save stores the new points, Reset returns to automatic points, and Rename lets you update the loop name.',
     help_settings_h: 'Settings',
@@ -108,6 +122,7 @@ const I18N = {
     playlist_name_placeholder: 'My playlist',
     playlist_create_btn: 'Create',
     common_close: 'Close',
+    common_cancel: 'Cancel',
     playlist_add: 'Add',
     playlist_play: 'Play',
     preserve_pitch: 'Preserve pitch',
@@ -133,36 +148,50 @@ const I18N = {
     player_playlist_prefix: 'Playlista',
     tab_player: 'Reprodukcija',
     tab_playlists: 'Playliste',
-    tab_loops: 'Audio petlje',
+    tab_loops: 'Loopovi',
     tab_settings: 'Postavke',
     playlists_title: 'Playliste',
     playlists_new: '+ Novo',
-    loops_title: 'Audio petlje',
-    loops_hint: 'Pregledajte po kategoriji ili pretražite petlje.',
-    loops_import: 'Uvezi petlju',
+    loops_title: 'Audio loopovi',
+    loops_hint: 'Pregledajte po kategoriji ili pretražite loopove.',
+    loops_import: 'Uvezi loop',
     loops_paste: 'Zalijepi',
     loops_builtin: 'Ugrađeno',
+    loops_edited: 'UREĐENO',
     loops_imported: 'UVEZENO',
-    loops_search_placeholder: 'Pretraži petlje…',
-    loops_no_results: 'Nema petlji za ovaj upit.',
+    loops_search_placeholder: 'Pretraži loopove…',
+    loops_no_results: 'Nema loopova za ovaj upit.',
     loops_new_category: '+ Nova kategorija',
+    loop_category_edited: 'Uređeno',
+    loop_category_frequencies: 'Frekvencije',
+    loop_category_imported: 'Uvezeno',
+    loop_category_nature: 'Priroda',
+    loop_category_noises: 'Šumovi',
+    loop_category_rythmical_loops: 'Ritmički loopovi',
+    loop_category_soundscapes: 'Zvučni pejzaži',
     loopinfo_back: 'Natrag',
     loopinfo_desc_label: 'Opis',
     loopinfo_desc_placeholder: 'Dodaj opis…',
     loopinfo_category: 'Kategorija',
     loopinfo_filesize: 'Veličina',
     loopinfo_type: 'Vrsta',
-    trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja petlje',
+    trimmer_info_hint: 'Povucite IN/OUT pokazivače za podešavanje početka/kraja loopa',
     trimmer_zoom: 'Zum',
-    trimmer_test: 'Testiraj petlju',
+    trimmer_test: 'Testiraj loop',
     trimmer_stop: 'Zaustavi',
     trimmer_save: 'Spremi',
     trimmer_reset: 'Vrati',
     trimmer_set_in: 'Postavi IN',
     trimmer_set_out: 'Postavi OUT',
     trimmer_rename: 'Preimenuj',
-    trimmer_rename_prompt: 'Preimenuj petlju',
-    trimmer_rename_placeholder: 'Naziv petlje',
+    trimmer_rename_prompt: 'Preimenuj loop',
+    trimmer_rename_placeholder: 'Naziv loopa',
+    trim_save_title: 'Spremi trim',
+    trim_save_hint: 'Odaberite kako želite spremiti ovaj trim.',
+    trim_save_name_hint: 'Naziv za novi spremljeni loop',
+    trim_save_points_original: 'Spremi trim točke (izvornik)',
+    trim_save_create_wav: 'Stvori novi trimani loop (WAV)',
+    trim_save_create_compressed: 'Stvori novi trimani loop (manja datoteka)',
     settings_title: 'Postavke',
     settings_data: 'Podaci',
     settings_export_main: 'Izvezi playliste i loopove',
@@ -179,25 +208,26 @@ const I18N = {
     settings_help_hint: 'Kontrole, padovi, playliste, sigurnosne kopije',
     help_title: 'Pomoć',
     help_player_h: 'Reprodukcija',
-    help_player_p: 'Dodirnite Play za pokretanje trenutne petlje ili Stop za postupno gašenje reprodukcije. Koristite Volume za glavnu glasnoću, Rate za ubrzavanje ili usporavanje reprodukcije, a Preserve pitch ako želite mijenjati tempo bez promjene visine tona. Kad svira playlista, Repeat ponavlja cijelu playlistu, a red s odbrojavanjem pokazuje preostalo vrijeme trenutnog ciklusa. Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona. Na iPhoneu i iPadu prvo pokrenite zvuk dodirom kako bi preglednik otključao audio.',
+    help_player_p: 'Dodirnite Play za pokretanje trenutnog loopa ili Stop za postupno gašenje reprodukcije. Koristite Volume za glavnu glasnoću, Rate za ubrzavanje ili usporavanje reprodukcije, a Preserve pitch ako želite mijenjati tempo bez promjene visine tona. Kad svira playlista, Repeat ponavlja cijelu playlistu, a red s odbrojavanjem pokazuje preostalo vrijeme trenutnog ciklusa. Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona. Na iPhoneu i iPadu prvo pokrenite zvuk dodirom kako bi preglednik otključao audio.',
     help_favorites_h: 'Favoriti',
-    help_favorites_p: 'Koristite plus pokraj trenutne petlje, playliste, detalja playliste ili stranice s informacijama o petlji kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih petlji i playlista, a ponovni dodir na plus uklanja stavku.',
+    help_favorites_p: 'Koristite plus pokraj trenutnog loopa, playliste, detalja playliste ili stranice s informacijama o loopu kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih loopova i playlista, a ponovni dodir na plus uklanja stavku.',
     help_pads_h: 'Padovi',
-    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu petlje, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici petlje. Isključite Repeat kada želite da pad odsvira samo jednom i stane, kao sampler ili završni udarac. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak petlje dok pad svira.',
+    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu loopa, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici loopa. Isključite Repeat kada želite da pad odsvira samo jednom i stane, kao sampler ili završni udarac. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak loopa dok pad svira.',
     help_playlists_h: 'Playliste',
-    help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati petlje, mijenjati broj ponavljanja, prilagoditi glasnoću po petlji i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
-    help_loops_h: 'Audio petlje',
-    help_loops_p: 'Pregledajte ugrađene petlje po kategorijama, pretražujte sve petlje ili uvezite vlastiti audio. Uvoz možete napraviti biračem datoteka, lijepljenjem zvuka iz međuspremnika kada je podržano te povlačenjem ili lijepljenjem datoteka i poveznica gdje je dostupno. Uvezene petlje ostaju lokalno u pregledniku, mogu se preimenovati, premještati po kategorijama, opisivati, dodavati u favorite, obrezivati te ponovno koristiti u playlistama ili padovima.',
+    help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati loopove, mijenjati broj ponavljanja, prilagoditi glasnoću po loopu i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
+    help_loops_h: 'Audio loopovi',
+    help_loops_p: 'Pregledajte ugrađene loopove po kategorijama, pretražujte sve loopove ili uvezite vlastiti audio. Uvoz možete napraviti biračem datoteka, lijepljenjem zvuka iz međuspremnika kada je podržano te povlačenjem ili lijepljenjem datoteka i poveznica gdje je dostupno. Uvezeni loopovi ostaju lokalno u pregledniku, mogu se preimenovati, premještati po kategorijama, opisivati, dodavati u favorite, obrezivati te ponovno koristiti u playlistama ili padovima. Novi spremljeni trimani loopovi spremaju se u kategoriju Edited.',
     help_trimmer_h: 'Trimer',
-    help_trimmer_p: 'Otvorite Trim Loop na uvezenoj petlji kad trebate preciznije granice petlje. Povucite IN i OUT markere, pomičite playhead, koristite Set IN ili Set OUT za točno postavljanje, zatim zumirajte za finu prilagodbu. Test Loop reproducira trenutačni raspon, Save sprema nove točke, Reset vraća automatski izračunate točke, a Rename omogućuje promjenu naziva petlje.',
+    help_trimmer_p: 'Otvorite Trim Loop na uvezenom loopu kad trebate preciznije granice loopa. Povucite IN i OUT markere, pomičite playhead, koristite Set IN ili Set OUT za točno postavljanje, zatim zumirajte za finu prilagodbu. Test Loop reproducira trenutačni raspon, Save sprema nove točke, Reset vraća automatski izračunate točke, a Rename omogućuje promjenu naziva loopa.',
     help_settings_h: 'Postavke',
-    help_settings_p: 'Postavke služe za sigurnosne kopije i izgled. Export stvara ZIP sigurnosnu kopiju playlista, spremljenih petlji, favorita, dodjela padova i ostalih lokalnih podataka. Import vraća sigurnosne kopije iz ZIP-a ili starijih JSON datoteka. U svakom trenutku možete promijeniti tamnu ili svijetlu temu te jezik aplikacije.',
+    help_settings_p: 'Postavke služe za sigurnosne kopije i izgled. Export stvara ZIP sigurnosnu kopiju playlista, spremljenih loopova, favorita, dodjela padova i ostalih lokalnih podataka. Import vraća sigurnosne kopije iz ZIP-a ili starijih JSON datoteka. U svakom trenutku možete promijeniti tamnu ili svijetlu temu te jezik aplikacije.',
     help_close: 'Zatvori',
     playlist_create_title: 'Nova playlista',
     playlist_name_label: 'Naziv playliste',
     playlist_name_placeholder: 'Moja playlista',
     playlist_create_btn: 'Stvori',
     common_close: 'Zatvori',
+    common_cancel: 'Odustani',
     playlist_add: 'Dodaj',
     playlist_play: 'Pokreni',
     preserve_pitch: 'Očuvaj visinu tona',
@@ -206,7 +236,7 @@ const I18N = {
     pads_sessions_title: 'Pad sesije',
     pads_no_sessions: 'Nema spremljenih sesija.',
     pads_assign_title: 'Dodijeli pad',
-    pads_loop_label: 'Petlja',
+    pads_loop_label: 'Loop',
     pads_rate_label: 'Brzina',
     pads_color_label: 'Boja',
     pads_repeat_label: 'Ponovi',
@@ -222,6 +252,42 @@ const I18N = {
 function t(key) {
   const langTable = I18N[currentLang] || I18N.en;
   return (langTable && langTable[key]) || (I18N.en && I18N.en[key]) || key;
+}
+
+function getTranslatedLoopCategoryName(category) {
+  switch (String(category || '')) {
+    case 'Edited': return t('loop_category_edited');
+    case 'Frequencies': return t('loop_category_frequencies');
+    case 'Imported': return t('loop_category_imported');
+    case 'Nature': return t('loop_category_nature');
+    case 'Noises': return t('loop_category_noises');
+    case 'Rythmical loops': return t('loop_category_rythmical_loops');
+    case 'Soundscapes': return t('loop_category_soundscapes');
+    default: return String(category || '');
+  }
+}
+
+function applyTrimSaveOverlayTranslations(overlay = document.getElementById('trimSaveOverlay')) {
+  if (!overlay) return;
+  overlay.setAttribute('aria-label', t('trim_save_title'));
+  const title = overlay.querySelector('#trimSaveOverlayTitle');
+  if (title) title.textContent = t('trim_save_title');
+  const hint = overlay.querySelector('#trimSaveOverlayHint');
+  if (hint) hint.textContent = t('trim_save_hint');
+  const nameHint = overlay.querySelector('#trimSaveOverlayNameHint');
+  if (nameHint) nameHint.textContent = t('trim_save_name_hint');
+  const nameInput = overlay.querySelector('#trimSaveName');
+  if (nameInput) nameInput.placeholder = t('trimmer_rename_placeholder');
+  const picker = overlay.querySelector('.picker-list');
+  if (picker) picker.setAttribute('aria-label', t('trim_save_title'));
+  const savePoints = overlay.querySelector('#trimSavePoints');
+  if (savePoints) savePoints.textContent = t('trim_save_points_original');
+  const saveWav = overlay.querySelector('#trimSaveWav');
+  if (saveWav) saveWav.textContent = t('trim_save_create_wav');
+  const saveCompressed = overlay.querySelector('#trimSaveCompressed');
+  if (saveCompressed) saveCompressed.textContent = t('trim_save_create_compressed');
+  const cancel = overlay.querySelector('#trimSaveCancel');
+  if (cancel) cancel.textContent = t('common_cancel');
 }
 
 function getStoredLang() {
@@ -343,6 +409,7 @@ function applyLanguage(lang) {
 
   const btnRename = document.getElementById('trimRename');
   if (btnRename) { btnRename.textContent = t('trimmer_rename'); btnRename.setAttribute('aria-label', t('trimmer_rename')); }
+  applyTrimSaveOverlayTranslations();
 
   // Settings page
   setText('#page-settings .page-header h2', t('settings_title'));
@@ -3639,6 +3706,10 @@ function withTrimmedSuffix(name, suffix) {
   return `${cleaned} ${suffix}`;
 }
 
+function getDefaultTrimmedLoopName() {
+  return withTrimmedSuffix(trimPreset && trimPreset.name, '(Trimmed)');
+}
+
 async function saveTrimPointsToOriginal() {
   if (!trimPreset || !trimPreset.id || !trimBuffer) { setStatus('Nothing to save'); return; }
   const range = getCurrentTrimRange();
@@ -3666,7 +3737,7 @@ async function saveTrimPointsToOriginal() {
   setStatus('Trim points saved');
 }
 
-async function createTrimmedLoopAsWav() {
+async function createTrimmedLoopAsWav(customName = '') {
   if (!trimPreset || !trimBuffer) { setStatus('Nothing to save'); return; }
   const range = getCurrentTrimRange();
   if (!range) { setStatus('Trim is too short'); return; }
@@ -3677,8 +3748,8 @@ async function createTrimmedLoopAsWav() {
     setStatus('Encoding WAV…');
     const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
 
-    const baseName = (trimPreset.name || 'Audio').trim();
-    const name = baseName.toLowerCase().includes('(trimmed)') ? baseName : `${baseName} (Trimmed)`;
+    const requestedName = String(customName || '').trim();
+    const name = requestedName || getDefaultTrimmedLoopName();
 
     const saved = await savePersistedUpload({
       name,
@@ -3688,6 +3759,7 @@ async function createTrimmedLoopAsWav() {
     });
 
     addUserPresetFromBlob({ name, blob: wavBlob, saved });
+    if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -3744,7 +3816,7 @@ async function encodeCompressedWithMediaRecorder(buffer, mimeType) {
   }
 }
 
-async function createTrimmedLoopAsCompressed() {
+async function createTrimmedLoopAsCompressed(customName = '') {
   if (!trimPreset || !trimBuffer) { setStatus('Nothing to save'); return; }
   const range = getCurrentTrimRange();
   if (!range) { setStatus('Trim is too short'); return; }
@@ -3781,7 +3853,8 @@ async function createTrimmedLoopAsCompressed() {
 
       setStatus('Encoding WAV…');
       const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
-      const name = withTrimmedSuffix(trimPreset.name, '(Trimmed WAV)');
+      const requestedName = String(customName || '').trim();
+      const name = requestedName || withTrimmedSuffix(trimPreset.name, '(Trimmed WAV)');
 
       const saved = await savePersistedUpload({
         name,
@@ -3791,6 +3864,7 @@ async function createTrimmedLoopAsCompressed() {
       });
 
       addUserPresetFromBlob({ name, blob: wavBlob, saved });
+      if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
       try { renderLoopsPage(); } catch {}
       stopTrimTest();
       switchTab('loops');
@@ -3798,7 +3872,8 @@ async function createTrimmedLoopAsCompressed() {
       return;
     }
 
-    const name = withTrimmedSuffix(trimPreset.name, suffix);
+    const requestedName = String(customName || '').trim();
+    const name = requestedName || withTrimmedSuffix(trimPreset.name, suffix);
 
     const saved = await savePersistedUpload({
       name,
@@ -3808,6 +3883,7 @@ async function createTrimmedLoopAsCompressed() {
     });
 
     addUserPresetFromBlob({ name, blob, saved });
+    if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -3825,17 +3901,19 @@ function showTrimSaveOptions() {
     ov.className = 'overlay hidden';
     ov.setAttribute('role', 'dialog');
     ov.setAttribute('aria-modal', 'true');
-    ov.setAttribute('aria-label', 'Save trim');
+    ov.setAttribute('aria-label', t('trim_save_title'));
     ov.innerHTML = `<div class="overlay-card">
-      <h2>Save Trim</h2>
-      <p class="hint">Choose how you want to save this trim.</p>
-      <div class="picker-list" aria-label="Save options">
-        <button id="trimSavePoints" type="button">Save trim points (original)</button>
-        <button id="trimSaveWav" type="button">Create new trimmed loop (WAV)</button>
-        <button id="trimSaveCompressed" type="button">Create new trimmed loop (smaller file)</button>
+      <h2 id="trimSaveOverlayTitle">${t('trim_save_title')}</h2>
+      <p id="trimSaveOverlayHint" class="hint">${t('trim_save_hint')}</p>
+      <p id="trimSaveOverlayNameHint" class="hint">${t('trim_save_name_hint')}</p>
+      <input id="trimSaveName" class="text-input" type="text" placeholder="${t('trimmer_rename_placeholder')}" />
+      <div class="picker-list" aria-label="${t('trim_save_title')}">
+        <button id="trimSavePoints" type="button">${t('trim_save_points_original')}</button>
+        <button id="trimSaveWav" type="button">${t('trim_save_create_wav')}</button>
+        <button id="trimSaveCompressed" type="button">${t('trim_save_create_compressed')}</button>
       </div>
       <div class="overlay-actions">
-        <button id="trimSaveCancel" class="secondary" type="button">Cancel</button>
+        <button id="trimSaveCancel" class="secondary" type="button">${t('common_cancel')}</button>
       </div>
     </div>`;
     document.body.appendChild(ov);
@@ -3843,6 +3921,10 @@ function showTrimSaveOptions() {
     const close = () => {
       ov.classList.add('hidden');
       try { updateScrollState(); } catch {}
+    };
+    const getSaveName = () => {
+      const input = ov.querySelector('#trimSaveName');
+      return input ? String(input.value || '').trim() : '';
     };
 
     ov.querySelector('#trimSaveCancel').addEventListener('click', close);
@@ -3853,13 +3935,21 @@ function showTrimSaveOptions() {
       await saveTrimPointsToOriginal();
     });
     ov.querySelector('#trimSaveWav').addEventListener('click', async () => {
+      const saveName = getSaveName();
       close();
-      await createTrimmedLoopAsWav();
+      await createTrimmedLoopAsWav(saveName);
     });
     ov.querySelector('#trimSaveCompressed').addEventListener('click', async () => {
+      const saveName = getSaveName();
       close();
-      await createTrimmedLoopAsCompressed();
+      await createTrimmedLoopAsCompressed(saveName);
     });
+  }
+  applyTrimSaveOverlayTranslations(ov);
+  const saveNameInput = ov.querySelector('#trimSaveName');
+  if (saveNameInput) {
+    saveNameInput.value = getDefaultTrimmedLoopName();
+    try { saveNameInput.focus(); saveNameInput.select(); } catch {}
   }
   ov.classList.remove('hidden');
   try { updateScrollState(); } catch {}
@@ -3955,7 +4045,8 @@ function renderLoopsPage() {
         const name = stripFileExt(raw).toLowerCase();
         const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
         const desc = getLoopDescription(descKey).toLowerCase();
-        return name.includes(query) || desc.includes(query) || cat.toLowerCase().includes(query);
+        const localizedCat = getTranslatedLoopCategoryName(cat).toLowerCase();
+        return name.includes(query) || desc.includes(query) || cat.toLowerCase().includes(query) || localizedCat.includes(query);
       });
     }
   }
@@ -3979,7 +4070,7 @@ function renderLoopsPage() {
     const header = document.createElement('button');
     header.type = 'button';
     header.className = 'loops-category-header';
-    header.innerHTML = `<span class="loops-cat-chevron">${collapsed ? '▸' : '▾'}</span><span class="loops-cat-name">${cat}</span><span class="loops-cat-count">${items.length}</span>`;
+    header.innerHTML = `<span class="loops-cat-chevron">${collapsed ? '▸' : '▾'}</span><span class="loops-cat-name">${getTranslatedLoopCategoryName(cat)}</span><span class="loops-cat-count">${items.length}</span>`;
     header.addEventListener('click', () => {
       if (collapsedCategories.has(cat)) collapsedCategories.delete(cat);
       else collapsedCategories.add(cat);
@@ -4154,7 +4245,7 @@ function openLoopInfo(preset, isBuiltin) {
       cats.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c;
-        opt.textContent = c;
+        opt.textContent = getTranslatedLoopCategoryName(c);
         if (c === cat) opt.selected = true;
         catSelect.appendChild(opt);
       });
@@ -5140,7 +5231,7 @@ function renderPadLoopPicker() {
     const header = document.createElement('button');
     header.type = 'button';
     header.className = 'pad-picker-category-header';
-    header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${category}</span></span><span class="pad-picker-count">${items.length}</span>`;
+    header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${getTranslatedLoopCategoryName(category)}</span></span><span class="pad-picker-count">${items.length}</span>`;
     header.addEventListener('click', () => {
       const nextExpandedCategory = padPickerCollapsedCategories.has(category) ? category : '';
       padPickerLastOpenCategory = category;
@@ -5157,7 +5248,7 @@ function renderPadLoopPicker() {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `pad-picker-item${item.presetKey === padAssignSelectedKey ? ' selected' : ''}`;
-      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? 'Built-in' : 'Imported'}</span>`;
+      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
       button.addEventListener('click', () => {
         padAssignSelectedKey = item.presetKey;
         renderPadLoopPicker();
