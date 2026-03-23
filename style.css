@@ -1193,6 +1193,7 @@ html.theme-light .pad-loop-name{
 .pad-color-swatch:hover{transform:scale(1.1)}
 .pad-color-swatch.selected{border-color:#fff;box-shadow:0 0 0 2px var(--accent),0 2px 4px rgba(0,0,0,0.25)}
 html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
+#padAssignTrim:disabled{opacity:.45;cursor:not-allowed}
 
 /* -------- Pads sessions on playlists page -------- */
 .pads-sessions-header{margin-top:20px}

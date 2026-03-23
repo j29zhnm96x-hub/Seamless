@@ -9,6 +9,7 @@ let preservePitch = false;
 let pitchShifterNode = null;
 // User-imported presets (persisted when possible)
 const userPresets = [];
+let trimPadTargetIndex = -1;
 
 // Persist imported audio blobs across restarts via IndexedDB.
 const UPLOAD_DB_NAME = 'seamlessplayer-uploads';
@@ -85,7 +86,8 @@ const I18N = {
     trim_save_title: 'Save Trim',
     trim_save_hint: 'Choose how you want to save this trim.',
     trim_save_name_hint: 'Name for the new saved loop',
-    trim_save_points_original: 'Save trim points (original)',
+    trim_save_overwrite_original: 'Overwrite the original',
+    trim_save_overwrite_confirm: 'Overwrite the original loop with this trimmed audio? This cannot be undone.',
     trim_save_create_wav: 'Create new trimmed loop (WAV)',
     trim_save_create_compressed: 'Create new trimmed loop (smaller file)',
     settings_title: 'Settings',
@@ -136,6 +138,8 @@ const I18N = {
     pads_rate_label: 'Rate',
     pads_color_label: 'Color',
     pads_repeat_label: 'Repeat',
+    pads_assign_trim: 'Trim',
+    pads_assign_trim_unavailable: 'Only imported or edited loops can be trimmed',
     pads_assign_save: 'Save',
     pads_assign_clear: 'Clear',
     pads_session_save_title: 'Save Pads Session',
@@ -191,7 +195,8 @@ const I18N = {
     trim_save_title: 'Spremi trim',
     trim_save_hint: 'Odaberite kako želite spremiti ovaj trim.',
     trim_save_name_hint: 'Naziv za novi spremljeni loop',
-    trim_save_points_original: 'Spremi trim točke (izvornik)',
+    trim_save_overwrite_original: 'Prepiši izvornik',
+    trim_save_overwrite_confirm: 'Prepisati izvorni loop ovim trimanim audiom? Ovu radnju nije moguće poništiti.',
     trim_save_create_wav: 'Stvori novi trimani loop (WAV)',
     trim_save_create_compressed: 'Stvori novi trimani loop (manja datoteka)',
     settings_title: 'Postavke',
@@ -242,6 +247,8 @@ const I18N = {
     pads_rate_label: 'Brzina',
     pads_color_label: 'Boja',
     pads_repeat_label: 'Ponovi',
+    pads_assign_trim: 'Trim',
+    pads_assign_trim_unavailable: 'Samo uvezeni ili uređeni loopovi mogu se trimati',
     pads_assign_save: 'Spremi',
     pads_assign_clear: 'Obriši',
     pads_session_save_title: 'Spremi pad sesiju',
@@ -283,7 +290,7 @@ function applyTrimSaveOverlayTranslations(overlay = document.getElementById('tri
   const picker = overlay.querySelector('.picker-list');
   if (picker) picker.setAttribute('aria-label', t('trim_save_title'));
   const savePoints = overlay.querySelector('#trimSavePoints');
-  if (savePoints) savePoints.textContent = t('trim_save_points_original');
+  if (savePoints) savePoints.textContent = t('trim_save_overwrite_original');
   const saveWav = overlay.querySelector('#trimSaveWav');
   if (saveWav) saveWav.textContent = t('trim_save_create_wav');
   const saveCompressed = overlay.querySelector('#trimSaveCompressed');
@@ -364,11 +371,14 @@ function applyLanguage(lang) {
   if (padsSaveBtn) padsSaveBtn.textContent = t('pads_save');
   const padRepeatLabel = document.getElementById('padRepeatLabel');
   if (padRepeatLabel) padRepeatLabel.textContent = t('pads_repeat_label');
+  const padAssignTrimBtn = document.getElementById('padAssignTrim');
+  if (padAssignTrimBtn) padAssignTrimBtn.textContent = t('pads_assign_trim');
   const padRepeatBtn = document.getElementById('padRepeatBtn');
   if (padRepeatBtn) {
     padRepeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
     padRepeatBtn.title = t('pads_repeat_label');
   }
+  updatePadAssignTrimButton();
 
   // Loops page
   setText('#page-loops .card h2', t('loops_title'));
@@ -945,6 +955,24 @@ async function renamePersistedUpload(id, newName) {
     return true;
   } catch {
     return false;
+  } finally {
+    try { db.close(); } catch {}
+  }
+}
+
+async function getPersistedUploadRecord(id) {
+  if (!id) return null;
+  const db = await openUploadsDb();
+  try {
+    return await idbTx(db, 'readonly', (store) => {
+      return new Promise((resolve, reject) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    });
+  } catch {
+    return null;
   } finally {
     try { db.close(); } catch {}
   }
@@ -3217,6 +3245,109 @@ async function openTrimmer(preset) {
   }
 }
 
+function canOverwriteTrimPreset() {
+  return !!(trimPreset && trimPreset.id && trimPreset.persisted && trimPreset.blob);
+}
+
+function clearPresetBufferCache(presetId) {
+  if (!presetId) return;
+  try { bufferCache.delete(`upload:${presetId}`); } catch {}
+}
+
+function refreshPresetReferenceAfterOverwrite(preset, { name, blob, trimIn, trimOut }) {
+  if (!preset) return;
+  preset.name = name;
+  preset.blob = blob;
+  preset.persisted = true;
+  preset.trimIn = trimIn;
+  preset.trimOut = trimOut;
+  if (currentPresetRef && preset === currentPresetRef) {
+    currentSourceLabel = stripFileExt(name);
+  }
+}
+
+function assignSavedLoopToPadTarget(saved, presetName) {
+  if (!saved || !saved.id || trimPadTargetIndex < 0 || trimPadTargetIndex >= PAD_COUNT) return;
+  const assignment = padAssignments[trimPadTargetIndex];
+  if (!assignment) return;
+  assignment.presetKey = `upload:${saved.id}`;
+  assignment.label = stripFileExt((saved.id && getUploadNameOverride(saved.id)) || presetName || saved.name || 'Audio');
+  savePadAssignments();
+  void warmPadAssignmentBuffer(assignment);
+  renderPadGrid();
+}
+
+function applyTrimmedSoundToPadTarget(preset) {
+  if (!preset || trimPadTargetIndex < 0 || trimPadTargetIndex >= PAD_COUNT) return;
+  const assignment = padAssignments[trimPadTargetIndex];
+  const presetKey = preset.id ? `upload:${preset.id}` : '';
+  if (!assignment || !presetKey || assignment.presetKey !== presetKey) return;
+  const nextLabel = stripFileExt((preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio');
+  assignment.label = nextLabel;
+  savePadAssignments();
+  void warmPadAssignmentBuffer(assignment);
+  renderPadGrid();
+}
+
+async function overwriteTrimmedLoopOriginal() {
+  if (!canOverwriteTrimPreset() || !trimBuffer) { setStatus('Nothing to overwrite'); return false; }
+  const range = getCurrentTrimRange();
+  if (!range) { setStatus('Trim is too short'); return false; }
+
+  try {
+    setStatus('Overwriting original loop…');
+    const rendered = await renderTrimmedBufferOffline(trimBuffer, range.inSec, range.outSec);
+    const wavBlob = encodeWavBlobFromAudioBuffer(rendered);
+    const record = await getPersistedUploadRecord(trimPreset.id);
+    if (!record) {
+      setStatus('Original loop not found');
+      return false;
+    }
+
+    const nextRecord = {
+      ...record,
+      name: trimPreset.name || record.name || 'Audio',
+      blob: wavBlob,
+      trimIn: 0,
+      trimOut: rendered.duration || range.segDur,
+      updatedAt: Date.now()
+    };
+    const saved = await putPersistedUploadRecord(nextRecord);
+    if (!saved) {
+      setStatus('Failed to overwrite original loop');
+      return false;
+    }
+
+    refreshPresetReferenceAfterOverwrite(trimPreset, {
+      name: saved.name,
+      blob: wavBlob,
+      trimIn: 0,
+      trimOut: saved.trimOut != null ? saved.trimOut : (rendered.duration || range.segDur)
+    });
+    clearPresetBufferCache(saved.id);
+    if (currentPresetRef && trimPreset === currentPresetRef) {
+      currentBuffer = rendered;
+      try { drawWaveform(); } catch {}
+    }
+    if (saved.id) setLoopCategory(saved.id, 'Edited');
+    if (currentPresetId && saved.id && String(currentPresetId) === String(saved.id)) {
+      currentPresetKey = `upload:${saved.id}`;
+    }
+    applyTrimmedSoundToPadTarget(trimPreset);
+    try { renderLoopsPage(); } catch {}
+    try { updateNowPlayingNameUI(); } catch {}
+    stopTrimTest();
+    switchTab('loops');
+    setStatus('Original loop overwritten');
+    return true;
+  } catch {
+    setStatus('Failed to overwrite original loop');
+    return false;
+  } finally {
+    trimPadTargetIndex = -1;
+  }
+}
+
 function getTrimViewSpan() {
   if (!trimBuffer) return { start: 0, end: 1 };
   const dur = trimBuffer.duration || 1;
@@ -3723,33 +3854,6 @@ function getDefaultTrimmedLoopName() {
   return withTrimmedSuffix(trimPreset && trimPreset.name, '(Trimmed)');
 }
 
-async function saveTrimPointsToOriginal() {
-  if (!trimPreset || !trimPreset.id || !trimBuffer) { setStatus('Nothing to save'); return; }
-  const range = getCurrentTrimRange();
-  if (!range) { setStatus('Trim is too short'); return; }
-
-  trimPreset.trimIn = range.inSec;
-  trimPreset.trimOut = range.outSec;
-  // Persist to IndexedDB upload record.
-  try {
-    const db = await openUploadsDb();
-    const rec = await idbTx(db, 'readonly', (store) => {
-      return new Promise((resolve, reject) => {
-        const req = store.get(trimPreset.id);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-    });
-    if (rec) {
-      rec.trimIn = range.inSec;
-      rec.trimOut = range.outSec;
-      await idbTx(db, 'readwrite', (store) => store.put(rec));
-    }
-    try { db.close(); } catch {}
-  } catch {}
-  setStatus('Trim points saved');
-}
-
 async function createTrimmedLoopAsWav(customName = '') {
   if (!trimPreset || !trimBuffer) { setStatus('Nothing to save'); return; }
   const range = getCurrentTrimRange();
@@ -3773,6 +3877,8 @@ async function createTrimmedLoopAsWav(customName = '') {
 
     addUserPresetFromBlob({ name, blob: wavBlob, saved });
     if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
+    assignSavedLoopToPadTarget(saved, name);
+    trimPadTargetIndex = -1;
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -3878,6 +3984,8 @@ async function createTrimmedLoopAsCompressed(customName = '') {
 
       addUserPresetFromBlob({ name, blob: wavBlob, saved });
       if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
+      assignSavedLoopToPadTarget(saved, name);
+      trimPadTargetIndex = -1;
       try { renderLoopsPage(); } catch {}
       stopTrimTest();
       switchTab('loops');
@@ -3897,6 +4005,8 @@ async function createTrimmedLoopAsCompressed(customName = '') {
 
     addUserPresetFromBlob({ name, blob, saved });
     if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
+    assignSavedLoopToPadTarget(saved, name);
+    trimPadTargetIndex = -1;
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -3921,7 +4031,7 @@ function showTrimSaveOptions() {
       <p id="trimSaveOverlayNameHint" class="hint">${t('trim_save_name_hint')}</p>
       <input id="trimSaveName" class="text-input" type="text" placeholder="${t('trimmer_rename_placeholder')}" />
       <div class="picker-list" aria-label="${t('trim_save_title')}">
-        <button id="trimSavePoints" type="button">${t('trim_save_points_original')}</button>
+        <button id="trimSavePoints" type="button">${t('trim_save_overwrite_original')}</button>
         <button id="trimSaveWav" type="button">${t('trim_save_create_wav')}</button>
         <button id="trimSaveCompressed" type="button">${t('trim_save_create_compressed')}</button>
       </div>
@@ -3944,8 +4054,11 @@ function showTrimSaveOptions() {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
 
     ov.querySelector('#trimSavePoints').addEventListener('click', async () => {
+      if (!canOverwriteTrimPreset()) return;
+      const confirmed = confirm(t('trim_save_overwrite_confirm'));
+      if (!confirmed) return;
       close();
-      await saveTrimPointsToOriginal();
+      await overwriteTrimmedLoopOriginal();
     });
     ov.querySelector('#trimSaveWav').addEventListener('click', async () => {
       const saveName = getSaveName();
@@ -3959,6 +4072,8 @@ function showTrimSaveOptions() {
     });
   }
   applyTrimSaveOverlayTranslations(ov);
+  const savePointsBtn = ov.querySelector('#trimSavePoints');
+  if (savePointsBtn) savePointsBtn.classList.toggle('hidden', !canOverwriteTrimPreset());
   const saveNameInput = ov.querySelector('#trimSaveName');
   if (saveNameInput) {
     saveNameInput.value = getDefaultTrimmedLoopName();
@@ -4160,6 +4275,7 @@ function renderLoopsPage() {
           trimBtn.setAttribute('aria-label', `Trim ${displayName}`);
           trimBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            trimPadTargetIndex = -1;
             openTrimmer(preset);
           });
           content.appendChild(trimBtn);
@@ -5135,6 +5251,35 @@ function refreshPadColorPalette(theme = getCurrentTheme()) {
   });
 }
 
+function getPadAssignableTrimPreset() {
+  const key = String(padAssignSelectedKey || '');
+  if (!key.startsWith('upload:')) return null;
+  const id = key.slice('upload:'.length);
+  return userPresets.find(preset => preset && preset.blob && String(preset.id) === String(id)) || null;
+}
+
+function updatePadAssignTrimButton() {
+  const trimBtn = document.getElementById('padAssignTrim');
+  if (!trimBtn) return;
+  const preset = getPadAssignableTrimPreset();
+  trimBtn.textContent = t('pads_assign_trim');
+  trimBtn.setAttribute('aria-label', t('pads_assign_trim'));
+  trimBtn.disabled = !preset;
+  trimBtn.title = preset ? t('pads_assign_trim') : t('pads_assign_trim_unavailable');
+}
+
+async function openSelectedPadLoopInTrimmer() {
+  const preset = getPadAssignableTrimPreset();
+  if (!preset) {
+    updatePadAssignTrimButton();
+    setStatus(t('pads_assign_trim_unavailable'));
+    return;
+  }
+  trimPadTargetIndex = padAssignTarget;
+  closePadAssignModal();
+  await openTrimmer(preset);
+}
+
 function getPadLoopChoicesByCategory() {
   const categories = getLoopCategories();
   const catAssignments = getLoopCatAssignments();
@@ -5264,6 +5409,7 @@ function renderPadLoopPicker() {
       button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
       button.addEventListener('click', () => {
         padAssignSelectedKey = item.presetKey;
+        updatePadAssignTrimButton();
         renderPadLoopPicker();
       });
       body.appendChild(button);
@@ -5680,6 +5826,7 @@ function openPadAssignModal(padIndex) {
   // Color
   padAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
   if (palette) refreshPadColorPalette();
+  updatePadAssignTrimButton();
 
   overlay.classList.remove('hidden');
   try { updateScrollState(); } catch {}
@@ -6036,8 +6183,10 @@ function bindPadsUI() {
 
   // Assign modal buttons
   const saveBtn = document.getElementById('padAssignSave');
+  const trimBtn = document.getElementById('padAssignTrim');
   const clearBtn = document.getElementById('padAssignClear');
   const closeBtn = document.getElementById('padAssignClose');
+  if (trimBtn) trimBtn.addEventListener('click', () => { void openSelectedPadLoopInTrimmer(); });
   if (saveBtn) saveBtn.addEventListener('click', savePadAssignment);
   if (clearBtn) clearBtn.addEventListener('click', clearPadAssignment);
   if (closeBtn) closeBtn.addEventListener('click', closePadAssignModal);
@@ -7130,6 +7279,7 @@ function bindUI() {
   // ---- Trimmer bindings ----
   trimBack && trimBack.addEventListener('click', () => {
     stopTrimTest();
+    trimPadTargetIndex = -1;
     switchTab('loops');
   });
 
