@@ -10,6 +10,7 @@ let pitchShifterNode = null;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
+let trimDrumTargetIndex = -1;
 
 // Persist imported audio blobs across restarts via IndexedDB.
 const UPLOAD_DB_NAME = 'seamlessplayer-uploads';
@@ -76,6 +77,8 @@ const I18N = {
     trimmer_zoom: 'Zoom',
     trimmer_test: 'Test Loop',
     trimmer_stop: 'Stop',
+    trimmer_repeat_on: 'Repeat On',
+    trimmer_repeat_off: 'Repeat Off',
     trimmer_save: 'Save',
     trimmer_reset: 'Reset',
     trimmer_set_in: 'Set IN',
@@ -114,8 +117,8 @@ const I18N = {
     help_player_p: 'Tap Play to start the current loop or Stop to fade playback out. Use Volume for master level, Rate to speed up or slow down playback, and Preserve pitch if you want tempo changes without shifting pitch. When a playlist is playing, Repeat loops the whole playlist and the countdown row shows the remaining time for the current cycle. On desktop you can also toggle the visualizer and fullscreen it. On iPhone and iPad, start playback with a user tap first so the browser unlocks audio.',
     help_favorites_h: 'Favorites',
     help_favorites_p: 'Use the plus button beside the current loop, playlist, playlist detail view, or loop info page to pin items to Favorites. The Favorites island on the Player page becomes a quick launcher for saved loops and playlists, and tapping the plus again removes an item.',
-    help_pads_h: 'Pads',
-    help_pads_p: 'The Pads island gives you 9 performance pads. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, repeat mode, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary. Turn Repeat off when you want the pad to fire once and stop like a sampler or ending hit. Double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Use Save to store the current 9-pad layout as a Pads Session, then load or delete sessions from the Playlists tab. The circular ring above the grid shows loop progress while a pad is playing.',
+    help_pads_h: 'Loop Trigger & Drum Machine',
+    help_pads_p: 'Loop Trigger gives you 9 performance pads for seamless loop switching. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, repeat mode, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary, while double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Drum Machine adds a separate 9-pad one-shot layer with up to 32 overlapping voices and optional link or choke targets between used drum pads only, so you can cut one sample instantly when another is triggered.',
     help_playlists_h: 'Playlists',
     help_playlists_p: 'Create playlists from the Playlists tab, open one to play it, mark it as a favorite, rename it, or delete it. In edit mode you can add loops, change repetitions, adjust per-loop volume, and reorder rows by dragging on desktop. When a playlist plays, the app steps through each entry automatically and can repeat the whole sequence if Repeat is enabled.',
     help_loops_h: 'Audio Loops',
@@ -134,15 +137,16 @@ const I18N = {
     playlist_add: 'Add',
     playlist_play: 'Play',
     preserve_pitch: 'Preserve pitch',
-    pads_title: 'Pads',
+    pads_title: 'Loop Trigger',
     pads_save: 'Save',
-    pads_sessions_title: 'Pads Sessions',
+    pads_sessions_title: 'Loop Trigger Sessions',
     pads_no_sessions: 'No saved sessions yet.',
     pads_assign_title: 'Assign Pad',
     pads_loop_label: 'Loop',
     pads_rate_label: 'Rate',
     pads_color_label: 'Color',
     pads_repeat_label: 'Repeat',
+    common_volume: 'Volume',
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Only imported or edited loops can be trimmed',
     pads_assign_save: 'Save',
@@ -150,7 +154,23 @@ const I18N = {
     pads_session_save_title: 'Save Pads Session',
     pads_session_name_label: 'Session name',
     pads_session_recall_title: 'Load Session',
-    pads_session_recall_text: 'Replace current pad assignments with this session?'
+    pads_session_recall_text: 'Replace current pad assignments with this session?',
+    island_collapsed_note: 'Double-tap the title to expand.',
+    drum_title: 'Drum Machine',
+    drum_save: 'Save',
+    drum_sessions_title: 'Drum Machine Sessions',
+    drum_no_sessions: 'No saved drum machine sessions yet.',
+    drum_session_save_title: 'Save Drum Machine Session',
+    drum_session_recall_title: 'Load Session',
+    drum_session_recall_text: 'Replace current drum machine assignments with this session?',
+    drum_assign_title: 'Assign Drum Pad',
+    drum_loop_label: 'Loop',
+    drum_display_name_label: 'Display Name',
+    drum_color_label: 'Color',
+    drum_choke_label: 'Link / Choke',
+    drum_choke_none: 'None',
+    drum_assign_save: 'Save',
+    drum_assign_clear: 'Clear'
   },
   hr: {
     status_ready: 'Spremno',
@@ -190,6 +210,8 @@ const I18N = {
     trimmer_zoom: 'Zum',
     trimmer_test: 'Testiraj loop',
     trimmer_stop: 'Zaustavi',
+    trimmer_repeat_on: 'Ponavljanje uključeno',
+    trimmer_repeat_off: 'Ponavljanje isključeno',
     trimmer_save: 'Spremi',
     trimmer_reset: 'Vrati',
     trimmer_set_in: 'Postavi IN',
@@ -228,8 +250,8 @@ const I18N = {
     help_player_p: 'Dodirnite Play za pokretanje trenutnog loopa ili Stop za postupno gašenje reprodukcije. Koristite Volume za glavnu glasnoću, Rate za ubrzavanje ili usporavanje reprodukcije, a Preserve pitch ako želite mijenjati tempo bez promjene visine tona. Kad svira playlista, Repeat ponavlja cijelu playlistu, a red s odbrojavanjem pokazuje preostalo vrijeme trenutnog ciklusa. Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona. Na iPhoneu i iPadu prvo pokrenite zvuk dodirom kako bi preglednik otključao audio.',
     help_favorites_h: 'Favoriti',
     help_favorites_p: 'Koristite plus pokraj trenutnog loopa, playliste, detalja playliste ili stranice s informacijama o loopu kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih loopova i playlista, a ponovni dodir na plus uklanja stavku.',
-    help_pads_h: 'Padovi',
-    help_pads_p: 'Pads otok nudi 9 izvedbenih padova. Dugi pritisak na pad otvara dodjelu loopa, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici loopa. Isključite Repeat kada želite da pad odsvira samo jednom i stane, kao sampler ili završni udarac. Dvostruki dodir dopušta da trenutni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Gumb Save sprema trenutni raspored 9 padova kao Pad sesiju, a sesije možete učitati ili obrisati na kartici Playliste. Kružni indikator iznad mreže pokazuje napredak loopa dok pad svira.',
+    help_pads_h: 'Loop Trigger i Drum Machine',
+    help_pads_p: 'Loop Trigger nudi 9 izvedbenih padova za glatko prebacivanje loopova. Dugi pritisak na pad otvara dodjelu loopa, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici loopa, a dvostruki dodir dopušta da trenutačni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Drum Machine dodaje odvojenih 9 padova za one-shot okidanje s do 32 istodobna glasa i opcionalnim link ili choke ciljevima samo između korištenih drum padova, kako biste jednim udarcem odmah prekinuli drugi sample.',
     help_playlists_h: 'Playliste',
     help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati loopove, mijenjati broj ponavljanja, prilagoditi glasnoću po loopu i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
     help_loops_h: 'Audio loopovi',
@@ -248,15 +270,16 @@ const I18N = {
     playlist_add: 'Dodaj',
     playlist_play: 'Pokreni',
     preserve_pitch: 'Očuvaj visinu tona',
-    pads_title: 'Padovi',
+    pads_title: 'Loop Trigger',
     pads_save: 'Spremi',
-    pads_sessions_title: 'Pad sesije',
+    pads_sessions_title: 'Loop Trigger sesije',
     pads_no_sessions: 'Nema spremljenih sesija.',
     pads_assign_title: 'Dodijeli pad',
     pads_loop_label: 'Loop',
     pads_rate_label: 'Brzina',
     pads_color_label: 'Boja',
     pads_repeat_label: 'Ponovi',
+    common_volume: 'Glasnoća',
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Samo uvezeni ili uređeni loopovi mogu se trimati',
     pads_assign_save: 'Spremi',
@@ -264,7 +287,23 @@ const I18N = {
     pads_session_save_title: 'Spremi pad sesiju',
     pads_session_name_label: 'Naziv sesije',
     pads_session_recall_title: 'Učitaj sesiju',
-    pads_session_recall_text: 'Zamijeniti trenutne pad postavke ovom sesijom?'
+    pads_session_recall_text: 'Zamijeniti trenutne pad postavke ovom sesijom?',
+    island_collapsed_note: 'Dvostruko dodirnite naslov za otvaranje.',
+    drum_title: 'Drum Machine',
+    drum_save: 'Spremi',
+    drum_sessions_title: 'Drum Machine sesije',
+    drum_no_sessions: 'Nema spremljenih Drum Machine sesija.',
+    drum_session_save_title: 'Spremi Drum Machine sesiju',
+    drum_session_recall_title: 'Učitaj sesiju',
+    drum_session_recall_text: 'Zamijeniti trenutne Drum Machine postavke ovom sesijom?',
+    drum_assign_title: 'Dodijeli drum pad',
+    drum_loop_label: 'Loop',
+    drum_display_name_label: 'Prikazni naziv',
+    drum_color_label: 'Boja',
+    drum_choke_label: 'Link / Choke',
+    drum_choke_none: 'Ništa',
+    drum_assign_save: 'Spremi',
+    drum_assign_clear: 'Obriši'
   }
 };
 
@@ -375,12 +414,18 @@ function applyLanguage(lang) {
   setText('.pads-sessions-header h2', t('pads_sessions_title'));
 
   // Pads island
-  const padsHead = document.querySelector('.pads-head > span');
+  const padsHead = document.getElementById('loopTriggerTitle');
   if (padsHead) padsHead.textContent = t('pads_title');
   const padsSaveBtn = document.getElementById('padsSaveSession');
   if (padsSaveBtn) padsSaveBtn.textContent = t('pads_save');
+  const loopTriggerCard = document.getElementById('loopTriggerCard');
+  if (loopTriggerCard) loopTriggerCard.setAttribute('aria-label', t('pads_title'));
+  const loopTriggerNote = document.getElementById('loopTriggerCollapsedNote');
+  if (loopTriggerNote) loopTriggerNote.textContent = t('island_collapsed_note');
   const padRepeatLabel = document.getElementById('padRepeatLabel');
   if (padRepeatLabel) padRepeatLabel.textContent = t('pads_repeat_label');
+  const padVolumeLabel = document.getElementById('padVolumeLabel');
+  if (padVolumeLabel) padVolumeLabel.textContent = t('common_volume');
   const padAssignTrimBtn = document.getElementById('padAssignTrim');
   if (padAssignTrimBtn) padAssignTrimBtn.textContent = t('pads_assign_trim');
   const padRepeatBtn = document.getElementById('padRepeatBtn');
@@ -389,6 +434,39 @@ function applyLanguage(lang) {
     padRepeatBtn.title = t('pads_repeat_label');
   }
   updatePadAssignTrimButton();
+
+  const drumTitle = document.getElementById('drumMachineTitle');
+  if (drumTitle) drumTitle.textContent = t('drum_title');
+  const drumCard = document.getElementById('drumMachineCard');
+  if (drumCard) drumCard.setAttribute('aria-label', t('drum_title'));
+  const drumSaveBtn = document.getElementById('drumSaveSession');
+  if (drumSaveBtn) drumSaveBtn.textContent = t('drum_save');
+  const drumNote = document.getElementById('drumMachineCollapsedNote');
+  if (drumNote) drumNote.textContent = t('island_collapsed_note');
+  setText('#drumSessionsTitle', t('drum_sessions_title'));
+  const drumAssignTitle = document.getElementById('drumAssignTitle');
+  if (drumAssignTitle) drumAssignTitle.textContent = t('drum_assign_title');
+  const drumOverlay = document.getElementById('drumAssignOverlay');
+  if (drumOverlay) drumOverlay.setAttribute('aria-label', t('drum_assign_title'));
+  const drumLabels = drumOverlay ? drumOverlay.querySelectorAll('.pad-assign-label') : [];
+  if (drumLabels[0]) drumLabels[0].textContent = t('drum_loop_label');
+  if (drumLabels[1]) drumLabels[1].textContent = t('drum_display_name_label');
+  if (drumLabels[2]) drumLabels[2].textContent = t('common_volume');
+  if (drumLabels[3]) drumLabels[3].textContent = t('drum_color_label');
+  if (drumLabels[4]) drumLabels[4].textContent = t('drum_choke_label');
+  const drumAssignSave = document.getElementById('drumAssignSave');
+  if (drumAssignSave) drumAssignSave.textContent = t('drum_assign_save');
+  const drumAssignClear = document.getElementById('drumAssignClear');
+  if (drumAssignClear) drumAssignClear.textContent = t('drum_assign_clear');
+  const drumAssignClose = document.getElementById('drumAssignClose');
+  if (drumAssignClose) drumAssignClose.textContent = t('common_cancel');
+  setText('#drumSessionSaveTitle', t('drum_session_save_title'));
+  setText('#drumSessionNameLabel', t('pads_session_name_label'));
+  setText('#drumSessionRecallTitle', t('drum_session_recall_title'));
+  setText('#drumSessionRecallText', t('drum_session_recall_text'));
+  const drumDisplayNameInput = document.getElementById('drumDisplayNameInput');
+  if (drumDisplayNameInput) drumDisplayNameInput.placeholder = 'Custom name (optional)';
+  try { renderDrumChokeOptions(); } catch {}
 
   // Loops page
   setText('#page-loops .card h2', t('loops_title'));
@@ -428,6 +506,7 @@ function applyLanguage(lang) {
   if (btnTest) {
     setButtonTextAfterSvg(btnTest, t('trimmer_test'));
   }
+  updateTrimRepeatToggleButton();
   const btnStop = document.getElementById('trimStopTest');
   if (btnStop) { btnStop.textContent = t('trimmer_stop'); btnStop.setAttribute('aria-label', t('trimmer_stop')); }
   const btnSave = document.getElementById('trimSave');
@@ -1653,6 +1732,7 @@ let trimCursorDragging = false;
 let trimCursorPointerId = null;
 let trimCursorFollowRaf = 0;
 let trimCursorFollowStartAt = 0;
+let trimTestRepeats = true;
 
 // Exposed by bindUI so the Playlists page can open the editor.
 let openPlaylistCreateOverlay = null;
@@ -1699,6 +1779,36 @@ function setLoopInfo(info) {
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
+}
+
+function normalizeAssignmentVolume(value, fallback = 1.0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return clamp(Number(fallback) || 1.0, 0, 1);
+  return clamp(parsed, 0, 1);
+}
+
+function setAssignmentVolumeUI(input, readout, value) {
+  const volume = normalizeAssignmentVolume(value, 1.0);
+  const percent = clamp(Math.round(volume * 100), 0, 100);
+  if (input) input.value = String(percent);
+  if (readout) readout.textContent = `${percent}%`;
+  return volume;
+}
+
+function readAssignmentVolumeUI(input, fallback = 1.0) {
+  const fallbackPercent = Math.round(normalizeAssignmentVolume(fallback, 1.0) * 100);
+  const percent = clamp(parseInt(input && input.value, 10) || fallbackPercent, 0, 100);
+  return percent / 100;
+}
+
+function updateTrimRepeatToggleButton() {
+  const btn = document.getElementById('trimRepeatToggle');
+  if (!btn) return;
+  const text = trimTestRepeats ? t('trimmer_repeat_on') : t('trimmer_repeat_off');
+  btn.textContent = text;
+  btn.setAttribute('aria-pressed', trimTestRepeats ? 'true' : 'false');
+  btn.setAttribute('aria-label', text);
+  btn.title = text;
 }
 
 function setPlaybackRate(rate, { smooth = true } = {}) {
@@ -2788,6 +2898,7 @@ async function renderPlaylistsPage() {
     li.appendChild(div);
     listEl.appendChild(li);
     try { renderPadSessionsList(); } catch {}
+    try { renderDrumSessionsList(); } catch {}
     try { setTimeout(updateScrollState, 50); } catch {}
     return;
   }
@@ -2854,6 +2965,7 @@ async function renderPlaylistsPage() {
     });
   }
   try { renderPadSessionsList(); } catch {}
+  try { renderDrumSessionsList(); } catch {}
   try { setTimeout(updateScrollState, 50); } catch {}
 }
 
@@ -3356,27 +3468,59 @@ async function renderCurrentTrimmedAudio(applyFades = true) {
   return { rendered, range };
 }
 
+function clearTrimAssignmentTargets() {
+  trimPadTargetIndex = -1;
+  trimDrumTargetIndex = -1;
+}
+
 function assignSavedLoopToPadTarget(saved, presetName) {
-  if (!saved || !saved.id || trimPadTargetIndex < 0 || trimPadTargetIndex >= PAD_COUNT) return;
-  const assignment = padAssignments[trimPadTargetIndex];
-  if (!assignment) return;
-  assignment.presetKey = `upload:${saved.id}`;
-  assignment.label = stripFileExt((saved.id && getUploadNameOverride(saved.id)) || presetName || saved.name || 'Audio');
-  savePadAssignments();
-  void warmPadAssignmentBuffer(assignment);
-  renderPadGrid();
+  if (!saved || !saved.id) return;
+  const presetKey = `upload:${saved.id}`;
+  const label = stripFileExt((saved.id && getUploadNameOverride(saved.id)) || presetName || saved.name || 'Audio');
+  if (trimPadTargetIndex >= 0 && trimPadTargetIndex < PAD_COUNT) {
+    const assignment = padAssignments[trimPadTargetIndex];
+    if (assignment) {
+      assignment.presetKey = presetKey;
+      assignment.label = label;
+      savePadAssignments();
+      void warmPadAssignmentBuffer(assignment);
+      renderPadGrid();
+    }
+  }
+  if (trimDrumTargetIndex >= 0 && trimDrumTargetIndex < PAD_COUNT) {
+    const assignment = drumAssignments[trimDrumTargetIndex];
+    if (assignment) {
+      assignment.presetKey = presetKey;
+      assignment.label = label;
+      saveDrumAssignments();
+      void warmDrumAssignmentBuffer(assignment);
+      renderDrumGrid();
+    }
+  }
 }
 
 function applyTrimmedSoundToPadTarget(preset) {
-  if (!preset || trimPadTargetIndex < 0 || trimPadTargetIndex >= PAD_COUNT) return;
-  const assignment = padAssignments[trimPadTargetIndex];
   const presetKey = preset.id ? `upload:${preset.id}` : '';
-  if (!assignment || !presetKey || assignment.presetKey !== presetKey) return;
+  if (!preset || !presetKey) return;
   const nextLabel = stripFileExt((preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio');
-  assignment.label = nextLabel;
-  savePadAssignments();
-  void warmPadAssignmentBuffer(assignment);
-  renderPadGrid();
+  if (trimPadTargetIndex >= 0 && trimPadTargetIndex < PAD_COUNT) {
+    const assignment = padAssignments[trimPadTargetIndex];
+    if (assignment && assignment.presetKey === presetKey) {
+      assignment.label = nextLabel;
+      savePadAssignments();
+      void warmPadAssignmentBuffer(assignment);
+      renderPadGrid();
+    }
+  }
+  if (trimDrumTargetIndex >= 0 && trimDrumTargetIndex < PAD_COUNT) {
+    const assignment = drumAssignments[trimDrumTargetIndex];
+    if (assignment && assignment.presetKey === presetKey) {
+      assignment.label = nextLabel;
+      saveDrumAssignments();
+      void warmDrumAssignmentBuffer(assignment);
+      renderDrumGrid();
+    }
+  }
 }
 
 async function overwriteTrimmedLoopOriginal() {
@@ -3438,7 +3582,7 @@ async function overwriteTrimmedLoopOriginal() {
     setStatus('Failed to overwrite original loop');
     return false;
   } finally {
-    trimPadTargetIndex = -1;
+    clearTrimAssignmentTargets();
   }
 }
 
@@ -3555,7 +3699,14 @@ function startTrimCursorFollow() {
     trimCursorFollowRaf = requestAnimationFrame(tick);
     if (!trimTestSource || trimCursorDragging) return;
     const elapsed = Math.max(0, audioCtx.currentTime - trimCursorFollowStartAt);
-    const pos = (elapsed % loopLen);
+    if (!trimTestRepeats && elapsed >= loopLen) {
+      trimCursorTime = trimOut;
+      const endSpan = getTrimViewSpan();
+      updateTrimCursorUI(endSpan.start, endSpan.end);
+      stopTrimCursorFollow();
+      return;
+    }
+    const pos = trimTestRepeats ? (elapsed % loopLen) : Math.min(elapsed, loopLen);
     trimCursorTime = trimIn + pos;
     const span = getTrimViewSpan();
     updateTrimCursorUI(span.start, span.end);
@@ -3911,9 +4062,9 @@ function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
 }
 
 async function playTrimTest() {
+  ensureAudio();
   if (!trimBuffer || !audioCtx) return;
   stopTrimTest();
-  ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
   // Stop any main playback to avoid overlap.
@@ -3925,7 +4076,7 @@ async function playTrimTest() {
 
   trimTestSource = audioCtx.createBufferSource();
   trimTestSource.buffer = previewBuffer;
-  trimTestSource.loop = true;
+  trimTestSource.loop = trimTestRepeats;
   trimTestSource.loopStart = 0;
   trimTestSource.loopEnd = Math.max(0.001, previewBuffer.duration || 0.001);
   try { trimTestSource.playbackRate.setValueAtTime(1, audioCtx.currentTime); } catch {}
@@ -3940,6 +4091,17 @@ async function playTrimTest() {
   master.gain.cancelScheduledValues(audioCtx.currentTime);
   master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
   master.gain.linearRampToValueAtTime(volumeVal, audioCtx.currentTime + 0.03);
+
+  if (!trimTestRepeats) {
+    const sourceRef = trimTestSource;
+    trimTestSource.addEventListener('ended', () => {
+      if (trimTestSource !== sourceRef) return;
+      trimCursorTime = trimOut;
+      try { updateTrimCursorUI(); } catch {}
+      stopTrimTest(0, true);
+      setStatus('Trim preview stopped');
+    }, { once: true });
+  }
 
   trimTestSource.start(audioCtx.currentTime, 0);
   startOutputIfNeeded();
@@ -4077,7 +4239,7 @@ async function createTrimmedLoopAsWav(customName = '') {
     addUserPresetFromBlob({ name, blob: wavBlob, saved });
     if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
     assignSavedLoopToPadTarget(saved, name);
-    trimPadTargetIndex = -1;
+    clearTrimAssignmentTargets();
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -4188,7 +4350,7 @@ async function createTrimmedLoopAsCompressed(customName = '') {
       addUserPresetFromBlob({ name, blob: wavBlob, saved });
       if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
       assignSavedLoopToPadTarget(saved, name);
-      trimPadTargetIndex = -1;
+      clearTrimAssignmentTargets();
       try { renderLoopsPage(); } catch {}
       stopTrimTest();
       switchTab('loops');
@@ -4211,7 +4373,7 @@ async function createTrimmedLoopAsCompressed(customName = '') {
     addUserPresetFromBlob({ name, blob, saved });
     if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
     assignSavedLoopToPadTarget(saved, name);
-    trimPadTargetIndex = -1;
+    clearTrimAssignmentTargets();
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
@@ -4486,7 +4648,7 @@ function renderLoopsPage() {
           trimBtn.setAttribute('aria-label', `Trim ${displayName}`);
           trimBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            trimPadTargetIndex = -1;
+            clearTrimAssignmentTargets();
             openTrimmer(preset);
           });
           content.appendChild(trimBtn);
@@ -4844,6 +5006,23 @@ async function exportAppData() {
         return [];
       }
     })();
+    const exportedDrumAssignments = (() => {
+      try { return drumAssignments.map(a => serializeDrumAssignment(a)); } catch { return []; }
+    })();
+    const exportedDrumSessions = (() => {
+      try {
+        return loadDrumSessions().map(session => ({
+          id: session && session.id ? session.id : Date.now().toString(36),
+          name: session && session.name ? session.name : 'Session',
+          createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+          assignments: Array.isArray(session && session.assignments)
+            ? session.assignments.map(a => serializeDrumAssignment(a))
+            : []
+        }));
+      } catch {
+        return [];
+      }
+    })();
 
     const data = {
       app: 'seamlessplayer',
@@ -4857,6 +5036,8 @@ async function exportAppData() {
       loopCatAssignments: (() => { try { return JSON.parse(localStorage.getItem(LOOP_CAT_ASSIGNMENTS_KEY)) || {}; } catch { return {}; } })(),
       padAssignments: exportedPadAssignments,
       padSessions: exportedPadSessions,
+      drumAssignments: exportedDrumAssignments,
+      drumSessions: exportedDrumSessions,
     };
 
     const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
@@ -4907,6 +5088,7 @@ async function importZipBackup(file) {
 
   try { stopPlaylistPlayback(); } catch {}
   try { stopLoop(0.03); } catch {}
+  try { stopDrumPlayback(true); } catch {}
 
   setStatus('Importing ZIP…');
   const ab = await file.arrayBuffer();
@@ -4958,6 +5140,25 @@ async function importZipBackup(file) {
         assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
       }));
       savePadSessions(sessions);
+    }
+  } catch {}
+  try {
+    if (Array.isArray(data.drumAssignments)) {
+      const serialized = Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(data.drumAssignments[index]));
+      localStorage.setItem(DRUM_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+      drumAssignments = Array.from({ length: PAD_COUNT }, (_, index) => normalizeDrumAssignment(data.drumAssignments[index]));
+      warmAssignedDrumBuffers();
+    }
+  } catch {}
+  try {
+    if (Array.isArray(data.drumSessions)) {
+      const sessions = data.drumSessions.map((session, sessionIndex) => ({
+        id: session && session.id ? session.id : `imported-drum-${Date.now().toString(36)}-${sessionIndex}`,
+        name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
+        createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+        assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+      }));
+      saveDrumSessions(sessions);
     }
   } catch {}
 
@@ -5039,7 +5240,9 @@ async function importZipBackup(file) {
   if (activeTab === 'playlists') renderPlaylistsPage();
   if (activeTab === 'loops') renderLoopsPage();
   try { renderPadGrid(); } catch {}
+  try { renderDrumGrid(); } catch {}
   try { renderPadSessionsList(); } catch {}
+  try { renderDrumSessionsList(); } catch {}
 }
 
 async function importAppData(file) {
@@ -5107,6 +5310,25 @@ async function importAppData(file) {
         savePadSessions(sessions);
       }
     } catch {}
+    try {
+      if (Array.isArray(data.drumAssignments)) {
+        const serialized = Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(data.drumAssignments[index]));
+        localStorage.setItem(DRUM_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+        drumAssignments = Array.from({ length: PAD_COUNT }, (_, index) => normalizeDrumAssignment(data.drumAssignments[index]));
+        warmAssignedDrumBuffers();
+      }
+    } catch {}
+    try {
+      if (Array.isArray(data.drumSessions)) {
+        const sessions = data.drumSessions.map((session, sessionIndex) => ({
+          id: session && session.id ? session.id : `imported-drum-${Date.now().toString(36)}-${sessionIndex}`,
+          name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
+          createdAt: session && session.createdAt ? session.createdAt : Date.now(),
+          assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+        }));
+        saveDrumSessions(sessions);
+      }
+    } catch {}
 
     // Import playlists.
     if (Array.isArray(data.playlists)) {
@@ -5155,7 +5377,9 @@ async function importAppData(file) {
     if (activeTab === 'playlists') renderPlaylistsPage();
     if (activeTab === 'loops') renderLoopsPage();
     try { renderPadGrid(); } catch {}
+    try { renderDrumGrid(); } catch {}
     try { renderPadSessionsList(); } catch {}
+    try { renderDrumSessionsList(); } catch {}
   } catch (e) {
     setStatus('Import failed — invalid JSON');
   }
@@ -5172,6 +5396,8 @@ function applyTheme(theme) {
   });
   refreshPadColorPalette(theme);
   renderPadGrid();
+  refreshDrumColorPalette(theme);
+  renderDrumGrid();
 }
 
 function loadSavedTheme() {
@@ -5230,7 +5456,12 @@ function showHelpOverlay() {
    ================================================================ */
 const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
+const DRUM_ASSIGNMENTS_KEY = 'seamlessplayer-drum-assignments';
+const DRUM_SESSIONS_KEY = 'seamlessplayer-drum-sessions';
+const LOOP_TRIGGER_COLLAPSED_KEY = 'seamlessplayer-loop-trigger-collapsed';
+const DRUM_MACHINE_COLLAPSED_KEY = 'seamlessplayer-drum-machine-collapsed';
 const PAD_COUNT = 9;
+const DRUM_VOICE_LIMIT = 32;
 const PAD_COLOR_KEYS = Object.freeze(['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink', 'silver']);
 const PAD_COLOR_DEFAULT_KEY = 'blue';
 const PAD_DARK_COLOR_PALETTE = Object.freeze({
@@ -5287,8 +5518,11 @@ const PAD_LEGACY_COLOR_KEY_MAP = Object.freeze({
 });
 const padPickerCollapsedCategories = new Set();
 let padPickerLastOpenCategory = '';
+const drumPickerCollapsedCategories = new Set();
+let drumPickerLastOpenCategory = '';
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
+let drumAssignments = new Array(PAD_COUNT).fill(null);
 // Each assignment: { presetKey, label, rate, colorKey, color }
 
 let padActiveIndex = -1;      // currently playing pad
@@ -5308,6 +5542,56 @@ let padCountdownStartTime = 0;
 let padCountdownDuration = 0;
 let padCountdownRepeats = true;
 let padCountdownCircumference = 2 * Math.PI * 18;
+const drumBufferWarmPromises = new Map();
+const drumVoices = [];
+const drumPadHitUntil = new Array(PAD_COUNT).fill(0);
+let drumAssignTarget = -1;
+let drumAssignSelectedKey = '';
+let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
+
+function setIslandCollapsed(cardId, titleId, storageKey, collapsed) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.classList.toggle('collapsed', !!collapsed);
+  const title = document.getElementById(titleId);
+  if (title) title.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch {}
+}
+
+function toggleIslandCollapsed(cardId, titleId, storageKey) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  setIslandCollapsed(cardId, titleId, storageKey, !card.classList.contains('collapsed'));
+}
+
+function bindIslandCollapseTitle(titleId, cardId, storageKey) {
+  const title = document.getElementById(titleId);
+  if (!title) return;
+  let lastTapAt = 0;
+  title.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'mouse' && e.detail !== 2) return;
+    const now = Date.now();
+    if (now - lastTapAt <= 320) {
+      e.preventDefault();
+      toggleIslandCollapsed(cardId, titleId, storageKey);
+      lastTapAt = 0;
+      return;
+    }
+    lastTapAt = now;
+  });
+  title.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    toggleIslandCollapsed(cardId, titleId, storageKey);
+  });
+}
+
+function loadIslandCollapsedState() {
+  try {
+    setIslandCollapsed('loopTriggerCard', 'loopTriggerTitle', LOOP_TRIGGER_COLLAPSED_KEY, localStorage.getItem(LOOP_TRIGGER_COLLAPSED_KEY) === '1');
+    setIslandCollapsed('drumMachineCard', 'drumMachineTitle', DRUM_MACHINE_COLLAPSED_KEY, localStorage.getItem(DRUM_MACHINE_COLLAPSED_KEY) === '1');
+  } catch {}
+}
 
 function ensurePadCountdownElement() {
   if (padCountdownEl) return padCountdownEl;
@@ -5425,6 +5709,7 @@ function normalizePadAssignment(a, theme = getCurrentTheme()) {
     rate: clamp(Number(a.rate) || 1.0, RATE_MIN, RATE_MAX),
     colorKey,
     color: resolvePadDisplayColor(colorKey, theme),
+    volume: normalizeAssignmentVolume(a.volume, 1.0),
     loop: a.loop !== false,
     preservePitch: !!(a && a.preservePitch),
     displayName: String(a.displayName || '')
@@ -5440,9 +5725,41 @@ function serializePadAssignment(a, theme = getCurrentTheme()) {
     rate: normalized.rate,
     colorKey: normalized.colorKey,
     color: normalized.color,
+    volume: normalized.volume,
     loop: normalized.loop !== false,
     preservePitch: normalized.preservePitch,
     displayName: normalized.displayName
+  } : null;
+}
+
+function normalizeDrumAssignment(a, theme = getCurrentTheme()) {
+  if (!a || !a.presetKey) return null;
+  const colorKey = normalizePadColorKey(a.colorKey, a.color);
+  const chokeTargetIndex = Number.isInteger(a.chokeTargetIndex)
+    ? clamp(a.chokeTargetIndex, -1, PAD_COUNT - 1)
+    : -1;
+  return {
+    presetKey: String(a.presetKey),
+    label: String(a.label || ''),
+    displayName: String(a.displayName || ''),
+    volume: normalizeAssignmentVolume(a.volume, 1.0),
+    colorKey,
+    color: resolvePadDisplayColor(colorKey, theme),
+    chokeTargetIndex
+  };
+}
+
+function serializeDrumAssignment(a, theme = getCurrentTheme()) {
+  if (!a || !a.presetKey) return null;
+  const normalized = normalizeDrumAssignment(a, theme);
+  return normalized ? {
+    presetKey: normalized.presetKey,
+    label: normalized.label,
+    displayName: normalized.displayName,
+    volume: normalized.volume,
+    colorKey: normalized.colorKey,
+    color: normalized.color,
+    chokeTargetIndex: normalized.chokeTargetIndex
   } : null;
 }
 
@@ -5462,8 +5779,31 @@ function refreshPadColorPalette(theme = getCurrentTheme()) {
   });
 }
 
+function refreshDrumColorPalette(theme = getCurrentTheme()) {
+  const paletteEl = document.getElementById('drumColorPalette');
+  if (!paletteEl) return;
+  const palette = getPadThemePalette(theme);
+  paletteEl.querySelectorAll('.pad-color-swatch').forEach((swatch, index) => {
+    const colorKey = normalizePadColorKey(
+      swatch.getAttribute('data-color-key') || PAD_COLOR_KEYS[index],
+      swatch.getAttribute('data-color') || ''
+    );
+    const color = palette[colorKey] || palette[PAD_COLOR_DEFAULT_KEY];
+    swatch.setAttribute('data-color', color);
+    swatch.style.background = color;
+    swatch.classList.toggle('selected', colorKey === drumAssignSelectedColorKey);
+  });
+}
+
 function getPadAssignableTrimPreset() {
   const key = String(padAssignSelectedKey || '');
+  if (!key.startsWith('upload:')) return null;
+  const id = key.slice('upload:'.length);
+  return userPresets.find(preset => preset && preset.blob && String(preset.id) === String(id)) || null;
+}
+
+function getDrumAssignableTrimPreset() {
+  const key = String(drumAssignSelectedKey || '');
   if (!key.startsWith('upload:')) return null;
   const id = key.slice('upload:'.length);
   return userPresets.find(preset => preset && preset.blob && String(preset.id) === String(id)) || null;
@@ -5479,6 +5819,16 @@ function updatePadAssignTrimButton() {
   trimBtn.title = preset ? t('pads_assign_trim') : t('pads_assign_trim_unavailable');
 }
 
+function updateDrumAssignTrimButton() {
+  const trimBtn = document.getElementById('drumAssignTrim');
+  if (!trimBtn) return;
+  const preset = getDrumAssignableTrimPreset();
+  trimBtn.textContent = t('pads_assign_trim');
+  trimBtn.setAttribute('aria-label', t('pads_assign_trim'));
+  trimBtn.disabled = !preset;
+  trimBtn.title = preset ? t('pads_assign_trim') : t('pads_assign_trim_unavailable');
+}
+
 async function openSelectedPadLoopInTrimmer() {
   const preset = getPadAssignableTrimPreset();
   if (!preset) {
@@ -5487,7 +5837,21 @@ async function openSelectedPadLoopInTrimmer() {
     return;
   }
   trimPadTargetIndex = padAssignTarget;
+  trimDrumTargetIndex = -1;
   closePadAssignModal();
+  await openTrimmer(preset);
+}
+
+async function openSelectedDrumLoopInTrimmer() {
+  const preset = getDrumAssignableTrimPreset();
+  if (!preset) {
+    updateDrumAssignTrimButton();
+    setStatus(t('pads_assign_trim_unavailable'));
+    return;
+  }
+  trimDrumTargetIndex = drumAssignTarget;
+  trimPadTargetIndex = -1;
+  closeDrumAssignModal();
   await openTrimmer(preset);
 }
 
@@ -5573,6 +5937,24 @@ function setPadPickerExpandedCategory(category, categories) {
   });
 }
 
+function setDrumPickerExpandedCategory(category, categories) {
+  drumPickerCollapsedCategories.clear();
+  if (!category) {
+    categories.forEach(cat => drumPickerCollapsedCategories.add(cat));
+    return;
+  }
+  categories.forEach(cat => {
+    if (cat !== category) drumPickerCollapsedCategories.add(cat);
+  });
+}
+
+function initializeDrumPickerView(categories) {
+  const remembered = drumPickerLastOpenCategory && categories.includes(drumPickerLastOpenCategory)
+    ? drumPickerLastOpenCategory
+    : '';
+  setDrumPickerExpandedCategory(remembered, categories);
+}
+
 function initializePadPickerView(categories) {
   const remembered = padPickerLastOpenCategory && categories.includes(padPickerLastOpenCategory)
     ? padPickerLastOpenCategory
@@ -5638,6 +6020,56 @@ function renderPadLoopPicker() {
   }
 }
 
+function renderDrumLoopPicker() {
+  const list = document.getElementById('drumLoopPickerList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const byCategory = getPadLoopChoicesByCategory();
+  const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b));
+
+  categories.forEach(category => {
+    const items = byCategory[category];
+    if (!items || !items.length) return;
+
+    const section = document.createElement('div');
+    section.className = 'pad-picker-category';
+    const collapsed = drumPickerCollapsedCategories.has(category);
+    if (collapsed) section.classList.add('collapsed');
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'pad-picker-category-header';
+    header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${getTranslatedLoopCategoryName(category)}</span></span><span class="pad-picker-count">${items.length}</span>`;
+    header.addEventListener('click', () => {
+      const nextExpandedCategory = drumPickerCollapsedCategories.has(category) ? category : '';
+      drumPickerLastOpenCategory = category;
+      setDrumPickerExpandedCategory(nextExpandedCategory, categories);
+      renderDrumLoopPicker();
+    });
+    section.appendChild(header);
+    section.dataset.category = category;
+
+    const body = document.createElement('div');
+    body.className = 'pad-picker-items';
+    items.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `pad-picker-item${item.presetKey === drumAssignSelectedKey ? ' selected' : ''}`;
+      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
+      button.addEventListener('click', () => {
+        drumAssignSelectedKey = item.presetKey;
+        updateDrumAssignTrimButton();
+        renderDrumLoopPicker();
+      });
+      body.appendChild(button);
+    });
+
+    section.appendChild(body);
+    list.appendChild(section);
+  });
+}
+
 function loadPadAssignments() {
   try {
     const raw = localStorage.getItem(PADS_ASSIGNMENTS_KEY);
@@ -5674,6 +6106,310 @@ function warmAssignedPadBuffers() {
     seen.add(presetKey);
     void warmPadAssignmentBuffer(assignment);
   }
+}
+
+function loadDrumAssignments() {
+  try {
+    const raw = localStorage.getItem(DRUM_ASSIGNMENTS_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed)) {
+      drumAssignments = Array.from({ length: PAD_COUNT }, (_, index) => normalizeDrumAssignment(parsed[index]));
+    }
+  } catch {}
+  try { warmAssignedDrumBuffers(); } catch {}
+}
+
+function saveDrumAssignments() {
+  try {
+    const serialized = drumAssignments.map(a => serializeDrumAssignment(a));
+    localStorage.setItem(DRUM_ASSIGNMENTS_KEY, JSON.stringify(serialized));
+  } catch {}
+}
+
+function warmDrumAssignmentBuffer(assignment) {
+  const presetKey = assignment && assignment.presetKey;
+  if (!presetKey) return Promise.resolve(null);
+  if (drumBufferWarmPromises.has(presetKey)) return drumBufferWarmPromises.get(presetKey);
+  const warmPromise = loadBufferFromPresetKey(presetKey)
+    .catch(() => null)
+    .finally(() => {
+      drumBufferWarmPromises.delete(presetKey);
+    });
+  drumBufferWarmPromises.set(presetKey, warmPromise);
+  return warmPromise;
+}
+
+function warmAssignedDrumBuffers() {
+  const seen = new Set();
+  for (const assignment of drumAssignments) {
+    const presetKey = assignment && assignment.presetKey;
+    if (!presetKey || seen.has(presetKey)) continue;
+    seen.add(presetKey);
+    void warmDrumAssignmentBuffer(assignment);
+  }
+}
+
+function formatDrumChokeOptionLabel(index, assignment = drumAssignments[index]) {
+  const fallback = `Pad ${index + 1}`;
+  if (!assignment) return fallback;
+  const name = String(assignment.displayName || assignment.label || '').trim();
+  return name ? `${index + 1} - ${name}` : fallback;
+}
+
+function renderDrumChokeOptions() {
+  const select = document.getElementById('drumChokeSelect');
+  if (!select) return;
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  const noneOption = document.createElement('option');
+  noneOption.value = '-1';
+  noneOption.textContent = t('drum_choke_none');
+  select.appendChild(noneOption);
+
+  drumAssignments.forEach((assignment, index) => {
+    if (!assignment || index === drumAssignTarget) return;
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = formatDrumChokeOptionLabel(index, assignment);
+    select.appendChild(option);
+  });
+
+  const currentAssignment = drumAssignTarget >= 0 ? drumAssignments[drumAssignTarget] : null;
+  const desired = currentAssignment && Number.isInteger(currentAssignment.chokeTargetIndex)
+    ? String(currentAssignment.chokeTargetIndex)
+    : (previousValue || '-1');
+  select.value = Array.from(select.options).some(option => option.value === desired) ? desired : '-1';
+}
+
+function renderDrumGrid() {
+  const grid = document.getElementById('drumPadsGrid');
+  if (!grid) return;
+  const theme = getCurrentTheme();
+  const pads = grid.querySelectorAll('.drum-pad');
+  const now = Date.now();
+  pads.forEach((el, i) => {
+    const assignment = drumAssignments[i];
+    const oldName = el.querySelector('.pad-loop-name');
+    if (oldName) oldName.remove();
+
+    if (assignment) {
+      const colorKey = normalizePadColorKey(assignment.colorKey, assignment.color);
+      const displayText = assignment.displayName || assignment.label || '';
+      el.style.background = resolvePadDisplayColor(colorKey, theme);
+      el.setAttribute('aria-label', `Drum pad ${i + 1} - ${displayText || 'Assigned'}`);
+      const nameEl = document.createElement('span');
+      nameEl.className = 'pad-loop-name';
+      nameEl.textContent = formatPadDisplayText(displayText);
+      el.appendChild(nameEl);
+    } else {
+      el.style.background = '';
+      el.setAttribute('aria-label', `Drum pad ${i + 1} - Empty`);
+    }
+
+    el.classList.toggle('pad-hit', drumPadHitUntil[i] > now);
+  });
+}
+
+function flashDrumPad(index) {
+  if (index < 0 || index >= PAD_COUNT) return;
+  drumPadHitUntil[index] = Date.now() + 160;
+  renderDrumGrid();
+  setTimeout(() => {
+    if (drumPadHitUntil[index] <= Date.now()) renderDrumGrid();
+  }, 180);
+}
+
+function unregisterDrumVoice(voice) {
+  const idx = drumVoices.indexOf(voice);
+  if (idx >= 0) drumVoices.splice(idx, 1);
+}
+
+function destroyDrumVoice(voice) {
+  if (!voice) return;
+  if (voice.cleanupTimer) {
+    clearTimeout(voice.cleanupTimer);
+    voice.cleanupTimer = 0;
+  }
+  try { voice.source.removeEventListener('ended', voice.endedHandler); } catch {}
+  try { voice.source.disconnect(); } catch {}
+  try { if (voice.gainNode) voice.gainNode.disconnect(); } catch {}
+  try { if (voice.pitchShifterNode) voice.pitchShifterNode.disconnect(); } catch {}
+  unregisterDrumVoice(voice);
+}
+
+function stopDrumVoice(voice, immediate = false) {
+  if (!voice || voice.stopping) return;
+  voice.stopping = true;
+  const fade = immediate ? 0.005 : 0.03;
+  try {
+    if (audioCtx && voice.gainNode) {
+      const now = audioCtx.currentTime;
+      voice.gainNode.gain.cancelScheduledValues(now);
+      voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, now);
+      voice.gainNode.gain.linearRampToValueAtTime(0, now + fade);
+    }
+  } catch {}
+  voice.cleanupTimer = setTimeout(() => {
+    try { voice.source.stop(); } catch {}
+    destroyDrumVoice(voice);
+  }, Math.max(16, Math.round((fade + 0.03) * 1000)));
+}
+
+function stopDrumVoicesByPad(index, immediate = true) {
+  if (index < 0 || index >= PAD_COUNT) return;
+  drumVoices
+    .filter(voice => voice && voice.padIndex === index)
+    .forEach(voice => stopDrumVoice(voice, immediate));
+}
+
+function stopDrumPlayback(immediate = false) {
+  drumVoices.slice().forEach(voice => stopDrumVoice(voice, immediate));
+}
+
+async function triggerDrumPad(index) {
+  const assignment = drumAssignments[index];
+  if (!assignment) return;
+
+  ensureAudio();
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch {}
+  }
+  startOutputIfNeeded();
+
+  const chokeTargetIndex = Number.isInteger(assignment.chokeTargetIndex) ? assignment.chokeTargetIndex : -1;
+  if (chokeTargetIndex >= 0 && chokeTargetIndex !== index) {
+    stopDrumVoicesByPad(chokeTargetIndex, true);
+  }
+
+  const loaded = await loadBufferFromPresetKey(assignment.presetKey);
+  if (!loaded || !loaded.buffer || !audioCtx || !master) {
+    setStatus('Drum pad: failed to load sample');
+    return;
+  }
+
+  const buffer = loaded.buffer;
+  const ref = loaded.presetRef;
+  const startOffset = ref && ref.trimIn != null ? clamp(Number(ref.trimIn) || 0, 0, Math.max(0, buffer.duration - 0.001)) : 0;
+  const endOffset = ref && ref.trimOut != null
+    ? clamp(Number(ref.trimOut) || buffer.duration, startOffset + 0.001, buffer.duration)
+    : buffer.duration;
+  const duration = Math.max(0.01, endOffset - startOffset);
+
+  if (drumVoices.length >= DRUM_VOICE_LIMIT) {
+    stopDrumVoice(drumVoices[0], true);
+  }
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = false;
+
+  const gainNode = audioCtx.createGain();
+  try { gainNode.gain.setValueAtTime(normalizeAssignmentVolume(assignment.volume, 1.0), audioCtx.currentTime); } catch {}
+  source.connect(gainNode);
+  gainNode.connect(master);
+
+  try {
+    const now = audioCtx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(volumeVal, now + 0.01);
+  } catch {}
+
+  const voice = {
+    source,
+    gainNode,
+    pitchShifterNode: null,
+    padIndex: index,
+    cleanupTimer: 0,
+    stopping: false,
+    endedHandler: null
+  };
+
+  voice.endedHandler = () => destroyDrumVoice(voice);
+  source.addEventListener('ended', voice.endedHandler);
+  drumVoices.push(voice);
+
+  source.start(audioCtx.currentTime, startOffset, duration);
+  flashDrumPad(index);
+  setStatus(`Drum ${index + 1}: ${assignment.displayName || assignment.label || 'Playing'}`);
+}
+
+function openDrumAssignModal(padIndex) {
+  drumAssignTarget = padIndex;
+  const existing = drumAssignments[padIndex];
+  const overlay = document.getElementById('drumAssignOverlay');
+  const title = document.getElementById('drumAssignTitle');
+  const displayNameInput = document.getElementById('drumDisplayNameInput');
+  const volumeInput = document.getElementById('drumAssignVolume');
+  const volumeReadout = document.getElementById('drumAssignVolumeReadout');
+
+  if (!overlay) return;
+  if (title) title.textContent = `${t('drum_assign_title')} ${padIndex + 1}`;
+  drumAssignSelectedKey = (existing && existing.presetKey) || '';
+  drumAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
+  initializeDrumPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
+  renderDrumLoopPicker();
+  renderDrumChokeOptions();
+  refreshDrumColorPalette();
+  if (displayNameInput) displayNameInput.value = (existing && existing.displayName) || '';
+  setAssignmentVolumeUI(volumeInput, volumeReadout, existing && existing.volume != null ? existing.volume : 1.0);
+  const chokeSelect = document.getElementById('drumChokeSelect');
+  if (chokeSelect) chokeSelect.value = existing && Number.isInteger(existing.chokeTargetIndex) ? String(existing.chokeTargetIndex) : '-1';
+  updateDrumAssignTrimButton();
+  overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closeDrumAssignModal() {
+  const overlay = document.getElementById('drumAssignOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  drumAssignTarget = -1;
+  try { updateScrollState(); } catch {}
+}
+
+function saveDrumAssignment() {
+  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
+  if (!drumAssignSelectedKey) {
+    closeDrumAssignModal();
+    return;
+  }
+
+  const displayNameInput = document.getElementById('drumDisplayNameInput');
+  const chokeSelect = document.getElementById('drumChokeSelect');
+  const volumeInput = document.getElementById('drumAssignVolume');
+  const choices = getAllLoopChoices();
+  const match = choices.find(choice => choice.presetKey === drumAssignSelectedKey);
+  const label = match ? match.label : '';
+  const chokeTargetIndex = chokeSelect ? clamp(parseInt(chokeSelect.value, 10) || -1, -1, PAD_COUNT - 1) : -1;
+
+  drumAssignments[drumAssignTarget] = {
+    presetKey: drumAssignSelectedKey,
+    label,
+    displayName: displayNameInput ? displayNameInput.value.trim() : '',
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
+    colorKey: drumAssignSelectedColorKey,
+    color: resolvePadDisplayColor(drumAssignSelectedColorKey),
+    chokeTargetIndex: chokeTargetIndex === drumAssignTarget ? -1 : chokeTargetIndex
+  };
+  saveDrumAssignments();
+  void warmDrumAssignmentBuffer(drumAssignments[drumAssignTarget]);
+  renderDrumGrid();
+  closeDrumAssignModal();
+}
+
+function clearDrumAssignment() {
+  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
+  stopDrumVoicesByPad(drumAssignTarget, true);
+  drumAssignments[drumAssignTarget] = null;
+  drumAssignments = drumAssignments.map((assignment, index) => {
+    if (!assignment || index === drumAssignTarget) return assignment;
+    if (assignment.chokeTargetIndex !== drumAssignTarget) return assignment;
+    return { ...assignment, chokeTargetIndex: -1 };
+  });
+  saveDrumAssignments();
+  renderDrumGrid();
+  closeDrumAssignModal();
 }
 
 function disconnectPadPitchShifter() {
@@ -5716,6 +6452,17 @@ function loadPadSessions() {
 
 function savePadSessions(sessions) {
   try { localStorage.setItem(PADS_SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
+}
+
+function loadDrumSessions() {
+  try {
+    const raw = localStorage.getItem(DRUM_SESSIONS_KEY);
+    return JSON.parse(raw || '[]').filter(s => s && s.name && Array.isArray(s.assignments));
+  } catch { return []; }
+}
+
+function saveDrumSessions(sessions) {
+  try { localStorage.setItem(DRUM_SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
 }
 
 function formatPadDisplayText(label) {
@@ -5844,6 +6591,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   const buffer = result.buffer;
   const pts = computeLoopPoints(buffer);
   const playDuration = Math.max(0.01, pts.end - pts.start);
+  const assignmentVolume = normalizeAssignmentVolume(a.volume, 1.0);
 
   padSource = audioCtx.createBufferSource();
   padSource.buffer = buffer;
@@ -5858,7 +6606,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   padGainNode = audioCtx.createGain();
   try {
     padGainNode.gain.cancelScheduledValues(startTime);
-    padGainNode.gain.setValueAtTime(volumeVal, startTime);
+    padGainNode.gain.setValueAtTime(assignmentVolume, startTime);
   } catch {}
 
   try {
@@ -6010,6 +6758,8 @@ function openPadAssignModal(padIndex) {
   const title = document.getElementById('padAssignTitle');
    const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
+  const volumeReadout = document.getElementById('padAssignVolumeReadout');
   const palette = document.getElementById('padColorPalette');
   const preservePitchBtn = document.getElementById('padPreservePitchBtn');
   const repeatBtn = document.getElementById('padRepeatBtn');
@@ -6024,6 +6774,7 @@ function openPadAssignModal(padIndex) {
 
   if (displayNameInput) displayNameInput.value = (existing && existing.displayName) || '';
   if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
+  setAssignmentVolumeUI(volumeInput, volumeReadout, existing && existing.volume != null ? existing.volume : 1.0);
   padAssignPreservePitch = !!(existing && existing.preservePitch);
   if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
   padAssignLoop = existing ? existing.loop !== false : true;
@@ -6056,6 +6807,7 @@ function savePadAssignment() {
 
    const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
    const displayName = displayNameInput ? displayNameInput.value.trim() : '';
   const rate = normalizePadRateValue(rateInput && rateInput.value, 1.0);
   if (rateInput) rateInput.value = formatPadRateValue(rate);
@@ -6070,6 +6822,7 @@ function savePadAssignment() {
     label,
     displayName,
     rate,
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
     colorKey: padAssignSelectedColorKey,
     color: resolvePadDisplayColor(padAssignSelectedColorKey),
     loop: padAssignLoop,
@@ -6198,6 +6951,8 @@ function renderPadSessionsList() {
 
 let pendingRecallSession = null;
 let pendingDeletePadSession = null;
+let pendingRecallDrumSession = null;
+let pendingDeleteDrumSession = null;
 
 function confirmRecallPadSession(session) {
   const hasAssignments = padAssignments.some(Boolean);
@@ -6255,11 +7010,170 @@ function applyPadSession(session) {
   switchTab('player');
 }
 
+function openDrumSessionSaveModal() {
+  const overlay = document.getElementById('drumSessionSaveOverlay');
+  const input = document.getElementById('drumSessionNameInput');
+  if (!overlay) return;
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const suggestion = `Session ${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  if (input) input.value = suggestion;
+  overlay.classList.remove('hidden');
+  if (input) { input.focus(); input.select(); }
+  try { updateScrollState(); } catch {}
+}
+
+function closeDrumSessionSaveModal() {
+  const overlay = document.getElementById('drumSessionSaveOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function confirmSaveDrumSession() {
+  const input = document.getElementById('drumSessionNameInput');
+  const name = (input && input.value || '').trim();
+  if (!name) { setStatus('Enter a session name.'); return; }
+
+  const sessions = loadDrumSessions();
+  sessions.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name,
+    createdAt: Date.now(),
+    assignments: drumAssignments.map(a => serializeDrumAssignment(a))
+  });
+  saveDrumSessions(sessions);
+  closeDrumSessionSaveModal();
+  setStatus(`Session "${name}" saved.`);
+  if (activeTab === 'playlists') renderDrumSessionsList();
+}
+
+function renderDrumSessionsList() {
+  const listEl = document.getElementById('drumSessionsList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const sessions = loadDrumSessions();
+  if (!sessions.length) {
+    const li = document.createElement('li');
+    li.className = 'playlist-empty';
+    const div = document.createElement('div');
+    div.className = 'hint';
+    div.textContent = t('drum_no_sessions');
+    li.appendChild(div);
+    listEl.appendChild(li);
+    return;
+  }
+
+  sessions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  for (const session of sessions) {
+    const li = document.createElement('li');
+    li.className = 'playlist-list-row';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'playlist-list-item';
+
+    const mainSpan = document.createElement('span');
+    mainSpan.className = 'pl-item-main';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pl-item-name';
+    nameSpan.textContent = session.name;
+
+    const countSpan = document.createElement('span');
+    countSpan.className = 'pl-item-count';
+    const assigned = (session.assignments || []).filter(Boolean).length;
+    countSpan.textContent = `${assigned} pad${assigned !== 1 ? 's' : ''}`;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'pl-item-chevron';
+    chevron.textContent = '›';
+
+    mainSpan.appendChild(nameSpan);
+    btn.appendChild(mainSpan);
+    btn.appendChild(countSpan);
+    btn.appendChild(chevron);
+    btn.addEventListener('click', () => {
+      confirmRecallDrumSession(session);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'playlist-list-play';
+    delBtn.setAttribute('aria-label', `Delete: ${session.name}`);
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      confirmDeleteDrumSession(session);
+    });
+
+    li.appendChild(btn);
+    li.appendChild(delBtn);
+    listEl.appendChild(li);
+  }
+}
+
+function confirmRecallDrumSession(session) {
+  const hasAssignments = drumAssignments.some(Boolean);
+  if (hasAssignments) {
+    pendingRecallDrumSession = session;
+    const overlay = document.getElementById('drumSessionRecallOverlay');
+    const text = document.getElementById('drumSessionRecallText');
+    if (text) text.textContent = `Replace current drum machine assignments with "${session.name}"?`;
+    if (overlay) overlay.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
+  } else {
+    applyDrumSession(session);
+  }
+}
+
+function confirmDeleteDrumSession(session) {
+  if (!session) return;
+  pendingDeleteDrumSession = session;
+  const overlay = document.getElementById('drumSessionDeleteOverlay');
+  const text = document.getElementById('drumSessionDeleteText');
+  if (text) text.textContent = `Delete session "${session.name}"?`;
+  if (overlay) overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closeDrumSessionDeleteModal() {
+  const overlay = document.getElementById('drumSessionDeleteOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  pendingDeleteDrumSession = null;
+  try { updateScrollState(); } catch {}
+}
+
+function confirmDeletePendingDrumSession() {
+  const session = pendingDeleteDrumSession;
+  closeDrumSessionDeleteModal();
+  if (!session || !session.id) return;
+  const all = loadDrumSessions();
+  const filtered = all.filter(s => s.id !== session.id);
+  saveDrumSessions(filtered);
+  renderDrumSessionsList();
+  setStatus(`Session "${session.name}" deleted.`);
+}
+
+function applyDrumSession(session) {
+  if (!session || !Array.isArray(session.assignments)) return;
+  for (let i = 0; i < PAD_COUNT; i++) {
+    drumAssignments[i] = normalizeDrumAssignment(session.assignments[i]);
+  }
+  saveDrumAssignments();
+  try { warmAssignedDrumBuffers(); } catch {}
+  stopDrumPlayback(true);
+  renderDrumGrid();
+  setStatus(`Session "${session.name}" loaded.`);
+  switchTab('player');
+}
+
 function bindPadsUI() {
   const grid = document.getElementById('padsGrid');
   if (!grid) return;
 
-  const longPressDelay = 500;
+  const longPressDelay = 750;
   let longPressTimer = 0;
   let longPressFired = false;
   let dblClickTimer = 0;
@@ -6366,6 +7280,8 @@ function bindPadsUI() {
   }
 
   const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
+  const volumeReadout = document.getElementById('padAssignVolumeReadout');
   if (rateInput) {
     const selectRateValue = () => {
       try { rateInput.select(); } catch {}
@@ -6389,6 +7305,12 @@ function bindPadsUI() {
         e.preventDefault();
         syncPadRateInput(true);
       }
+    });
+  }
+
+  if (volumeInput) {
+    volumeInput.addEventListener('input', () => {
+      setAssignmentVolumeUI(volumeInput, volumeReadout, readAssignmentVolumeUI(volumeInput, 1.0));
     });
   }
 
@@ -6432,6 +7354,112 @@ function bindPadsUI() {
   const deleteSessionCancel = document.getElementById('padSessionDeleteCancel');
   if (deleteSessionConfirm) deleteSessionConfirm.addEventListener('click', confirmDeletePendingPadSession);
   if (deleteSessionCancel) deleteSessionCancel.addEventListener('click', closePadSessionDeleteModal);
+}
+
+function bindDrumMachineUI() {
+  const grid = document.getElementById('drumPadsGrid');
+  if (!grid) return;
+
+  const longPressDelay = 750;
+  let longPressTimer = 0;
+  let longPressFired = false;
+
+  grid.querySelectorAll('.drum-pad').forEach(padEl => {
+    const idx = parseInt(padEl.getAttribute('data-drum-pad'), 10) - 1;
+
+    const startLongPress = () => {
+      longPressFired = false;
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        stopDrumVoicesByPad(idx, true);
+        openDrumAssignModal(idx);
+      }, longPressDelay);
+    };
+
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = 0;
+      }
+    };
+
+    const handleTap = () => {
+      if (longPressFired) return;
+      if (!drumAssignments[idx]) return;
+      void triggerDrumPad(idx);
+    };
+
+    padEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button === 0) {
+        e.preventDefault();
+      }
+      startLongPress();
+      handleTap();
+    });
+    padEl.addEventListener('pointerup', cancelLongPress);
+    padEl.addEventListener('pointerleave', cancelLongPress);
+    padEl.addEventListener('pointercancel', cancelLongPress);
+    padEl.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+
+  const drumPalette = document.getElementById('drumColorPalette');
+  const drumVolumeInput = document.getElementById('drumAssignVolume');
+  const drumVolumeReadout = document.getElementById('drumAssignVolumeReadout');
+  if (drumPalette) {
+    drumPalette.addEventListener('click', (e) => {
+      const swatch = e.target.closest('.pad-color-swatch');
+      if (!swatch) return;
+      drumAssignSelectedColorKey = normalizePadColorKey(
+        swatch.getAttribute('data-color-key') || '',
+        swatch.getAttribute('data-color') || ''
+      );
+      refreshDrumColorPalette();
+    });
+    refreshDrumColorPalette();
+  }
+
+  if (drumVolumeInput) {
+    drumVolumeInput.addEventListener('input', () => {
+      setAssignmentVolumeUI(drumVolumeInput, drumVolumeReadout, readAssignmentVolumeUI(drumVolumeInput, 1.0));
+    });
+  }
+
+  const drumAssignSave = document.getElementById('drumAssignSave');
+  const drumAssignTrim = document.getElementById('drumAssignTrim');
+  const drumAssignClear = document.getElementById('drumAssignClear');
+  const drumAssignClose = document.getElementById('drumAssignClose');
+  const drumSaveSessBtn = document.getElementById('drumSaveSession');
+  const drumSessConfirm = document.getElementById('drumSessionSaveConfirm');
+  const drumSessCancel = document.getElementById('drumSessionSaveCancel');
+  const drumRecallConfirm = document.getElementById('drumSessionRecallConfirm');
+  const drumRecallCancel = document.getElementById('drumSessionRecallCancel');
+  const drumDeleteConfirm = document.getElementById('drumSessionDeleteConfirm');
+  const drumDeleteCancel = document.getElementById('drumSessionDeleteCancel');
+  if (drumAssignTrim) drumAssignTrim.addEventListener('click', () => { void openSelectedDrumLoopInTrimmer(); });
+  if (drumAssignSave) drumAssignSave.addEventListener('click', saveDrumAssignment);
+  if (drumAssignClear) drumAssignClear.addEventListener('click', clearDrumAssignment);
+  if (drumAssignClose) drumAssignClose.addEventListener('click', closeDrumAssignModal);
+  if (drumSaveSessBtn) drumSaveSessBtn.addEventListener('click', openDrumSessionSaveModal);
+  if (drumSessConfirm) drumSessConfirm.addEventListener('click', confirmSaveDrumSession);
+  if (drumSessCancel) drumSessCancel.addEventListener('click', closeDrumSessionSaveModal);
+  if (drumRecallConfirm) drumRecallConfirm.addEventListener('click', () => {
+    const overlay = document.getElementById('drumSessionRecallOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    if (pendingRecallDrumSession) applyDrumSession(pendingRecallDrumSession);
+    pendingRecallDrumSession = null;
+    try { updateScrollState(); } catch {}
+  });
+  if (drumRecallCancel) drumRecallCancel.addEventListener('click', () => {
+    const overlay = document.getElementById('drumSessionRecallOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    pendingRecallDrumSession = null;
+    try { updateScrollState(); } catch {}
+  });
+  if (drumDeleteConfirm) drumDeleteConfirm.addEventListener('click', confirmDeletePendingDrumSession);
+  if (drumDeleteCancel) drumDeleteCancel.addEventListener('click', closeDrumSessionDeleteModal);
+
+  bindIslandCollapseTitle('loopTriggerTitle', 'loopTriggerCard', LOOP_TRIGGER_COLLAPSED_KEY);
+  bindIslandCollapseTitle('drumMachineTitle', 'drumMachineCard', DRUM_MACHINE_COLLAPSED_KEY);
 }
 
 function bindUI() {
@@ -6496,6 +7524,7 @@ function bindUI() {
   const trimFadeOutHandle = document.getElementById('trimFadeOutHandle');
   const trimZoom = document.getElementById('trimZoom');
   const trimPlayTest = document.getElementById('trimPlayTest');
+  const trimRepeatToggle = document.getElementById('trimRepeatToggle');
   const trimStopTest = document.getElementById('trimStopTest');
   const trimSaveBtn = document.getElementById('trimSave');
   const trimResetBtn = document.getElementById('trimReset');
@@ -6604,6 +7633,7 @@ function bindUI() {
 
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
   stopBtn && stopBtn.addEventListener('click', () => stopPadPlayback(0));
+  stopBtn && stopBtn.addEventListener('click', () => stopDrumPlayback(true));
 
   // Stop should also stop playlist sequencing.
   stopBtn && stopBtn.addEventListener('click', () => {
@@ -7495,7 +8525,7 @@ function bindUI() {
   // ---- Trimmer bindings ----
   trimBack && trimBack.addEventListener('click', () => {
     stopTrimTest();
-    trimPadTargetIndex = -1;
+    clearTrimAssignmentTargets();
     switchTab('loops');
   });
 
@@ -7547,6 +8577,13 @@ function bindUI() {
   });
 
   trimPlayTest && trimPlayTest.addEventListener('click', () => playTrimTest());
+  trimRepeatToggle && trimRepeatToggle.addEventListener('click', () => {
+    trimTestRepeats = !trimTestRepeats;
+    updateTrimRepeatToggleButton();
+    if (trimTestSource) {
+      try { trimTestSource.loop = trimTestRepeats; } catch {}
+    }
+  });
   trimStopTest && trimStopTest.addEventListener('click', () => { stopTrimTest(); setStatus('Stopped'); });
   trimSaveBtn && trimSaveBtn.addEventListener('click', () => showTrimSaveOptions());
   trimResetBtn && trimResetBtn.addEventListener('click', () => resetTrimPoints());
@@ -7619,6 +8656,7 @@ function bindUI() {
 
 window.addEventListener('load', () => {
   loadCollapsedCategoriesState();
+  loadIslandCollapsedState();
   // Restore saved preserve-pitch preference.
   try {
     preservePitch = localStorage.getItem('seamlessplayer-preserve-pitch') === '1';
@@ -7630,8 +8668,11 @@ window.addEventListener('load', () => {
   lockViewportScale();
   bindUI();
   loadPadAssignments();
+  loadDrumAssignments();
   bindPadsUI();
+  bindDrumMachineUI();
   renderPadGrid();
+  renderDrumGrid();
   setStatus(t('status_ready'));
   drawWaveform();
   switchTab('player');

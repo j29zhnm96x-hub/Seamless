@@ -1089,6 +1089,18 @@ html.no-scroll,body.no-scroll{overflow:hidden!important}
   box-shadow:var(--pad-shadow);
   transition:var(--pad-shadow-transition);
 }
+#drumMachineCard{
+  background:
+    linear-gradient(180deg, rgba(84, 125, 96, 0.18) 0%, rgba(84, 125, 96, 0.08) 18%, rgba(255,255,255,0.02) 100%),
+    var(--surface);
+  border-color:rgba(124, 170, 136, 0.34);
+}
+html.theme-light #drumMachineCard{
+  background:
+    linear-gradient(180deg, rgba(120, 170, 128, 0.22) 0%, rgba(120, 170, 128, 0.1) 18%, rgba(255,255,255,0.82) 100%),
+    var(--surface);
+  border-color:rgba(108, 150, 116, 0.38);
+}
 .pads-card:hover,
 .pads-card:focus-within{box-shadow:var(--pad-shadow-hover)}
 .pads-head{
@@ -1096,6 +1108,42 @@ html.no-scroll,body.no-scroll{overflow:hidden!important}
   margin-bottom:10px;
   font-size:14px;font-weight:700;color:var(--text);
 }
+.island-head{gap:12px}
+.island-title-btn{
+  appearance:none;
+  border:none;
+  background:none;
+  color:inherit;
+  font:inherit;
+  font-weight:700;
+  padding:0;
+  cursor:pointer;
+  text-align:left;
+}
+.island-title-btn:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:4px;
+  border-radius:6px;
+}
+.island-meta{
+  margin-left:auto;
+  font-size:11px;
+  font-weight:700;
+  color:var(--text-2);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+.island-collapsed-note{
+  display:none;
+  margin:0;
+  color:var(--text-2);
+  font-size:12px;
+  line-height:1.35;
+}
+.island-card.collapsed .island-body{display:none}
+.island-card.collapsed .island-collapsed-note{display:block}
+.island-card.collapsed .pads-save-btn{display:none}
+.island-card.collapsed{padding:12px 14px}
 .pads-save-btn{font-size:11px;padding:3px 10px;min-height:28px}
 
 .pad-countdown{
@@ -1179,6 +1227,11 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
   outline:2px solid var(--danger);
   outline-offset:2px;
 }
+.pad.pad-hit{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+  animation:none;
+}
 .pad-num{
   position:absolute;
   top:8px;
@@ -1209,6 +1262,9 @@ html.theme-light .pad-loop-name{
   color:rgba(18,24,33,0.9);
   text-shadow:0 1px 2px rgba(255,255,255,0.55);
 }
+.drum-grid .pad.pad-active{
+  animation:none;
+}
 
 /* -------- Pad assign overlay -------- */
 .pad-assign-card{max-height:min(88vh,680px);overflow:auto}
@@ -1236,6 +1292,9 @@ html.theme-light .pad-loop-name{
 .pad-picker-item-meta{color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
 .pad-rate-row{display:flex;align-items:center;gap:12px}
 .pad-rate-input{width:100%;max-width:120px;text-align:center;font-size:14px;font-weight:700}
+.pad-volume-row{display:flex;align-items:center;gap:12px}
+.pad-volume-row input[type=range]{flex:1 1 auto;min-width:0}
+.pad-volume-readout{min-width:48px;text-align:right;font-size:12px;font-weight:700;color:var(--text-2)}
 .pad-assign-toggles{display:flex;align-items:center;gap:12px;flex:0 0 auto}
 .pad-preserve-pitch-row{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .pad-preserve-pitch-row .preserve-pitch-toggle{width:38px;height:22px}
@@ -1276,6 +1335,7 @@ html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
   .trim-readout:nth-child(-n+3){border-bottom:1px solid var(--border)}
   .trim-actions{flex-direction:column}
   .trim-actions button{flex:none;width:100%}
+  .pad-rate-row{flex-direction:column;align-items:stretch}
 }
 @media(min-width:600px){
   .app-shell{max-width:600px}
