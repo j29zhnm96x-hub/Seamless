@@ -27,8 +27,11 @@ const LOOP_CATEGORIES_KEY = 'seamlessplayer-loop-categories';
 const LOOP_DESCRIPTIONS_KEY = 'seamlessplayer-loop-descriptions';
 const LOOP_CAT_ASSIGNMENTS_KEY = 'seamlessplayer-loop-cat-assignments';
 const LOOP_COLLAPSED_CATEGORIES_KEY = 'seamlessplayer-loop-collapsed-categories';
+const LOOP_COLLAPSED_SUBFOLDERS_KEY = 'seamlessplayer-loop-collapsed-subfolders';
+const PAD_PICKER_COLLAPSED_SUBFOLDERS_KEY = 'seamlessplayer-pad-picker-collapsed-subfolders';
+const DRUM_PICKER_COLLAPSED_SUBFOLDERS_KEY = 'seamlessplayer-drum-picker-collapsed-subfolders';
 const FAVORITES_KEY = 'seamlessplayer-favorites';
-const DEFAULT_CATEGORIES = ['Edited', 'Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
+const DEFAULT_CATEGORIES = ['DRUM-KIT', 'Drums & Percussions', 'Edited', 'Frequencies', 'Imported', 'Nature', 'Noises', 'Rythmical loops', 'Soundscapes'];
 
 // Persist playlists across restarts via IndexedDB.
 const PLAYLIST_DB_NAME = 'seamlessplayer-playlists';
@@ -60,6 +63,8 @@ const I18N = {
     loops_search_clear: 'Clear search',
     loops_no_results: 'No loops match your search.',
     loops_new_category: '+ New Category',
+    loop_category_drum_kit: 'DRUM-KIT',
+    loop_category_drums_percussions: 'Drums & Percussions',
     loop_category_edited: 'Edited',
     loop_category_frequencies: 'Frequencies',
     loop_category_imported: 'Imported',
@@ -193,6 +198,8 @@ const I18N = {
     loops_search_clear: 'Očisti pretragu',
     loops_no_results: 'Nema loopova za ovaj upit.',
     loops_new_category: '+ Nova kategorija',
+    loop_category_drum_kit: 'DRUM-KIT',
+    loop_category_drums_percussions: 'Bubnjevi i perkusije',
     loop_category_edited: 'Uređeno',
     loop_category_frequencies: 'Frekvencije',
     loop_category_imported: 'Uvezeno',
@@ -314,6 +321,8 @@ function t(key) {
 
 function getTranslatedLoopCategoryName(category) {
   switch (String(category || '')) {
+    case 'DRUM-KIT': return t('loop_category_drum_kit');
+    case 'Drums & Percussions': return t('loop_category_drums_percussions');
     case 'Edited': return t('loop_category_edited');
     case 'Frequencies': return t('loop_category_frequencies');
     case 'Imported': return t('loop_category_imported');
@@ -777,6 +786,18 @@ function stripFileExt(name) {
   return name.replace(/\.[^.]+$/, '');
 }
 
+function getBuiltinPresetSubfolder(preset) {
+  const subfolder = String((preset && preset.subfolder) || '').trim();
+  return subfolder;
+}
+
+function getBuiltinPresetDisplayName(preset, { includeSubfolder = false } = {}) {
+  const baseName = stripFileExt((preset && preset.name) || (preset && preset.path) || 'Audio');
+  const subfolder = getBuiltinPresetSubfolder(preset);
+  if (includeSubfolder && subfolder) return `${subfolder} / ${baseName}`;
+  return baseName;
+}
+
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -896,6 +917,12 @@ function setLoopDescription(key, desc) {
 
 // Session-only collapse state for category sections.
 const collapsedCategories = new Set();
+const collapsedLoopSubfolders = new Set();
+let collapsedLoopSubfoldersLoaded = false;
+
+function getLoopSubfolderCollapseKey(category, subfolder) {
+  return `${String(category || '')}::${String(subfolder || '')}`;
+}
 
 function loadCollapsedCategoriesState() {
   const categories = getLoopCategories();
@@ -923,6 +950,22 @@ function loadCollapsedCategoriesState() {
 
 function saveCollapsedCategoriesState() {
   try { localStorage.setItem(LOOP_COLLAPSED_CATEGORIES_KEY, JSON.stringify([...collapsedCategories])); } catch {}
+}
+
+function loadCollapsedLoopSubfoldersState() {
+  collapsedLoopSubfoldersLoaded = true;
+  try {
+    const raw = localStorage.getItem(LOOP_COLLAPSED_SUBFOLDERS_KEY);
+    const arr = JSON.parse(raw || '[]');
+    collapsedLoopSubfolders.clear();
+    if (Array.isArray(arr)) arr.forEach(key => collapsedLoopSubfolders.add(String(key || '')));
+  } catch {
+    collapsedLoopSubfolders.clear();
+  }
+}
+
+function saveCollapsedLoopSubfoldersState() {
+  try { localStorage.setItem(LOOP_COLLAPSED_SUBFOLDERS_KEY, JSON.stringify([...collapsedLoopSubfolders])); } catch {}
 }
 
 // Loop info page state.
@@ -1157,7 +1200,39 @@ async function deleteUserPresetNow(preset) {
     }, 0);
   }
 }
+const DRUM_KIT_BUILTIN_GROUPS = [
+  { folder: 'Cymbals', files: ['Crash.wav', 'Ride.wav', 'Splash.wav'] },
+  { folder: 'HiHat', files: ['hat_close_01.wav', 'hat_close_02.wav', 'hat_close_03.wav', 'hat_close_04.wav'] },
+  { folder: 'HiHat open', files: ['HH open 01.wav', 'HH open 02.wav', 'HH open 03.wav', 'HH open 04.wav', 'HH open 05.wav'] },
+  { folder: 'Kick', files: ['Kick 01.wav', 'Kick 02.wav', 'Kick 03.wav', 'Kick 04.wav'] },
+  { folder: 'Snare', files: ['Side Stick 01.wav', 'Side Stick 02.wav', 'Side Stick 03.wav', 'Side Stick 04.wav', 'Snare 01.wav', 'Snare 02.wav', 'Snare 03.wav', 'Snare 04.wav'] }
+];
+
+const DRUM_KIT_BUILTINS = DRUM_KIT_BUILTIN_GROUPS.flatMap(({ folder, files }) => {
+  return files.map(file => ({
+    name: file,
+    path: `audio/drum-kit/${folder}/${file}`,
+    category: 'DRUM-KIT',
+    subfolder: folder
+  }));
+});
+
+const DRUMS_PERCUSSIONS_BUILTINS = [
+  'Percussion 01.wav',
+  'Percussion 02.wav',
+  'Percussion 03.wav',
+  'Percussion 04.wav',
+  'Percussion 05.wav',
+  'Percussion 06.wav'
+].map(file => ({
+  name: file,
+  path: `audio/drums & percussions/${file}`,
+  category: 'Drums & Percussions'
+}));
+
 const builtinPresets = [
+  ...DRUM_KIT_BUILTINS,
+  ...DRUMS_PERCUSSIONS_BUILTINS,
   // Frequencies — sorted numerically. Files live in audio/frequencies/<name>.mp3.
   // Entries without a physical file yet are pre-registered so descriptions and
   // categories appear as soon as you drop the matching .mp3 into the folder.
@@ -2027,7 +2102,7 @@ function getAllLoopChoices() {
   const choices = [];
   for (const p of builtinPresets) {
     if (!p || !p.path) continue;
-    choices.push({ presetKey: `builtin:${p.path}`, label: stripFileExt(p.name || p.path) });
+    choices.push({ presetKey: `builtin:${p.path}`, label: getBuiltinPresetDisplayName(p, { includeSubfolder: true }) });
   }
   for (const p of userPresets) {
     if (!p) continue;
@@ -4512,6 +4587,7 @@ function renderLoopsPage() {
   container.innerHTML = '';
 
   if (!collapsedCategories.size) loadCollapsedCategoriesState();
+  if (!collapsedLoopSubfoldersLoaded) loadCollapsedLoopSubfoldersState();
 
   const searchInput = document.getElementById('loopsSearch');
   const query = (searchInput && searchInput.value || '').trim().toLowerCase();
@@ -4543,7 +4619,7 @@ function renderLoopsPage() {
     } else {
       filteredCatMap[cat] = items.filter(({ preset, isBuiltin }) => {
         const raw = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || '';
-        const name = stripFileExt(raw).toLowerCase();
+        const name = (isBuiltin ? getBuiltinPresetDisplayName(preset, { includeSubfolder: true }) : stripFileExt(raw)).toLowerCase();
         const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
         const desc = getLoopDescription(descKey).toLowerCase();
         const localizedCat = getTranslatedLoopCategoryName(cat).toLowerCase();
@@ -4554,6 +4630,101 @@ function renderLoopsPage() {
 
   const infoIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
   const trimIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+
+  function buildLoopsList(listItems) {
+    const ul = document.createElement('ul');
+    ul.className = 'list';
+
+    listItems.forEach(({ preset, isBuiltin }) => {
+      const rawName = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio';
+      const displayName = isBuiltin ? getBuiltinPresetDisplayName(preset) : stripFileExt(rawName);
+
+      const li = document.createElement('li');
+      const row = document.createElement('div');
+      row.className = 'preset-item' + (isBuiltin ? ' builtin-item' : '');
+      if (!isBuiltin && preset.id) row.dataset.id = preset.id;
+
+      const content = document.createElement('div');
+      content.className = 'preset-content';
+
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'preset-play' + (isBuiltin ? '' : ' user-preset-name');
+      playBtn.textContent = displayName;
+      playBtn.addEventListener('click', async () => {
+        try {
+          setStatus(`Loading ${displayName}…`);
+          let buf = null;
+          if (isBuiltin) {
+            buf = await loadBufferFromUrl(preset.path);
+          } else if (preset.blob) {
+            const ab = await preset.blob.arrayBuffer();
+            buf = await decodeArrayBuffer(ab);
+          } else if (preset.url) {
+            buf = await loadBufferFromUrl(preset.url);
+          }
+          if (!buf) { setStatus('Failed to decode.'); return; }
+          clearPlayerPlaylistContext();
+          currentBuffer = buf;
+          currentSourceLabel = displayName;
+          currentPresetKey = getLoopFavoriteKeyForPreset(preset, isBuiltin);
+          currentPresetId = isBuiltin ? null : (preset.id || null);
+          currentPresetRef = isBuiltin ? null : preset;
+          await startLoopFromBuffer(buf, 0.5, 0.03);
+          switchTab('player');
+        } catch { setStatus(`Failed to load ${displayName}`); }
+      });
+      content.appendChild(playBtn);
+
+      const infoBtn = document.createElement('button');
+      infoBtn.type = 'button';
+      infoBtn.className = 'preset-info';
+      infoBtn.innerHTML = infoIconSvg;
+      infoBtn.setAttribute('aria-label', `Info: ${displayName}`);
+      infoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openLoopInfo(preset, isBuiltin);
+      });
+      content.appendChild(infoBtn);
+
+      if (!isBuiltin && preset.blob) {
+        const trimBtn = document.createElement('button');
+        trimBtn.type = 'button';
+        trimBtn.className = 'preset-trim';
+        trimBtn.innerHTML = trimIconSvg;
+        trimBtn.setAttribute('aria-label', `Trim ${displayName}`);
+        trimBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          clearTrimAssignmentTargets();
+          openTrimmer(preset);
+        });
+        content.appendChild(trimBtn);
+      }
+
+      row.appendChild(content);
+
+      if (!isBuiltin) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'preset-delete';
+        delBtn.textContent = 'Delete';
+        delBtn.setAttribute('aria-label', `Delete ${displayName}`);
+        delBtn.addEventListener('click', () => {
+          try { delBtn.disabled = true; delBtn.textContent = 'Deleting…'; } catch {}
+          deleteUserPresetNow(preset);
+        });
+        row.appendChild(delBtn);
+        li.appendChild(row);
+        ul.appendChild(li);
+        attachSwipeHandlers(row);
+      } else {
+        li.appendChild(row);
+        ul.appendChild(li);
+      }
+    });
+
+    return ul;
+  }
 
   const sortedCats = Object.keys(filteredCatMap).sort((a, b) => a.localeCompare(b));
   let anyVisible = false;
@@ -4581,103 +4752,54 @@ function renderLoopsPage() {
     section.appendChild(header);
 
     if (!collapsed) {
-      const ul = document.createElement('ul');
-      ul.className = 'list';
-
-      items.forEach(({ preset, isBuiltin }) => {
-        const rawName = (!isBuiltin && preset.id && getUploadNameOverride(preset.id)) || preset.name || 'Audio';
-        const displayName = stripFileExt(rawName);
-        const descKey = isBuiltin ? (preset.path || '') : (preset.id || '');
-
-        const li = document.createElement('li');
-        const row = document.createElement('div');
-        row.className = 'preset-item' + (isBuiltin ? ' builtin-item' : '');
-        if (!isBuiltin && preset.id) row.dataset.id = preset.id;
-
-        const content = document.createElement('div');
-        content.className = 'preset-content';
-
-        // Play button
-        const playBtn = document.createElement('button');
-        playBtn.type = 'button';
-        playBtn.className = 'preset-play' + (isBuiltin ? '' : ' user-preset-name');
-        playBtn.textContent = displayName;
-        playBtn.addEventListener('click', async () => {
-          try {
-            setStatus(`Loading ${displayName}…`);
-            let buf = null;
-            if (isBuiltin) {
-              buf = await loadBufferFromUrl(preset.path);
-            } else if (preset.blob) {
-              const ab = await preset.blob.arrayBuffer();
-              buf = await decodeArrayBuffer(ab);
-            } else if (preset.url) {
-              buf = await loadBufferFromUrl(preset.url);
-            }
-            if (!buf) { setStatus('Failed to decode.'); return; }
-            clearPlayerPlaylistContext();
-            currentBuffer = buf;
-            currentSourceLabel = displayName;
-            currentPresetKey = getLoopFavoriteKeyForPreset(preset, isBuiltin);
-            currentPresetId = isBuiltin ? null : (preset.id || null);
-            currentPresetRef = isBuiltin ? null : preset;
-            await startLoopFromBuffer(buf, 0.5, 0.03);
-            switchTab('player');
-          } catch { setStatus(`Failed to load ${displayName}`); }
-        });
-        content.appendChild(playBtn);
-
-        // Info button
-        const infoBtn = document.createElement('button');
-        infoBtn.type = 'button';
-        infoBtn.className = 'preset-info';
-        infoBtn.innerHTML = infoIconSvg;
-        infoBtn.setAttribute('aria-label', `Info: ${displayName}`);
-        infoBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openLoopInfo(preset, isBuiltin);
-        });
-        content.appendChild(infoBtn);
-
-        // Trim button (user presets with blob only)
-        if (!isBuiltin && preset.blob) {
-          const trimBtn = document.createElement('button');
-          trimBtn.type = 'button';
-          trimBtn.className = 'preset-trim';
-          trimBtn.innerHTML = trimIconSvg;
-          trimBtn.setAttribute('aria-label', `Trim ${displayName}`);
-          trimBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            clearTrimAssignmentTargets();
-            openTrimmer(preset);
-          });
-          content.appendChild(trimBtn);
-        }
-
-        row.appendChild(content);
-
-        // Delete button (user presets only, swipe-to-reveal)
-        if (!isBuiltin) {
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'preset-delete';
-          delBtn.textContent = 'Delete';
-          delBtn.setAttribute('aria-label', `Delete ${displayName}`);
-          delBtn.addEventListener('click', () => {
-            try { delBtn.disabled = true; delBtn.textContent = 'Deleting…'; } catch {}
-            deleteUserPresetNow(preset);
-          });
-          row.appendChild(delBtn);
-          li.appendChild(row);
-          ul.appendChild(li);
-          attachSwipeHandlers(row);
-        } else {
-          li.appendChild(row);
-          ul.appendChild(li);
-        }
+      const grouped = new Map();
+      items.forEach((item) => {
+        const subfolder = item.isBuiltin ? getBuiltinPresetSubfolder(item.preset) : '';
+        if (!grouped.has(subfolder)) grouped.set(subfolder, []);
+        grouped.get(subfolder).push(item);
       });
 
-      section.appendChild(ul);
+      const subfolders = Array.from(grouped.keys());
+      const hasNestedSubfolders = subfolders.some(Boolean);
+
+      if (!hasNestedSubfolders) {
+        section.appendChild(buildLoopsList(items));
+      } else {
+        subfolders.sort((a, b) => {
+          if (!a && !b) return 0;
+          if (!a) return -1;
+          if (!b) return 1;
+          return a.localeCompare(b);
+        }).forEach((subfolder) => {
+          const subItems = grouped.get(subfolder) || [];
+          if (!subItems.length) return;
+          if (!subfolder) {
+            section.appendChild(buildLoopsList(subItems));
+            return;
+          }
+
+          const subSection = document.createElement('div');
+          subSection.className = 'loops-subfolder';
+          const collapseKey = getLoopSubfolderCollapseKey(cat, subfolder);
+          const subCollapsed = query ? false : collapsedLoopSubfolders.has(collapseKey);
+          if (subCollapsed) subSection.classList.add('collapsed');
+
+          const subHeader = document.createElement('button');
+          subHeader.type = 'button';
+          subHeader.className = 'loops-subfolder-header';
+          subHeader.setAttribute('aria-expanded', subCollapsed ? 'false' : 'true');
+          subHeader.innerHTML = `<span class="loops-subfolder-chevron">${subCollapsed ? '▸' : '▾'}</span><span class="loops-subfolder-name">${subfolder}</span><span class="loops-subfolder-count">${subItems.length}</span>`;
+          subHeader.addEventListener('click', () => {
+            if (collapsedLoopSubfolders.has(collapseKey)) collapsedLoopSubfolders.delete(collapseKey);
+            else collapsedLoopSubfolders.add(collapseKey);
+            saveCollapsedLoopSubfoldersState();
+            renderLoopsPage();
+          });
+          subSection.appendChild(subHeader);
+          subSection.appendChild(buildLoopsList(subItems));
+          section.appendChild(subSection);
+        });
+      }
     }
 
     container.appendChild(section);
@@ -5518,8 +5640,27 @@ const PAD_LEGACY_COLOR_KEY_MAP = Object.freeze({
 });
 const padPickerCollapsedCategories = new Set();
 let padPickerLastOpenCategory = '';
+const padPickerCollapsedSubfolders = new Set();
+let padPickerCollapsedSubfoldersLoaded = false;
 const drumPickerCollapsedCategories = new Set();
 let drumPickerLastOpenCategory = '';
+const drumPickerCollapsedSubfolders = new Set();
+let drumPickerCollapsedSubfoldersLoaded = false;
+
+function loadPickerCollapsedSubfolders(storageKey, targetSet) {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    const parsed = JSON.parse(raw || '[]');
+    targetSet.clear();
+    if (Array.isArray(parsed)) parsed.forEach(value => targetSet.add(String(value || '')));
+  } catch {
+    targetSet.clear();
+  }
+}
+
+function savePickerCollapsedSubfolders(storageKey, sourceSet) {
+  try { localStorage.setItem(storageKey, JSON.stringify([...sourceSet])); } catch {}
+}
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
 let drumAssignments = new Array(PAD_COUNT).fill(null);
@@ -5867,9 +6008,10 @@ function getPadLoopChoicesByCategory() {
     if (!map[cat]) map[cat] = [];
     map[cat].push({
       presetKey: `builtin:${preset.path}`,
-      label: stripFileExt(preset.name || preset.path),
+      label: getBuiltinPresetDisplayName(preset),
       category: cat,
-      isBuiltin: true
+      isBuiltin: true,
+      subfolder: getBuiltinPresetSubfolder(preset)
     });
   });
 
@@ -5884,7 +6026,8 @@ function getPadLoopChoicesByCategory() {
       presetKey,
       label: stripFileExt(rawName),
       category: cat,
-      isBuiltin: false
+      isBuiltin: false,
+      subfolder: ''
     });
   });
 
@@ -5949,6 +6092,10 @@ function setDrumPickerExpandedCategory(category, categories) {
 }
 
 function initializeDrumPickerView(categories) {
+  if (!drumPickerCollapsedSubfoldersLoaded) {
+    loadPickerCollapsedSubfolders(DRUM_PICKER_COLLAPSED_SUBFOLDERS_KEY, drumPickerCollapsedSubfolders);
+    drumPickerCollapsedSubfoldersLoaded = true;
+  }
   const remembered = drumPickerLastOpenCategory && categories.includes(drumPickerLastOpenCategory)
     ? drumPickerLastOpenCategory
     : '';
@@ -5956,6 +6103,10 @@ function initializeDrumPickerView(categories) {
 }
 
 function initializePadPickerView(categories) {
+  if (!padPickerCollapsedSubfoldersLoaded) {
+    loadPickerCollapsedSubfolders(PAD_PICKER_COLLAPSED_SUBFOLDERS_KEY, padPickerCollapsedSubfolders);
+    padPickerCollapsedSubfoldersLoaded = true;
+  }
   const remembered = padPickerLastOpenCategory && categories.includes(padPickerLastOpenCategory)
     ? padPickerLastOpenCategory
     : '';
@@ -5995,18 +6146,74 @@ function renderPadLoopPicker() {
     const body = document.createElement('div');
     body.className = 'pad-picker-items';
 
+    const grouped = new Map();
     items.forEach(item => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `pad-picker-item${item.presetKey === padAssignSelectedKey ? ' selected' : ''}`;
-      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
-      button.addEventListener('click', () => {
-        padAssignSelectedKey = item.presetKey;
-        updatePadAssignTrimButton();
-        renderPadLoopPicker();
-      });
-      body.appendChild(button);
+      const subfolder = String(item.subfolder || '');
+      if (!grouped.has(subfolder)) grouped.set(subfolder, []);
+      grouped.get(subfolder).push(item);
     });
+
+    const renderPadPickerButtons = (target, subItems) => {
+      subItems.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `pad-picker-item${item.presetKey === padAssignSelectedKey ? ' selected' : ''}`;
+        button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
+        button.addEventListener('click', () => {
+          padAssignSelectedKey = item.presetKey;
+          updatePadAssignTrimButton();
+          renderPadLoopPicker();
+        });
+        target.appendChild(button);
+      });
+    };
+
+    const subfolders = Array.from(grouped.keys()).sort((a, b) => {
+      if (!a && !b) return 0;
+      if (!a) return -1;
+      if (!b) return 1;
+      return a.localeCompare(b);
+    });
+    const hasNestedSubfolders = subfolders.some(Boolean);
+
+    if (!hasNestedSubfolders) {
+      renderPadPickerButtons(body, items);
+    } else {
+      subfolders.forEach(subfolder => {
+        const subItems = grouped.get(subfolder) || [];
+        if (!subItems.length) return;
+        if (!subfolder) {
+          renderPadPickerButtons(body, subItems);
+          return;
+        }
+
+        const subSection = document.createElement('div');
+        subSection.className = 'pad-picker-subfolder';
+        const subKey = `${category}::${subfolder}`;
+        const subCollapsed = padPickerCollapsedSubfolders.has(subKey);
+        if (subCollapsed) subSection.classList.add('collapsed');
+
+        const subHeader = document.createElement('button');
+        subHeader.type = 'button';
+        subHeader.className = 'pad-picker-subfolder-header';
+        subHeader.setAttribute('aria-expanded', subCollapsed ? 'false' : 'true');
+        subHeader.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${subCollapsed ? '▸' : '▾'}</span><span>${subfolder}</span></span><span class="pad-picker-count">${subItems.length}</span>`;
+        subHeader.addEventListener('click', () => {
+          if (padPickerCollapsedSubfolders.has(subKey)) padPickerCollapsedSubfolders.delete(subKey);
+          else padPickerCollapsedSubfolders.add(subKey);
+          savePickerCollapsedSubfolders(PAD_PICKER_COLLAPSED_SUBFOLDERS_KEY, padPickerCollapsedSubfolders);
+          renderPadLoopPicker();
+        });
+
+        const subBody = document.createElement('div');
+        subBody.className = 'pad-picker-subfolder-items';
+        renderPadPickerButtons(subBody, subItems);
+
+        subSection.appendChild(subHeader);
+        subSection.appendChild(subBody);
+        body.appendChild(subSection);
+      });
+    }
 
     section.appendChild(body);
     list.appendChild(section);
@@ -6052,18 +6259,74 @@ function renderDrumLoopPicker() {
 
     const body = document.createElement('div');
     body.className = 'pad-picker-items';
+    const grouped = new Map();
     items.forEach(item => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `pad-picker-item${item.presetKey === drumAssignSelectedKey ? ' selected' : ''}`;
-      button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
-      button.addEventListener('click', () => {
-        drumAssignSelectedKey = item.presetKey;
-        updateDrumAssignTrimButton();
-        renderDrumLoopPicker();
-      });
-      body.appendChild(button);
+      const subfolder = String(item.subfolder || '');
+      if (!grouped.has(subfolder)) grouped.set(subfolder, []);
+      grouped.get(subfolder).push(item);
     });
+
+    const renderDrumPickerButtons = (target, subItems) => {
+      subItems.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `pad-picker-item${item.presetKey === drumAssignSelectedKey ? ' selected' : ''}`;
+        button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
+        button.addEventListener('click', () => {
+          drumAssignSelectedKey = item.presetKey;
+          updateDrumAssignTrimButton();
+          renderDrumLoopPicker();
+        });
+        target.appendChild(button);
+      });
+    };
+
+    const subfolders = Array.from(grouped.keys()).sort((a, b) => {
+      if (!a && !b) return 0;
+      if (!a) return -1;
+      if (!b) return 1;
+      return a.localeCompare(b);
+    });
+    const hasNestedSubfolders = subfolders.some(Boolean);
+
+    if (!hasNestedSubfolders) {
+      renderDrumPickerButtons(body, items);
+    } else {
+      subfolders.forEach(subfolder => {
+        const subItems = grouped.get(subfolder) || [];
+        if (!subItems.length) return;
+        if (!subfolder) {
+          renderDrumPickerButtons(body, subItems);
+          return;
+        }
+
+        const subSection = document.createElement('div');
+        subSection.className = 'pad-picker-subfolder';
+        const subKey = `${category}::${subfolder}`;
+        const subCollapsed = drumPickerCollapsedSubfolders.has(subKey);
+        if (subCollapsed) subSection.classList.add('collapsed');
+
+        const subHeader = document.createElement('button');
+        subHeader.type = 'button';
+        subHeader.className = 'pad-picker-subfolder-header';
+        subHeader.setAttribute('aria-expanded', subCollapsed ? 'false' : 'true');
+        subHeader.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${subCollapsed ? '▸' : '▾'}</span><span>${subfolder}</span></span><span class="pad-picker-count">${subItems.length}</span>`;
+        subHeader.addEventListener('click', () => {
+          if (drumPickerCollapsedSubfolders.has(subKey)) drumPickerCollapsedSubfolders.delete(subKey);
+          else drumPickerCollapsedSubfolders.add(subKey);
+          savePickerCollapsedSubfolders(DRUM_PICKER_COLLAPSED_SUBFOLDERS_KEY, drumPickerCollapsedSubfolders);
+          renderDrumLoopPicker();
+        });
+
+        const subBody = document.createElement('div');
+        subBody.className = 'pad-picker-subfolder-items';
+        renderDrumPickerButtons(subBody, subItems);
+
+        subSection.appendChild(subHeader);
+        subSection.appendChild(subBody);
+        body.appendChild(subSection);
+      });
+    }
 
     section.appendChild(body);
     list.appendChild(section);
