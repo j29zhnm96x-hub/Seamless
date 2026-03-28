@@ -962,6 +962,7 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   overflow:auto;
   display:flex;
   flex-direction:column;
+  position:relative;
   touch-action:pan-y;
 }
 .help-scroll{
@@ -1129,6 +1130,24 @@ html.theme-light .transport-btn{background:var(--surface);border-color:var(--bor
   font-size:12px;
   line-height:1.55;
 }
+.help-back-to-top{
+  position:fixed;
+  right:max(28px, calc((100vw - min(1040px, 100vw)) / 2 + 28px));
+  bottom:28px;
+  width:52px;
+  height:52px;
+  padding:0;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:var(--accent);
+  color:#fff;
+  border:1px solid rgba(255,255,255,0.14);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,0.78), 0 8px 16px rgba(0,0,0,0.28);
+  z-index:2001;
+}
+.help-back-to-top:hover{filter:brightness(1.08)}
+.help-back-to-top svg{width:20px;height:20px}
 
 /* -------- Overlays -------- */
 .overlay{
@@ -1268,6 +1287,7 @@ html.landscape .overlay{display:none!important}
   .help-section{padding:16px}
   .help-section h3{font-size:16px}
   .help-actions{padding:14px 16px}
+  .help-back-to-top{right:20px;bottom:20px;width:48px;height:48px}
 }
 
 /* -------- Scroll lock -------- */

@@ -206,6 +206,7 @@ const I18N = {
     help_troubleshooting_b3: 'If a trim still clicks or loops awkwardly, zoom in further, adjust fades, and test again with repeat on or off depending on the sound.',
     help_troubleshooting_b4: 'If saved data appears missing, confirm you are in the same browser profile and restore the latest export if necessary.',
     help_actions_note: 'Tip: change the app language in Settings and reopen Help to read the guide in the selected language.',
+    help_back_to_top: 'Back to top',
     help_close: 'Close',
     playlist_create_title: 'Create Playlist',
     playlist_name_label: 'Playlist name',
@@ -415,6 +416,7 @@ const I18N = {
     help_troubleshooting_b3: 'Ako trim i dalje klikće ili neugodno loopa, dodatno zumirajte, prilagodite fadeove i ponovno testirajte s uključenim ili isključenim ponavljanjem, ovisno o zvuku.',
     help_troubleshooting_b4: 'Ako vam se čini da nedostaju spremljeni podaci, provjerite jeste li u istom profilu preglednika i po potrebi vratite zadnji export.',
     help_actions_note: 'Savjet: promijenite jezik aplikacije u Postavkama i ponovno otvorite Pomoć kako biste vodič čitali na odabranom jeziku.',
+    help_back_to_top: 'Povratak na vrh',
     help_close: 'Zatvori',
     playlist_create_title: 'Nova playlista',
     playlist_name_label: 'Naziv playliste',
@@ -5875,6 +5877,9 @@ function showHelpOverlay() {
       </div>
     </div>
   </div>`;
+  ov.insertAdjacentHTML('beforeend', `<button id="helpBackToTop" class="help-back-to-top hidden" type="button" aria-label="${t('help_back_to_top')}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+  </button>`);
 
   const closeHelp = () => {
     ov.classList.add('hidden');
@@ -5887,15 +5892,28 @@ function showHelpOverlay() {
   const card = ov.querySelector('.help-overlay-card');
   card.onclick = (event) => event.stopPropagation();
   const closeButton = ov.querySelector('#closeHelp');
+  const backToTopButton = ov.querySelector('#helpBackToTop');
+  const updateBackToTopButton = () => {
+    if (!backToTopButton) return;
+    backToTopButton.classList.toggle('hidden', card.scrollTop < 240);
+  };
   closeButton.onclick = closeHelp;
+  if (backToTopButton) {
+    backToTopButton.onclick = () => {
+      card.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+  }
   ov.querySelectorAll('[data-help-target]').forEach((button) => {
     button.onclick = () => {
       const section = ov.querySelector(`#help-section-${button.getAttribute('data-help-target')}`);
       if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
   });
+  card.onscroll = updateBackToTopButton;
 
   ov.classList.remove('hidden');
+  card.scrollTop = 0;
+  updateBackToTopButton();
   try { closeButton.focus({ preventScroll: true }); } catch {}
   try { updateScrollState(); } catch {}
 }
