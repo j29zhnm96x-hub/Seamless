@@ -42,10 +42,15 @@ Open http://localhost:5173 in your browser.
 - Use the Playlists tab to save a Project when you want to reopen the current player, Loop Trigger, and Drum Machine setup together.
 - Use the share action on saved playlists, sessions, or projects to export just that item and its required audio for another device or user.
 - Use the import icon in each Playlists-page section header to import the matching shared package type without going through the full app restore flow.
+- In Loop Trigger and Drum Machine assignment popups, use Save + Next to move through pads faster while keeping your current library search context.
+- Use Copy and Paste inside Loop Trigger and Drum Machine assignment popups to duplicate assignment settings across pads without rebuilding them from scratch.
+- When you open the Trimmer from a pad or drum assignment popup, saving the trim now returns you to that same assignment flow with the trimmed sound selected.
 
 ### Backup / Restore
 - Settings → Export creates a `.zip` backup that includes playlists, imported audio files, saved projects, current pad assignments, and saved pad sessions.
 - Settings → Import accepts `.zip` backups (full restore) and `.json` backups (metadata-only / backward compatible).
+- ZIP backups and standalone shared item packages preserve imported loop trim ranges and fade-in/fade-out metadata.
+- If a ZIP or shared-package import has to clean up older unreferenced uploads to stay within the local browser storage cap, the app now reports that in the status message after import.
 
 ## iOS Notes
 - Audio is routed to a hidden `<audio id="audioOut" playsinline>` to increase resilience when backgrounded/locked.

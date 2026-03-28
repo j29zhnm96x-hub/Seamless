@@ -11,7 +11,7 @@ let soundTouchNodeCtor = null;
 let soundTouchWorkletReady = false;
 let soundTouchWorkletFailed = false;
 let soundTouchWorkletRegistrationPromise = null;
-const BACKUP_VERSION = 3;
+const BACKUP_VERSION = 4;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -234,15 +234,19 @@ const I18N = {
     help_actions_note: 'Tip: change the app language in Settings and reopen Help to read the guide in the selected language.',
     help_back_to_top: 'Back to top',
     common_edit: 'Edit',
+    common_copy: 'Copy',
+    common_paste: 'Paste',
     status_pad_edit_mode: 'Loop Trigger edit mode: tap a pad to edit it.',
     status_drum_edit_mode: 'Drum Machine edit mode: tap a pad to edit it.',
     status_edit_mode_off: 'Edit mode off.',
+    status_assignment_clipboard_empty: 'Nothing copied yet.',
     pad_missing_audio: 'Missing audio',
     status_upload_cleanup_warning: 'Saved with cleanup. {count} older unreferenced audio file(s) were removed from local storage.',
     status_upload_session_only: 'Loaded, but browser storage failed. This audio is available only for the current session unless you export it now.',
     status_upload_limit_reached: 'Saved, but local storage is still over the safe limit because the remaining audio is referenced by your project.',
     status_session_loaded_missing_audio: 'Session "{name}" loaded. {count} assignment(s) are missing audio.',
     status_export_complete_warning: 'Export complete with warnings. {count} audio file(s) were unavailable.',
+    status_import_complete: 'Import complete.',
     status_import_complete_warning: 'Import complete with warnings. {count} audio file(s) were missing from the backup.',
     status_backup_version_unsupported: 'This backup was created by a newer app version and cannot be imported safely.',
     help_close: 'Close',
@@ -290,7 +294,11 @@ const I18N = {
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Only imported or edited loops can be trimmed',
     pads_assign_save: 'Save',
+    pads_assign_save_next: 'Save + Next',
     pads_assign_clear: 'Clear',
+    status_pad_assignment_copied: 'Pad {index} copied.',
+    status_pad_assignment_pasted: 'Clipboard pasted into Pad {index}.',
+    status_pad_assignment_next: 'Pad {from} saved. Editing Pad {to}.',
     pads_session_save_title: 'Save Pads Session',
     pads_session_name_label: 'Session name',
     pads_session_recall_title: 'Load Session',
@@ -310,7 +318,11 @@ const I18N = {
     drum_choke_label: 'Link / Choke',
     drum_choke_none: 'None',
     drum_assign_save: 'Save',
-    drum_assign_clear: 'Clear'
+    drum_assign_save_next: 'Save + Next',
+    drum_assign_clear: 'Clear',
+    status_drum_assignment_copied: 'Drum Pad {index} copied.',
+    status_drum_assignment_pasted: 'Clipboard pasted into Drum Pad {index}.',
+    status_drum_assignment_next: 'Drum Pad {from} saved. Editing Drum Pad {to}.'
   },
   hr: {
     status_ready: 'Spremno',
@@ -499,15 +511,19 @@ const I18N = {
     help_actions_note: 'Savjet: promijenite jezik aplikacije u Postavkama i ponovno otvorite Pomoć kako biste vodič čitali na odabranom jeziku.',
     help_back_to_top: 'Povratak na vrh',
     common_edit: 'Uredi',
+    common_copy: 'Kopiraj',
+    common_paste: 'Zalijepi',
     status_pad_edit_mode: 'Loop Trigger način uređivanja: dodirnite pad koji želite urediti.',
     status_drum_edit_mode: 'Drum Machine način uređivanja: dodirnite pad koji želite urediti.',
     status_edit_mode_off: 'Način uređivanja je isključen.',
+    status_assignment_clipboard_empty: 'Još ništa nije kopirano.',
     pad_missing_audio: 'Nedostaje audio',
     status_upload_cleanup_warning: 'Spremljeno uz čišćenje. {count} starijih nepovezanih audio datoteka uklonjeno je iz lokalne pohrane.',
     status_upload_session_only: 'Učitano je, ali spremanje u preglednik nije uspjelo. Ovaj audio dostupan je samo u trenutačnoj sesiji osim ako ga odmah ne izvezete.',
     status_upload_limit_reached: 'Spremljeno je, ali lokalna pohrana je i dalje iznad sigurne granice jer je preostali audio povezan s vašim projektom.',
     status_session_loaded_missing_audio: 'Sesija "{name}" je učitana. {count} dodjela nema dostupan audio.',
     status_export_complete_warning: 'Izvoz je dovršen uz upozorenja. {count} audio datoteka nije bila dostupna.',
+    status_import_complete: 'Uvoz je dovršen.',
     status_import_complete_warning: 'Uvoz je dovršen uz upozorenja. {count} audio datoteka nedostajalo je u sigurnosnoj kopiji.',
     status_backup_version_unsupported: 'Ova sigurnosna kopija izrađena je novijom verzijom aplikacije i nije je sigurno uvesti.',
     help_close: 'Zatvori',
@@ -555,7 +571,11 @@ const I18N = {
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Samo uvezeni ili uređeni loopovi mogu se trimati',
     pads_assign_save: 'Spremi',
+    pads_assign_save_next: 'Spremi i idući',
     pads_assign_clear: 'Obriši',
+    status_pad_assignment_copied: 'Pad {index} je kopiran.',
+    status_pad_assignment_pasted: 'Međuspremnik je zalijepljen u pad {index}.',
+    status_pad_assignment_next: 'Pad {from} je spremljen. Uređuje se pad {to}.',
     pads_session_save_title: 'Spremi pad sesiju',
     pads_session_name_label: 'Naziv sesije',
     pads_session_recall_title: 'Učitaj sesiju',
@@ -575,7 +595,11 @@ const I18N = {
     drum_choke_label: 'Link / Choke',
     drum_choke_none: 'Ništa',
     drum_assign_save: 'Spremi',
-    drum_assign_clear: 'Obriši'
+    drum_assign_save_next: 'Spremi i idući',
+    drum_assign_clear: 'Obriši',
+    status_drum_assignment_copied: 'Drum pad {index} je kopiran.',
+    status_drum_assignment_pasted: 'Međuspremnik je zalijepljen u drum pad {index}.',
+    status_drum_assignment_next: 'Drum pad {from} je spremljen. Uređuje se drum pad {to}.'
   }
 };
 
@@ -896,12 +920,26 @@ function applyLanguage(lang) {
   if (padVolumeLabel) padVolumeLabel.textContent = t('common_volume');
   const padAssignTrimBtn = document.getElementById('padAssignTrim');
   if (padAssignTrimBtn) padAssignTrimBtn.textContent = t('pads_assign_trim');
+  const padAssignCopyBtn = document.getElementById('padAssignCopy');
+  if (padAssignCopyBtn) padAssignCopyBtn.textContent = t('common_copy');
+  const padAssignPasteBtn = document.getElementById('padAssignPaste');
+  if (padAssignPasteBtn) padAssignPasteBtn.textContent = t('common_paste');
+  const padAssignSaveBtn = document.getElementById('padAssignSave');
+  if (padAssignSaveBtn) padAssignSaveBtn.textContent = t('pads_assign_save');
+  const padAssignSaveNextBtn = document.getElementById('padAssignSaveNext');
+  if (padAssignSaveNextBtn) padAssignSaveNextBtn.textContent = t('pads_assign_save_next');
+  const padAssignClearBtn = document.getElementById('padAssignClear');
+  if (padAssignClearBtn) padAssignClearBtn.textContent = t('pads_assign_clear');
+  const padAssignCloseBtn = document.getElementById('padAssignClose');
+  if (padAssignCloseBtn) padAssignCloseBtn.textContent = t('common_cancel');
   const padRepeatBtn = document.getElementById('padRepeatBtn');
   if (padRepeatBtn) {
     padRepeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
     padRepeatBtn.title = t('pads_repeat_label');
   }
   updatePadAssignTrimButton();
+  updatePadAssignClipboardButtons();
+  updatePadAssignNextButton();
 
   const drumTitle = document.getElementById('drumMachineTitle');
   if (drumTitle) drumTitle.textContent = t('drum_title');
@@ -926,8 +964,14 @@ function applyLanguage(lang) {
   setText('#drumDisplayNameLabel', t('drum_display_name_label'));
   setText('#drumColorLabel', t('drum_color_label'));
   setText('#drumChokeLabel', t('drum_choke_label'));
+  const drumAssignCopy = document.getElementById('drumAssignCopy');
+  if (drumAssignCopy) drumAssignCopy.textContent = t('common_copy');
+  const drumAssignPaste = document.getElementById('drumAssignPaste');
+  if (drumAssignPaste) drumAssignPaste.textContent = t('common_paste');
   const drumAssignSave = document.getElementById('drumAssignSave');
   if (drumAssignSave) drumAssignSave.textContent = t('drum_assign_save');
+  const drumAssignSaveNext = document.getElementById('drumAssignSaveNext');
+  if (drumAssignSaveNext) drumAssignSaveNext.textContent = t('drum_assign_save_next');
   const drumAssignClear = document.getElementById('drumAssignClear');
   if (drumAssignClear) drumAssignClear.textContent = t('drum_assign_clear');
   const drumAssignClose = document.getElementById('drumAssignClose');
@@ -948,6 +992,8 @@ function applyLanguage(lang) {
   const drumPickerSearchInput = document.getElementById('drumPickerSearchInput');
   if (drumPickerSearchInput) drumPickerSearchInput.placeholder = t('assign_search_placeholder');
   try { renderDrumChokeOptions(); } catch {}
+  updateDrumAssignClipboardButtons();
+  updateDrumAssignNextButton();
 
   // Loops page
   setText('#page-loops .card h2', t('loops_title'));
@@ -1454,6 +1500,21 @@ let loopInfoPreset = null;
 let loopInfoIsBuiltin = false;
 
 
+function applyStoredTrimMetadata(target, source, { clearMissing = true } = {}) {
+  if (!target) return target;
+  const meta = source || {};
+  if (meta.trimIn != null) target.trimIn = meta.trimIn;
+  else if (clearMissing) delete target.trimIn;
+  if (meta.trimOut != null) target.trimOut = meta.trimOut;
+  else if (clearMissing) delete target.trimOut;
+  if (meta.fadeIn != null) target.fadeIn = meta.fadeIn;
+  else if (clearMissing) delete target.fadeIn;
+  if (meta.fadeOut != null) target.fadeOut = meta.fadeOut;
+  else if (clearMissing) delete target.fadeOut;
+  return target;
+}
+
+
 function addUserPresetFromBlob({ name, blob, saved }) {
   const presetObj = {
     id: (saved && saved.id) || makeUploadId(),
@@ -1462,8 +1523,7 @@ function addUserPresetFromBlob({ name, blob, saved }) {
     persisted: !!(saved && saved.id),
     createdAt: (saved && saved.createdAt) || Date.now()
   };
-  if (saved && saved.fadeIn != null) presetObj.fadeIn = saved.fadeIn;
-  if (saved && saved.fadeOut != null) presetObj.fadeOut = saved.fadeOut;
+  applyStoredTrimMetadata(presetObj, saved);
   userPresets.unshift(presetObj);
   currentPresetId = presetObj.id || null;
   currentPresetRef = presetObj;
@@ -1639,6 +1699,45 @@ function getPersistedUploadWarningText(saved) {
     return t('status_upload_limit_reached');
   }
   return '';
+}
+
+function createUploadImportSummary() {
+  return {
+    missingEntries: 0,
+    evictedIds: new Set(),
+    overflow: 0
+  };
+}
+
+function recordUploadImportResult(summary, saved) {
+  if (!summary || !saved) return summary;
+  if (Array.isArray(saved.evictedIds)) {
+    saved.evictedIds.forEach((id) => {
+      const key = String(id || '').trim();
+      if (key) summary.evictedIds.add(key);
+    });
+  }
+  summary.overflow = Math.max(summary.overflow || 0, Number(saved.overflow) || 0);
+  return summary;
+}
+
+function getUploadImportWarningTexts(summary) {
+  if (!summary) return [];
+  const warnings = [];
+  if (summary.evictedIds && summary.evictedIds.size) {
+    warnings.push(tf('status_upload_cleanup_warning', { count: summary.evictedIds.size }));
+  }
+  if (summary.overflow > 0) {
+    warnings.push(t('status_upload_limit_reached'));
+  }
+  return warnings;
+}
+
+function composeImportCompletionStatus(baseText, summary) {
+  return [String(baseText || '').trim(), ...getUploadImportWarningTexts(summary)]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 }
 
 async function storeUserPresetBlob({ name, blob, category = '', trimIn, trimOut, fadeIn, fadeOut }) {
@@ -3888,6 +3987,8 @@ async function collectUploadsForPresetKeys(presetKeys = []) {
       createdAt: source.createdAt || Date.now(),
       trimIn: source.trimIn != null ? source.trimIn : undefined,
       trimOut: source.trimOut != null ? source.trimOut : undefined,
+      fadeIn: source.fadeIn != null ? source.fadeIn : undefined,
+      fadeOut: source.fadeOut != null ? source.fadeOut : undefined,
       file: `uploads/${String(id)}`,
       type: blob.type || undefined,
       size: blob.size || undefined,
@@ -4018,18 +4119,18 @@ function makeImportedSharedItemRecord(kind, record) {
 }
 
 async function importUploadsFromPackage(data, zip = null) {
-  let missingEntries = 0;
+  const summary = createUploadImportSummary();
   if (Array.isArray(data.uploads)) {
     for (const meta of data.uploads) {
       if (!meta || !meta.id) continue;
       if (!zip) {
-        missingEntries += 1;
+        summary.missingEntries += 1;
         continue;
       }
       const id = String(meta.id);
       const entry = zip.file(String(meta.file || `uploads/${id}`)) || zip.file(`uploads/${id}`);
       if (!entry) {
-        missingEntries += 1;
+        summary.missingEntries += 1;
         continue;
       }
       try {
@@ -4038,20 +4139,23 @@ async function importUploadsFromPackage(data, zip = null) {
         if (mimeType && (!blob.type || blob.type === 'application/octet-stream')) {
           blob = blob.slice(0, blob.size, mimeType);
         }
-        await putPersistedUploadRecord({
+        const saved = await putPersistedUploadRecord({
           id,
           name: meta.name || 'Audio',
           blob,
           createdAt: meta.createdAt || Date.now(),
           trimIn: meta.trimIn != null ? meta.trimIn : undefined,
           trimOut: meta.trimOut != null ? meta.trimOut : undefined,
+          fadeIn: meta.fadeIn != null ? meta.fadeIn : undefined,
+          fadeOut: meta.fadeOut != null ? meta.fadeOut : undefined,
         });
+        recordUploadImportResult(summary, saved);
       } catch {
-        missingEntries += 1;
+        summary.missingEntries += 1;
       }
     }
   }
-  return missingEntries;
+  return summary;
 }
 
 async function syncImportedUploadsIntoUserPresets() {
@@ -4071,12 +4175,10 @@ async function syncImportedUploadsIntoUserPresets() {
         existing.persisted = true;
         existing.createdAt = item.createdAt || existing.createdAt || 0;
         existing.name = name;
-        if (item.trimIn != null) existing.trimIn = item.trimIn; else delete existing.trimIn;
-        if (item.trimOut != null) existing.trimOut = item.trimOut; else delete existing.trimOut;
+        applyStoredTrimMetadata(existing, item);
       } else {
         const preset = { id: item.id, name, blob: item.blob, persisted: true, createdAt: item.createdAt || 0 };
-        if (item.trimIn != null) preset.trimIn = item.trimIn;
-        if (item.trimOut != null) preset.trimOut = item.trimOut;
+        applyStoredTrimMetadata(preset, item);
         userPresets.unshift(preset);
       }
     });
@@ -4100,7 +4202,7 @@ async function importSharedItemPackage(data, zip = null) {
     }
   } catch {}
 
-  const missingCount = await importUploadsFromPackage(data, zip);
+  const uploadSummary = await importUploadsFromPackage(data, zip);
   await syncImportedUploadsIntoUserPresets();
 
   const kind = String(shared.kind);
@@ -4140,9 +4242,12 @@ async function importSharedItemPackage(data, zip = null) {
   try { renderPadSessionsList(); } catch {}
   try { renderDrumSessionsList(); } catch {}
   try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
-  setStatus(missingCount
-    ? tf('status_item_import_warning', { name, count: missingCount })
-    : tf('status_item_import_complete', { name }));
+  setStatus(composeImportCompletionStatus(
+    uploadSummary.missingEntries
+      ? tf('status_item_import_warning', { name, count: uploadSummary.missingEntries })
+      : tf('status_item_import_complete', { name }),
+    uploadSummary
+  ));
 }
 
 async function renderPlaylistsPage() {
@@ -4794,9 +4899,77 @@ async function renderCurrentTrimmedAudio(applyFades = true) {
   return { rendered, range };
 }
 
+let pendingPadAssignReturnState = null;
+let pendingDrumAssignReturnState = null;
+
 function clearTrimAssignmentTargets() {
   trimPadTargetIndex = -1;
   trimDrumTargetIndex = -1;
+  pendingPadAssignReturnState = null;
+  pendingDrumAssignReturnState = null;
+}
+
+function getPadAssignDraftState() {
+  const displayNameInput = document.getElementById('padDisplayNameInput');
+  const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
+  const fallbackRate = padAssignTarget >= 0 && padAssignments[padAssignTarget] ? padAssignments[padAssignTarget].rate : 1.0;
+  return {
+    targetIndex: padAssignTarget,
+    selectedKey: padAssignSelectedKey || '',
+    displayName: displayNameInput ? displayNameInput.value.trim() : '',
+    rate: normalizePadRateValue(rateInput && rateInput.value, fallbackRate || 1.0),
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
+    colorKey: padAssignSelectedColorKey,
+    color: resolvePadDisplayColor(padAssignSelectedColorKey),
+    preservePitch: !!padAssignPreservePitch,
+    loop: !!padAssignLoop,
+    searchQuery: String(padPickerSearchQuery || '')
+  };
+}
+
+function getDrumAssignDraftState() {
+  const displayNameInput = document.getElementById('drumDisplayNameInput');
+  const volumeInput = document.getElementById('drumAssignVolume');
+  const chokeSelect = document.getElementById('drumChokeSelect');
+  return {
+    targetIndex: drumAssignTarget,
+    selectedKey: drumAssignSelectedKey || '',
+    displayName: displayNameInput ? displayNameInput.value.trim() : '',
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
+    colorKey: drumAssignSelectedColorKey,
+    color: resolvePadDisplayColor(drumAssignSelectedColorKey),
+    chokeTargetIndex: chokeSelect ? clamp(parseInt(chokeSelect.value, 10) || -1, -1, PAD_COUNT - 1) : -1,
+    searchQuery: String(drumPickerSearchQuery || '')
+  };
+}
+
+function returnToPadOrDrumAssignmentAfterTrim(nextPresetKey = '') {
+  const padTarget = trimPadTargetIndex;
+  const drumTarget = trimDrumTargetIndex;
+  const padDraft = pendingPadAssignReturnState;
+  const drumDraft = pendingDrumAssignReturnState;
+
+  if (padTarget >= 0 && padTarget < PAD_COUNT) {
+    const draft = padDraft && padDraft.targetIndex === padTarget ? { ...padDraft } : { targetIndex: padTarget };
+    if (nextPresetKey) draft.selectedKey = nextPresetKey;
+    clearTrimAssignmentTargets();
+    switchTab('player');
+    openPadAssignModal(padTarget, { preservePickerState: true, draft });
+    return true;
+  }
+
+  if (drumTarget >= 0 && drumTarget < PAD_COUNT) {
+    const draft = drumDraft && drumDraft.targetIndex === drumTarget ? { ...drumDraft } : { targetIndex: drumTarget };
+    if (nextPresetKey) draft.selectedKey = nextPresetKey;
+    clearTrimAssignmentTargets();
+    switchTab('player');
+    openDrumAssignModal(drumTarget, { preservePickerState: true, draft });
+    return true;
+  }
+
+  clearTrimAssignmentTargets();
+  return false;
 }
 
 function assignSavedLoopToPadTarget(saved, presetName) {
@@ -4903,14 +5076,13 @@ async function overwriteTrimmedLoopOriginal() {
     try { renderLoopsPage(); } catch {}
     try { updateNowPlayingNameUI(); } catch {}
     stopTrimTest();
-    switchTab('loops');
+    const returnedToAssignFlow = returnToPadOrDrumAssignmentAfterTrim(saved.id ? `upload:${saved.id}` : '');
+    if (!returnedToAssignFlow) switchTab('loops');
     setStatus('Original loop overwritten');
     return true;
   } catch {
     setStatus('Failed to overwrite original loop');
     return false;
-  } finally {
-    clearTrimAssignmentTargets();
   }
 }
 
@@ -5565,11 +5737,12 @@ async function createTrimmedLoopAsWav(customName = '') {
       fadeOut: trimFadeOutSec
     });
 
-    assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
-    clearTrimAssignmentTargets();
+    const savedPreset = stored.saved || stored.preset;
+    assignSavedLoopToPadTarget(savedPreset, name);
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
-    switchTab('loops');
+    const returnedToAssignFlow = returnToPadOrDrumAssignmentAfterTrim(savedPreset && savedPreset.id ? `upload:${savedPreset.id}` : '');
+    if (!returnedToAssignFlow) switchTab('loops');
     setStatus(stored.warningText ? `Trimmed loop created (WAV). ${stored.warningText}` : 'Trimmed loop created (WAV)');
   } catch {
     setStatus('Failed to create trimmed loop');
@@ -5675,11 +5848,12 @@ async function createTrimmedLoopAsCompressed(customName = '') {
         fadeOut: trimFadeOutSec
       });
 
-      assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
-      clearTrimAssignmentTargets();
+      const savedPreset = stored.saved || stored.preset;
+      assignSavedLoopToPadTarget(savedPreset, name);
       try { renderLoopsPage(); } catch {}
       stopTrimTest();
-      switchTab('loops');
+      const returnedToAssignFlow = returnToPadOrDrumAssignmentAfterTrim(savedPreset && savedPreset.id ? `upload:${savedPreset.id}` : '');
+      if (!returnedToAssignFlow) switchTab('loops');
       setStatus(stored.warningText ? `Trimmed loop created (WAV). ${stored.warningText}` : 'Trimmed loop created (WAV)');
       return;
     }
@@ -5697,11 +5871,12 @@ async function createTrimmedLoopAsCompressed(customName = '') {
       fadeOut: trimFadeOutSec
     });
 
-    assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
-    clearTrimAssignmentTargets();
+    const savedPreset = stored.saved || stored.preset;
+    assignSavedLoopToPadTarget(savedPreset, name);
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
-    switchTab('loops');
+    const returnedToAssignFlow = returnToPadOrDrumAssignmentAfterTrim(savedPreset && savedPreset.id ? `upload:${savedPreset.id}` : '');
+    if (!returnedToAssignFlow) switchTab('loops');
     setStatus(stored.warningText ? `Trimmed loop created (${statusLabel}). ${stored.warningText}` : `Trimmed loop created (${statusLabel})`);
   } catch {
     setStatus('Failed to create trimmed loop');
@@ -6356,6 +6531,8 @@ async function exportAppData() {
         createdAt: u && u.createdAt,
         trimIn: (u && u.trimIn != null) ? u.trimIn : undefined,
         trimOut: (u && u.trimOut != null) ? u.trimOut : undefined,
+        fadeIn: (u && u.fadeIn != null) ? u.fadeIn : undefined,
+        fadeOut: (u && u.fadeOut != null) ? u.fadeOut : undefined,
         file: filePath,
         type: (u && u.blob && u.blob.type) ? u.blob.type : undefined,
         size: (u && u.blob && u.blob.size) ? u.blob.size : undefined,
@@ -6563,16 +6740,16 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
   }
 
   // Import uploads (blob + trim metadata) preserving IDs.
+  const uploadImportSummary = createUploadImportSummary();
   if (Array.isArray(data.uploads)) {
     let imported = 0;
-    let missingEntries = 0;
     for (const meta of data.uploads) {
       if (!meta || !meta.id) continue;
       const id = String(meta.id);
       const path = String(meta.file || `uploads/${id}`);
 
       const entry = zip.file(path) || zip.file(`uploads/${id}`);
-      if (!entry) { missingEntries++; continue; }
+      if (!entry) { uploadImportSummary.missingEntries += 1; continue; }
 
       try {
         let blob = await entry.async('blob');
@@ -6583,19 +6760,23 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
             blob = blob.slice(0, blob.size, mt);
           }
         } catch {}
-        await putPersistedUploadRecord({
+        const saved = await putPersistedUploadRecord({
           id,
           name: meta.name || 'Audio',
           blob,
           createdAt: meta.createdAt || Date.now(),
           trimIn: meta.trimIn != null ? meta.trimIn : undefined,
           trimOut: meta.trimOut != null ? meta.trimOut : undefined,
+          fadeIn: meta.fadeIn != null ? meta.fadeIn : undefined,
+          fadeOut: meta.fadeOut != null ? meta.fadeOut : undefined,
         });
+        recordUploadImportResult(uploadImportSummary, saved);
         imported++;
         if (imported % 3 === 0) setStatus(`Importing… (${imported})`);
-      } catch {}
+      } catch {
+        uploadImportSummary.missingEntries += 1;
+      }
     }
-    if (missingEntries) data.__missingUploadEntries = missingEntries;
   }
 
   // Sync in-memory presets with persisted uploads.
@@ -6618,21 +6799,22 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
           existing.persisted = true;
           existing.createdAt = it.createdAt || existing.createdAt || 0;
           existing.name = name;
-          if (it.trimIn != null) existing.trimIn = it.trimIn; else delete existing.trimIn;
-          if (it.trimOut != null) existing.trimOut = it.trimOut; else delete existing.trimOut;
+          applyStoredTrimMetadata(existing, it);
         } else {
           const preset = { id: it.id, name, blob: it.blob, persisted: true, createdAt: it.createdAt || 0 };
-          if (it.trimIn != null) preset.trimIn = it.trimIn;
-          if (it.trimOut != null) preset.trimOut = it.trimOut;
+          applyStoredTrimMetadata(preset, it);
           userPresets.unshift(preset);
         }
       }
     }
   } catch {}
 
-  setStatus(data.__missingUploadEntries
-    ? tf('status_import_complete_warning', { count: data.__missingUploadEntries })
-    : 'Import complete');
+  setStatus(composeImportCompletionStatus(
+    uploadImportSummary.missingEntries
+      ? tf('status_import_complete_warning', { count: uploadImportSummary.missingEntries })
+      : t('status_import_complete'),
+    uploadImportSummary
+  ));
   if (activeTab === 'playlists') renderPlaylistsPage();
   if (activeTab === 'loops') renderLoopsPage();
   try { renderPadGrid(); } catch {}
@@ -6759,8 +6941,7 @@ async function importAppData(file, { expectedItemKind = '' } = {}) {
             });
           }).catch(() => null);
           if (existing) {
-            if (meta.trimIn != null) existing.trimIn = meta.trimIn;
-            if (meta.trimOut != null) existing.trimOut = meta.trimOut;
+            applyStoredTrimMetadata(existing, meta, { clearMissing: false });
             await idbTx(db, 'readwrite', (store) => store.put(existing)).catch(() => {});
           }
         }
@@ -6774,14 +6955,13 @@ async function importAppData(file, { expectedItemKind = '' } = {}) {
         const mid = String(meta.id);
         const preset = userPresets.find(p => p && p.id != null && String(p.id) === mid);
         if (preset) {
-          if (meta.trimIn != null) preset.trimIn = meta.trimIn;
-          if (meta.trimOut != null) preset.trimOut = meta.trimOut;
+          applyStoredTrimMetadata(preset, meta, { clearMissing: false });
           const overrideName = getUploadNameOverride(mid);
           if (overrideName) preset.name = overrideName;
         }
       }
     }
-    setStatus('Import complete');
+    setStatus(t('status_import_complete'));
     if (activeTab === 'playlists') renderPlaylistsPage();
     if (activeTab === 'loops') renderLoopsPage();
     try { renderProjectsList(); } catch {}
@@ -7039,6 +7219,8 @@ const drumPadHitUntil = new Array(PAD_COUNT).fill(0);
 let drumAssignTarget = -1;
 let drumAssignSelectedKey = '';
 let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
+let padAssignmentClipboard = null;
+let drumAssignmentClipboard = null;
 
 function refreshPadEditButton() {
   const btn = document.getElementById('padsEditMode');
@@ -7308,6 +7490,111 @@ function serializeDrumAssignment(a, theme = getCurrentTheme()) {
   } : null;
 }
 
+function getLoopChoiceLabelForPresetKey(presetKey) {
+  if (!presetKey) return '';
+  const match = getAllLoopChoices().find((choice) => choice.presetKey === presetKey);
+  return match ? match.label : '';
+}
+
+function buildPadAssignmentFromModalState({ commitRateInput = false } = {}) {
+  if (!padAssignSelectedKey) return null;
+  const displayNameInput = document.getElementById('padDisplayNameInput');
+  const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
+  const rate = normalizePadRateValue(rateInput && rateInput.value, 1.0);
+  if (commitRateInput && rateInput) rateInput.value = formatPadRateValue(rate);
+  return normalizePadAssignment({
+    presetKey: padAssignSelectedKey,
+    label: getLoopChoiceLabelForPresetKey(padAssignSelectedKey),
+    displayName: displayNameInput ? displayNameInput.value.trim() : '',
+    rate,
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
+    colorKey: padAssignSelectedColorKey,
+    color: resolvePadDisplayColor(padAssignSelectedColorKey),
+    loop: padAssignLoop,
+    preservePitch: padAssignPreservePitch
+  });
+}
+
+function buildDrumAssignmentFromModalState() {
+  if (!drumAssignSelectedKey) return null;
+  const displayNameInput = document.getElementById('drumDisplayNameInput');
+  const volumeInput = document.getElementById('drumAssignVolume');
+  const chokeSelect = document.getElementById('drumChokeSelect');
+  const chokeTargetIndex = chokeSelect ? clamp(parseInt(chokeSelect.value, 10) || -1, -1, PAD_COUNT - 1) : -1;
+  return normalizeDrumAssignment({
+    presetKey: drumAssignSelectedKey,
+    label: getLoopChoiceLabelForPresetKey(drumAssignSelectedKey),
+    displayName: displayNameInput ? displayNameInput.value.trim() : '',
+    volume: readAssignmentVolumeUI(volumeInput, 1.0),
+    colorKey: drumAssignSelectedColorKey,
+    color: resolvePadDisplayColor(drumAssignSelectedColorKey),
+    chokeTargetIndex: chokeTargetIndex === drumAssignTarget ? -1 : chokeTargetIndex
+  });
+}
+
+function applyPadAssignmentToModalDraft(assignment) {
+  const normalized = normalizePadAssignment(assignment);
+  if (!normalized) return false;
+  const displayNameInput = document.getElementById('padDisplayNameInput');
+  const rateInput = document.getElementById('padRateInput');
+  const volumeInput = document.getElementById('padAssignVolume');
+  const volumeReadout = document.getElementById('padAssignVolumeReadout');
+  const preservePitchBtn = document.getElementById('padPreservePitchBtn');
+  const repeatBtn = document.getElementById('padRepeatBtn');
+  const repeatLabel = document.getElementById('padRepeatLabel');
+
+  padAssignSelectedKey = normalized.presetKey;
+  padAssignSelectedColorKey = normalized.colorKey;
+  padAssignPreservePitch = !!normalized.preservePitch;
+  padAssignLoop = normalized.loop !== false;
+
+  if (displayNameInput) displayNameInput.value = normalized.displayName || '';
+  if (rateInput) rateInput.value = formatPadRateValue(normalized.rate || 1.0);
+  setAssignmentVolumeUI(volumeInput, volumeReadout, normalized.volume != null ? normalized.volume : 1.0);
+  if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
+  if (repeatBtn) {
+    repeatBtn.setAttribute('aria-pressed', padAssignLoop ? 'true' : 'false');
+    repeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
+    repeatBtn.title = t('pads_repeat_label');
+  }
+  if (repeatLabel) repeatLabel.textContent = t('pads_repeat_label');
+
+  refreshPadColorPalette();
+  renderPadLoopPicker();
+  updatePadAssignTrimButton();
+  updatePadAssignClipboardButtons();
+  updatePadAssignNextButton();
+  return true;
+}
+
+function applyDrumAssignmentToModalDraft(assignment) {
+  const normalized = normalizeDrumAssignment(assignment);
+  if (!normalized) return false;
+  const displayNameInput = document.getElementById('drumDisplayNameInput');
+  const volumeInput = document.getElementById('drumAssignVolume');
+  const volumeReadout = document.getElementById('drumAssignVolumeReadout');
+  const chokeSelect = document.getElementById('drumChokeSelect');
+  const nextChokeTargetIndex = normalized.chokeTargetIndex === drumAssignTarget ? -1 : normalized.chokeTargetIndex;
+
+  drumAssignSelectedKey = normalized.presetKey;
+  drumAssignSelectedColorKey = normalized.colorKey;
+
+  if (displayNameInput) displayNameInput.value = normalized.displayName || '';
+  setAssignmentVolumeUI(volumeInput, volumeReadout, normalized.volume != null ? normalized.volume : 1.0);
+  if (chokeSelect) {
+    const desired = String(nextChokeTargetIndex);
+    chokeSelect.value = Array.from(chokeSelect.options).some((option) => option.value === desired) ? desired : '-1';
+  }
+
+  refreshDrumColorPalette();
+  renderDrumLoopPicker();
+  updateDrumAssignTrimButton();
+  updateDrumAssignClipboardButtons();
+  updateDrumAssignNextButton();
+  return true;
+}
+
 function refreshPadColorPalette(theme = getCurrentTheme()) {
   const paletteEl = document.getElementById('padColorPalette');
   if (!paletteEl) return;
@@ -7364,6 +7651,29 @@ function updatePadAssignTrimButton() {
   trimBtn.title = preset ? t('pads_assign_trim') : t('pads_assign_trim_unavailable');
 }
 
+function updatePadAssignNextButton() {
+  const nextBtn = document.getElementById('padAssignSaveNext');
+  if (!nextBtn) return;
+  nextBtn.textContent = t('pads_assign_save_next');
+  nextBtn.setAttribute('aria-label', t('pads_assign_save_next'));
+  nextBtn.disabled = !(padAssignTarget >= 0 && padAssignTarget < PAD_COUNT - 1);
+}
+
+function updatePadAssignClipboardButtons() {
+  const copyBtn = document.getElementById('padAssignCopy');
+  const pasteBtn = document.getElementById('padAssignPaste');
+  if (copyBtn) {
+    copyBtn.textContent = t('common_copy');
+    copyBtn.setAttribute('aria-label', t('common_copy'));
+    copyBtn.disabled = !buildPadAssignmentFromModalState();
+  }
+  if (pasteBtn) {
+    pasteBtn.textContent = t('common_paste');
+    pasteBtn.setAttribute('aria-label', t('common_paste'));
+    pasteBtn.disabled = !padAssignmentClipboard;
+  }
+}
+
 function updateDrumAssignTrimButton() {
   const trimBtn = document.getElementById('drumAssignTrim');
   if (!trimBtn) return;
@@ -7374,6 +7684,69 @@ function updateDrumAssignTrimButton() {
   trimBtn.title = preset ? t('pads_assign_trim') : t('pads_assign_trim_unavailable');
 }
 
+function updateDrumAssignNextButton() {
+  const nextBtn = document.getElementById('drumAssignSaveNext');
+  if (!nextBtn) return;
+  nextBtn.textContent = t('drum_assign_save_next');
+  nextBtn.setAttribute('aria-label', t('drum_assign_save_next'));
+  nextBtn.disabled = !(drumAssignTarget >= 0 && drumAssignTarget < PAD_COUNT - 1);
+}
+
+function updateDrumAssignClipboardButtons() {
+  const copyBtn = document.getElementById('drumAssignCopy');
+  const pasteBtn = document.getElementById('drumAssignPaste');
+  if (copyBtn) {
+    copyBtn.textContent = t('common_copy');
+    copyBtn.setAttribute('aria-label', t('common_copy'));
+    copyBtn.disabled = !buildDrumAssignmentFromModalState();
+  }
+  if (pasteBtn) {
+    pasteBtn.textContent = t('common_paste');
+    pasteBtn.setAttribute('aria-label', t('common_paste'));
+    pasteBtn.disabled = !drumAssignmentClipboard;
+  }
+}
+
+function copyPadAssignmentToClipboard() {
+  const assignment = buildPadAssignmentFromModalState();
+  if (!assignment || padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
+  padAssignmentClipboard = serializePadAssignment(assignment);
+  updatePadAssignClipboardButtons();
+  setStatus(tf('status_pad_assignment_copied', { index: padAssignTarget + 1 }));
+}
+
+function pastePadAssignmentFromClipboard() {
+  if (!padAssignmentClipboard) {
+    setStatus(t('status_assignment_clipboard_empty'));
+    updatePadAssignClipboardButtons();
+    return;
+  }
+  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
+  if (applyPadAssignmentToModalDraft(padAssignmentClipboard)) {
+    setStatus(tf('status_pad_assignment_pasted', { index: padAssignTarget + 1 }));
+  }
+}
+
+function copyDrumAssignmentToClipboard() {
+  const assignment = buildDrumAssignmentFromModalState();
+  if (!assignment || drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
+  drumAssignmentClipboard = serializeDrumAssignment(assignment);
+  updateDrumAssignClipboardButtons();
+  setStatus(tf('status_drum_assignment_copied', { index: drumAssignTarget + 1 }));
+}
+
+function pasteDrumAssignmentFromClipboard() {
+  if (!drumAssignmentClipboard) {
+    setStatus(t('status_assignment_clipboard_empty'));
+    updateDrumAssignClipboardButtons();
+    return;
+  }
+  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
+  if (applyDrumAssignmentToModalDraft(drumAssignmentClipboard)) {
+    setStatus(tf('status_drum_assignment_pasted', { index: drumAssignTarget + 1 }));
+  }
+}
+
 async function openSelectedPadLoopInTrimmer() {
   const preset = getPadAssignableTrimPreset();
   if (!preset) {
@@ -7381,6 +7754,7 @@ async function openSelectedPadLoopInTrimmer() {
     setStatus(t('pads_assign_trim_unavailable'));
     return;
   }
+  pendingPadAssignReturnState = getPadAssignDraftState();
   trimPadTargetIndex = padAssignTarget;
   trimDrumTargetIndex = -1;
   closePadAssignModal();
@@ -7395,6 +7769,7 @@ async function openSelectedDrumLoopInTrimmer() {
     setStatus(t('pads_assign_trim_unavailable'));
     return;
   }
+  pendingDrumAssignReturnState = getDrumAssignDraftState();
   trimDrumTargetIndex = drumAssignTarget;
   trimPadTargetIndex = -1;
   closeDrumAssignModal();
@@ -7709,6 +8084,7 @@ function renderPadLoopPicker() {
         attachPickerItemInteractions(button, item, () => {
           padAssignSelectedKey = item.presetKey;
           updatePadAssignTrimButton();
+          updatePadAssignClipboardButtons();
           renderPadLoopPicker();
         });
         target.appendChild(button);
@@ -7834,6 +8210,7 @@ function renderDrumLoopPicker() {
         attachPickerItemInteractions(button, item, () => {
           drumAssignSelectedKey = item.presetKey;
           updateDrumAssignTrimButton();
+          updateDrumAssignClipboardButtons();
           renderDrumLoopPicker();
         });
         target.appendChild(button);
@@ -8176,7 +8553,7 @@ async function triggerDrumPad(index) {
   setStatus(`Drum ${index + 1}: ${assignment.displayName || assignment.label || 'Playing'}`);
 }
 
-function openDrumAssignModal(padIndex) {
+function openDrumAssignModal(padIndex, { preservePickerState = false, draft = null } = {}) {
   setDrumEditMode(false, { silent: true });
   drumAssignTarget = padIndex;
   const existing = drumAssignments[padIndex];
@@ -8189,19 +8566,30 @@ function openDrumAssignModal(padIndex) {
 
   if (!overlay) return;
   if (title) title.textContent = `${t('drum_assign_title')} ${padIndex + 1}`;
-  drumAssignSelectedKey = (existing && existing.presetKey) || '';
-  drumAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
-  drumPickerSearchQuery = '';
-  if (searchInput) searchInput.value = '';
+  drumAssignSelectedKey = draft && draft.selectedKey != null ? draft.selectedKey : ((existing && existing.presetKey) || '');
+  drumAssignSelectedColorKey = draft && draft.colorKey
+    ? normalizePadColorKey(draft.colorKey, draft.color)
+    : normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
+  if (!preservePickerState) drumPickerSearchQuery = '';
+  else if (draft && typeof draft.searchQuery === 'string') drumPickerSearchQuery = draft.searchQuery;
+  if (searchInput) searchInput.value = preservePickerState ? String(drumPickerSearchQuery || '') : '';
   initializeDrumPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderDrumLoopPicker();
   renderDrumChokeOptions();
   refreshDrumColorPalette();
-  if (displayNameInput) displayNameInput.value = (existing && existing.displayName) || '';
-  setAssignmentVolumeUI(volumeInput, volumeReadout, existing && existing.volume != null ? existing.volume : 1.0);
+  if (displayNameInput) displayNameInput.value = draft && draft.displayName != null ? draft.displayName : ((existing && existing.displayName) || '');
+  setAssignmentVolumeUI(volumeInput, volumeReadout, draft && draft.volume != null ? draft.volume : (existing && existing.volume != null ? existing.volume : 1.0));
   const chokeSelect = document.getElementById('drumChokeSelect');
-  if (chokeSelect) chokeSelect.value = existing && Number.isInteger(existing.chokeTargetIndex) ? String(existing.chokeTargetIndex) : '-1';
+  if (chokeSelect) {
+    const chokeTargetIndex = draft && draft.chokeTargetIndex != null
+      ? draft.chokeTargetIndex
+      : (existing && Number.isInteger(existing.chokeTargetIndex) ? existing.chokeTargetIndex : -1);
+    const desired = String(chokeTargetIndex === drumAssignTarget ? -1 : chokeTargetIndex);
+    chokeSelect.value = Array.from(chokeSelect.options).some((option) => option.value === desired) ? desired : '-1';
+  }
   updateDrumAssignTrimButton();
+  updateDrumAssignClipboardButtons();
+  updateDrumAssignNextButton();
   overlay.classList.remove('hidden');
   try { updateScrollState(); } catch {}
 }
@@ -8214,12 +8602,9 @@ function closeDrumAssignModal() {
   try { updateScrollState(); } catch {}
 }
 
-function saveDrumAssignment() {
-  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
-  if (!drumAssignSelectedKey) {
-    closeDrumAssignModal();
-    return;
-  }
+function persistDrumAssignmentFromModal() {
+  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return false;
+  if (!drumAssignSelectedKey) return false;
 
   const displayNameInput = document.getElementById('drumDisplayNameInput');
   const chokeSelect = document.getElementById('drumChokeSelect');
@@ -8241,7 +8626,22 @@ function saveDrumAssignment() {
   saveDrumAssignments();
   void warmDrumAssignmentBuffer(drumAssignments[drumAssignTarget]);
   renderDrumGrid();
+  return true;
+}
+
+function saveDrumAssignment() {
+  const saved = persistDrumAssignmentFromModal();
   closeDrumAssignModal();
+  return saved;
+}
+
+function saveDrumAssignmentAndOpenNext() {
+  if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT - 1) return;
+  const currentIndex = drumAssignTarget;
+  const saved = persistDrumAssignmentFromModal();
+  closeDrumAssignModal();
+  openDrumAssignModal(currentIndex + 1, { preservePickerState: true });
+  if (saved) setStatus(tf('status_drum_assignment_next', { from: currentIndex + 1, to: currentIndex + 2 }));
 }
 
 function clearDrumAssignment() {
@@ -8846,7 +9246,7 @@ let padAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
 let padAssignPreservePitch = false;
 let padAssignLoop = true;
 
-function openPadAssignModal(padIndex) {
+function openPadAssignModal(padIndex, { preservePickerState = false, draft = null } = {}) {
   setPadEditMode(false, { silent: true });
   padAssignTarget = padIndex;
   const existing = padAssignments[padIndex];
@@ -8864,20 +9264,21 @@ function openPadAssignModal(padIndex) {
   const repeatLabel = document.getElementById('padRepeatLabel');
 
   if (!overlay) return;
-  if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
+  if (title) title.textContent = `${t('pads_assign_title')} ${padIndex + 1}`;
 
-  padAssignSelectedKey = (existing && existing.presetKey) || '';
-  padPickerSearchQuery = '';
-  if (searchInput) searchInput.value = '';
+  padAssignSelectedKey = draft && draft.selectedKey != null ? draft.selectedKey : ((existing && existing.presetKey) || '');
+  if (!preservePickerState) padPickerSearchQuery = '';
+  else if (draft && typeof draft.searchQuery === 'string') padPickerSearchQuery = draft.searchQuery;
+  if (searchInput) searchInput.value = preservePickerState ? String(padPickerSearchQuery || '') : '';
   initializePadPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderPadLoopPicker();
 
-  if (displayNameInput) displayNameInput.value = (existing && existing.displayName) || '';
-  if (rateInput) rateInput.value = formatPadRateValue(existing && existing.rate ? existing.rate : 1.0);
-  setAssignmentVolumeUI(volumeInput, volumeReadout, existing && existing.volume != null ? existing.volume : 1.0);
-  padAssignPreservePitch = !!(existing && existing.preservePitch);
+  if (displayNameInput) displayNameInput.value = draft && draft.displayName != null ? draft.displayName : ((existing && existing.displayName) || '');
+  if (rateInput) rateInput.value = formatPadRateValue(draft && draft.rate != null ? draft.rate : (existing && existing.rate ? existing.rate : 1.0));
+  setAssignmentVolumeUI(volumeInput, volumeReadout, draft && draft.volume != null ? draft.volume : (existing && existing.volume != null ? existing.volume : 1.0));
+  padAssignPreservePitch = draft && draft.preservePitch != null ? !!draft.preservePitch : !!(existing && existing.preservePitch);
   if (preservePitchBtn) preservePitchBtn.setAttribute('aria-pressed', padAssignPreservePitch ? 'true' : 'false');
-  padAssignLoop = existing ? existing.loop !== false : true;
+  padAssignLoop = draft && draft.loop != null ? !!draft.loop : (existing ? existing.loop !== false : true);
   if (repeatBtn) {
     repeatBtn.setAttribute('aria-pressed', padAssignLoop ? 'true' : 'false');
     repeatBtn.setAttribute('aria-label', t('pads_repeat_label'));
@@ -8886,9 +9287,13 @@ function openPadAssignModal(padIndex) {
   if (repeatLabel) repeatLabel.textContent = t('pads_repeat_label');
 
   // Color
-  padAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
+  padAssignSelectedColorKey = draft && draft.colorKey
+    ? normalizePadColorKey(draft.colorKey, draft.color)
+    : normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
   if (palette) refreshPadColorPalette();
   updatePadAssignTrimButton();
+  updatePadAssignClipboardButtons();
+  updatePadAssignNextButton();
 
   overlay.classList.remove('hidden');
   try { updateScrollState(); } catch {}
@@ -8902,14 +9307,14 @@ function closePadAssignModal() {
   try { updateScrollState(); } catch {}
 }
 
-function savePadAssignment() {
-  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return;
-  if (!padAssignSelectedKey) { closePadAssignModal(); return; }
+function persistPadAssignmentFromModal() {
+  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT) return false;
+  if (!padAssignSelectedKey) return false;
 
-   const displayNameInput = document.getElementById('padDisplayNameInput');
+  const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
   const volumeInput = document.getElementById('padAssignVolume');
-   const displayName = displayNameInput ? displayNameInput.value.trim() : '';
+  const displayName = displayNameInput ? displayNameInput.value.trim() : '';
   const rate = normalizePadRateValue(rateInput && rateInput.value, 1.0);
   if (rateInput) rateInput.value = formatPadRateValue(rate);
 
@@ -8932,7 +9337,22 @@ function savePadAssignment() {
   savePadAssignments();
   void warmPadAssignmentBuffer(padAssignments[padAssignTarget]);
   renderPadGrid();
+  return true;
+}
+
+function savePadAssignment() {
+  const saved = persistPadAssignmentFromModal();
   closePadAssignModal();
+  return saved;
+}
+
+function savePadAssignmentAndOpenNext() {
+  if (padAssignTarget < 0 || padAssignTarget >= PAD_COUNT - 1) return;
+  const currentIndex = padAssignTarget;
+  const saved = persistPadAssignmentFromModal();
+  closePadAssignModal();
+  openPadAssignModal(currentIndex + 1, { preservePickerState: true });
+  if (saved) setStatus(tf('status_pad_assignment_next', { from: currentIndex + 1, to: currentIndex + 2 }));
 }
 
 function clearPadAssignment() {
@@ -9635,12 +10055,18 @@ function bindPadsUI() {
   }
 
   // Assign modal buttons
+  const copyBtn = document.getElementById('padAssignCopy');
+  const pasteBtn = document.getElementById('padAssignPaste');
   const saveBtn = document.getElementById('padAssignSave');
+  const saveNextBtn = document.getElementById('padAssignSaveNext');
   const trimBtn = document.getElementById('padAssignTrim');
   const clearBtn = document.getElementById('padAssignClear');
   const closeBtn = document.getElementById('padAssignClose');
   if (trimBtn) trimBtn.addEventListener('click', () => { void openSelectedPadLoopInTrimmer(); });
+  if (copyBtn) copyBtn.addEventListener('click', copyPadAssignmentToClipboard);
+  if (pasteBtn) pasteBtn.addEventListener('click', pastePadAssignmentFromClipboard);
   if (saveBtn) saveBtn.addEventListener('click', savePadAssignment);
+  if (saveNextBtn) saveNextBtn.addEventListener('click', savePadAssignmentAndOpenNext);
   if (clearBtn) clearBtn.addEventListener('click', clearPadAssignment);
   if (closeBtn) closeBtn.addEventListener('click', closePadAssignModal);
 
@@ -9735,7 +10161,10 @@ function bindDrumMachineUI() {
     });
   }
 
+  const drumAssignCopy = document.getElementById('drumAssignCopy');
+  const drumAssignPaste = document.getElementById('drumAssignPaste');
   const drumAssignSave = document.getElementById('drumAssignSave');
+  const drumAssignSaveNext = document.getElementById('drumAssignSaveNext');
   const drumAssignTrim = document.getElementById('drumAssignTrim');
   const drumAssignClear = document.getElementById('drumAssignClear');
   const drumAssignClose = document.getElementById('drumAssignClose');
@@ -9748,7 +10177,10 @@ function bindDrumMachineUI() {
   const drumDeleteConfirm = document.getElementById('drumSessionDeleteConfirm');
   const drumDeleteCancel = document.getElementById('drumSessionDeleteCancel');
   if (drumAssignTrim) drumAssignTrim.addEventListener('click', () => { void openSelectedDrumLoopInTrimmer(); });
+  if (drumAssignCopy) drumAssignCopy.addEventListener('click', copyDrumAssignmentToClipboard);
+  if (drumAssignPaste) drumAssignPaste.addEventListener('click', pasteDrumAssignmentFromClipboard);
   if (drumAssignSave) drumAssignSave.addEventListener('click', saveDrumAssignment);
+  if (drumAssignSaveNext) drumAssignSaveNext.addEventListener('click', saveDrumAssignmentAndOpenNext);
   if (drumAssignClear) drumAssignClear.addEventListener('click', clearDrumAssignment);
   if (drumAssignClose) drumAssignClose.addEventListener('click', closeDrumAssignModal);
   if (drumSaveSessBtn) drumSaveSessBtn.addEventListener('click', openDrumSessionSaveModal);
