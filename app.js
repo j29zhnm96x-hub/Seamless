@@ -7,6 +7,10 @@ const RATE_MIN = 0.5;
 const RATE_MAX = 2.0;
 let preservePitch = false;
 let pitchShifterNode = null;
+let soundTouchNodeCtor = null;
+let soundTouchWorkletReady = false;
+let soundTouchWorkletFailed = false;
+let soundTouchWorkletRegistrationPromise = null;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -2193,8 +2197,70 @@ function setPlaybackRate(rate, { smooth = true } = {}) {
     }
   } catch {}
   // Update pitch correction when preserve-pitch is active.
-  try { updatePitchShifter(); } catch {}
+  try { void updatePitchShifter(); } catch {}
   return currentRate;
+}
+
+function getSoundTouchModuleUrl() {
+  return new URL('./node_modules/@soundtouchjs/audio-worklet/dist/index.js', document.baseURI).href;
+}
+
+function getSoundTouchProcessorUrl() {
+  return new URL('./node_modules/@soundtouchjs/audio-worklet/dist/soundtouch-processor.js', document.baseURI).href;
+}
+
+function isSoundTouchWorkletNode(node) {
+  return !!(node && node.playbackRate && typeof node.playbackRate.setValueAtTime === 'function');
+}
+
+async function ensureSoundTouchWorkletRegistered() {
+  if (soundTouchWorkletReady && soundTouchNodeCtor) return true;
+  if (soundTouchWorkletFailed) return false;
+  if (!audioCtx || !audioCtx.audioWorklet || typeof AudioWorkletNode === 'undefined') {
+    soundTouchWorkletFailed = true;
+    return false;
+  }
+  if (!soundTouchWorkletRegistrationPromise) {
+    soundTouchWorkletRegistrationPromise = (async () => {
+      try {
+        const mod = await import(getSoundTouchModuleUrl());
+        if (!mod || typeof mod.SoundTouchNode !== 'function') throw new Error('SoundTouchNode missing');
+        soundTouchNodeCtor = mod.SoundTouchNode;
+        await soundTouchNodeCtor.register(audioCtx, getSoundTouchProcessorUrl());
+        soundTouchWorkletReady = true;
+        soundTouchWorkletFailed = false;
+        return true;
+      } catch {
+        soundTouchNodeCtor = null;
+        soundTouchWorkletReady = false;
+        soundTouchWorkletFailed = true;
+        return false;
+      }
+    })();
+  }
+  return !!(await soundTouchWorkletRegistrationPromise);
+}
+
+function updateSoundTouchNodeParams(node, playbackRate, { smooth = true } = {}) {
+  if (!node || !audioCtx || !isSoundTouchWorkletNode(node)) return false;
+  const rate = clamp(Number(playbackRate) || 1.0, RATE_MIN, RATE_MAX);
+  const now = audioCtx.currentTime;
+  const setParam = (param, value) => {
+    if (!param || typeof param.cancelScheduledValues !== 'function') return;
+    try {
+      param.cancelScheduledValues(now);
+      if (smooth && typeof param.setTargetAtTime === 'function') param.setTargetAtTime(value, now, 0.03);
+      else param.setValueAtTime(value, now);
+    } catch {
+      try { param.value = value; } catch {}
+    }
+  };
+  setParam(node.playbackRate, rate);
+  setParam(node.pitch, 1.0);
+  setParam(node.tempo, 1.0);
+  setParam(node.rate, 1.0);
+  setParam(node.pitchSemitones, 0);
+  return true;
 }
 
 /* ================================================================
@@ -2205,34 +2271,88 @@ function setPlaybackRate(rate, { smooth = true } = {}) {
    ================================================================ */
 
 function createPitchShifterNode(ctx, pitchFactor) {
-  const bufSize = 4096;
+  const bufSize = 2048;
   const grainSize = 1024;
   const overlap = 4;
-  const hop = (grainSize / overlap) | 0; // 256
+  const hop = Math.max(128, (grainSize / overlap) | 0);
+  const compareLen = Math.min(192, Math.max(64, grainSize - hop));
+  const searchRadius = 72;
 
   const node = ctx.createScriptProcessor(bufSize, 2, 2);
   node._pitchFactor = pitchFactor;
+  node._targetPitchFactor = pitchFactor;
+  node._smoothedPitchFactor = pitchFactor;
   node._chState = null;
 
-  // Pre-compute Hann window.
+  // Sqrt-Hann behaves better for overlap-add and reduces amplitude pumping.
   const win = new Float32Array(grainSize);
   for (let i = 0; i < grainSize; i++) {
-    win[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (grainSize - 1)));
+    win[i] = Math.sqrt(0.5 * (1 - Math.cos(2 * Math.PI * i / (grainSize - 1))));
   }
 
   function makeState() {
     return {
-      inBuf: new Float32Array(bufSize * 4),
+      inBuf: new Float32Array(bufSize * 6),
       inW: 0,   // input write cursor
       inR: 0,   // input read cursor
-      outBuf: new Float32Array(bufSize * 4),
+      outBuf: new Float32Array(bufSize * 8),
+      normBuf: new Float32Array(bufSize * 8),
       outW: 0,  // OLA write cursor
       outR: 0,  // read cursor
+      tempGrain: new Float32Array(grainSize),
+      refBuf: new Float32Array(compareLen),
+      hasRef: false,
     };
   }
 
+  function readSampleLinear(buf, limit, position) {
+    const base = Math.max(0, Math.min(limit - 1, position | 0));
+    const next = Math.min(limit - 1, base + 1);
+    const frac = position - (position | 0);
+    const v0 = buf[base] || 0;
+    const v1 = buf[next] || v0;
+    return v0 + frac * (v1 - v0);
+  }
+
+  function chooseBase(state, pf, readLen) {
+    const nominalBase = state.inR;
+    if (!state.hasRef) return nominalBase;
+    const minBase = Math.max(0, nominalBase - searchRadius);
+    const maxBase = Math.min(state.inW - (readLen + 2), nominalBase + searchRadius);
+    let bestBase = nominalBase;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let candidate = minBase; candidate <= maxBase; candidate++) {
+      let score = 0;
+      for (let i = 0; i < compareLen; i += 2) {
+        const sample = readSampleLinear(state.inBuf, state.inW, candidate + i * pf);
+        const diff = sample - state.refBuf[i];
+        score += diff * diff;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        bestBase = candidate;
+      }
+    }
+    return bestBase;
+  }
+
+  function renderGrain(state, base, pf) {
+    const grain = state.tempGrain;
+    for (let i = 0; i < grainSize; i++) {
+      grain[i] = readSampleLinear(state.inBuf, state.inW, base + i * pf);
+    }
+    const refStart = Math.min(grainSize - compareLen, hop);
+    for (let i = 0; i < compareLen; i++) {
+      state.refBuf[i] = grain[refStart + i] || 0;
+    }
+    state.hasRef = true;
+    return grain;
+  }
+
   node.onaudioprocess = function (e) {
-    const pf = node._pitchFactor;
+    const targetPf = clamp(Number(node._targetPitchFactor || node._pitchFactor || 1.0), 0.5, 2.0);
+    node._smoothedPitchFactor += (targetPf - node._smoothedPitchFactor) * 0.12;
+    const pf = clamp(node._smoothedPitchFactor || 1.0, 0.5, 2.0);
     const inCh = e.inputBuffer.numberOfChannels;
     const outCh = e.outputBuffer.numberOfChannels;
     const ch = Math.min(inCh, outCh, 2);
@@ -2247,18 +2367,21 @@ function createPitchShifterNode(ctx, pitchFactor) {
       return;
     }
 
-    if (!node._chState) {
+    if (!node._chState || node._chState.length !== ch) {
       node._chState = [];
       for (let c = 0; c < ch; c++) node._chState.push(makeState());
     }
 
     // How many input samples each grain reads from (may be < or > grainSize).
-    const readLen = Math.ceil(grainSize * pf);
+    const readLen = Math.max(8, Math.ceil(grainSize * pf));
+
+    const chosenBases = [];
 
     for (let c = 0; c < ch; c++) {
       const inp = e.inputBuffer.getChannelData(c);
       const out = e.outputBuffer.getChannelData(c);
       const s = node._chState[c];
+      let grainIndex = 0;
 
       // ---- append input ----
       const inAvailBefore = s.inW - s.inR;
@@ -2274,26 +2397,32 @@ function createPitchShifterNode(ctx, pitchFactor) {
       s.inW += inp.length;
 
       // ---- grow output buffer if needed ----
-      const outNeed = s.outW + grainSize + bLen;
+      const outNeed = s.outW + grainSize + bLen + hop;
       if (outNeed > s.outBuf.length) {
         const nb = new Float32Array(outNeed * 2);
         nb.set(s.outBuf.subarray(0, s.outW));
         s.outBuf = nb;
+        const nn = new Float32Array(outNeed * 2);
+        nn.set(s.normBuf.subarray(0, s.outW));
+        s.normBuf = nn;
       }
 
       // ---- OLA: produce grains while enough input available ----
-      while ((s.inW - s.inR) >= readLen) {
-        const base = s.inR; // grain reads from base..base+readLen-1
+      while ((s.inW - s.inR) >= (readLen + 2)) {
+        const base = c === 0
+          ? chooseBase(s, pf, readLen)
+          : (chosenBases[grainIndex] != null ? chosenBases[grainIndex] : s.inR);
+        if (c === 0) chosenBases.push(base);
+        const grain = renderGrain(s, base, pf);
         for (let i = 0; i < grainSize; i++) {
-          const srcPos = i * pf;
-          const idx = (srcPos | 0) + base;
-          const frac = srcPos - (srcPos | 0);
-          const v0 = idx < s.inW ? s.inBuf[idx] : 0;
-          const v1 = (idx + 1) < s.inW ? s.inBuf[idx + 1] : v0;
-          s.outBuf[s.outW + i] += (v0 + frac * (v1 - v0)) * win[i];
+          const weight = win[i];
+          const pos = s.outW + i;
+          s.outBuf[pos] += grain[i] * weight;
+          s.normBuf[pos] += weight;
         }
         s.outW += hop;  // advance output by hop (overlap-add)
         s.inR += hop;   // consume hop input (balanced I/O rate)
+        grainIndex++;
       }
 
       // ---- compact input when read cursor drifts far ----
@@ -2307,20 +2436,27 @@ function createPitchShifterNode(ctx, pitchFactor) {
       // ---- read output ----
       const avail = s.outW - s.outR;
       const rd = Math.min(bLen, Math.max(0, avail));
-      for (let i = 0; i < rd; i++) out[i] = s.outBuf[s.outR + i];
+      for (let i = 0; i < rd; i++) {
+        const pos = s.outR + i;
+        const norm = s.normBuf[pos];
+        out[i] = norm > 1e-4 ? (s.outBuf[pos] / norm) : 0;
+      }
       for (let i = rd; i < bLen; i++) out[i] = 0;
 
       // Clear consumed output region for future OLA additions.
       s.outBuf.fill(0, s.outR, s.outR + rd);
+      s.normBuf.fill(0, s.outR, s.outR + rd);
       s.outR += rd;
 
       // ---- compact output ----
       if (s.outR > bufSize * 2) {
         const shift = s.outR;
         s.outBuf.copyWithin(0, shift, s.outW);
+        s.normBuf.copyWithin(0, shift, s.outW);
         s.outW -= shift;
         s.outR = 0;
         s.outBuf.fill(0, s.outW);
+        s.normBuf.fill(0, s.outW);
       }
     }
 
@@ -2332,16 +2468,30 @@ function createPitchShifterNode(ctx, pitchFactor) {
 }
 
 function connectPitchShifter() {
+  return (async () => {
   if (!audioCtx || !loopGain || !master) return;
   disconnectPitchShifter();
-  const pf = 1.0 / clamp(currentRate, RATE_MIN, RATE_MAX);
+  const rate = clamp(currentRate, RATE_MIN, RATE_MAX);
+  const pf = 1.0 / rate;
   if (Math.abs(pf - 1.0) < 0.005) return; // No correction needed at 1× rate.
+  if (await ensureSoundTouchWorkletRegistered()) {
+    try {
+      pitchShifterNode = new soundTouchNodeCtor(audioCtx);
+      loopGain.disconnect();
+      loopGain.connect(pitchShifterNode);
+      pitchShifterNode.connect(master);
+      updateSoundTouchNodeParams(pitchShifterNode, rate, { smooth: false });
+      return;
+    } catch {}
+  }
   try {
     pitchShifterNode = createPitchShifterNode(audioCtx, pf);
+    pitchShifterNode._targetPitchFactor = pf;
     loopGain.disconnect();
     loopGain.connect(pitchShifterNode);
     pitchShifterNode.connect(master);
   } catch {}
+  })();
 }
 
 function disconnectPitchShifter() {
@@ -2357,28 +2507,42 @@ function disconnectPitchShifter() {
 }
 
 function updatePitchShifter() {
+  return (async () => {
   if (!preservePitch || !loopGain || !master) {
     if (pitchShifterNode) disconnectPitchShifter();
     return;
   }
-  const pf = 1.0 / clamp(currentRate, RATE_MIN, RATE_MAX);
+  const rate = clamp(currentRate, RATE_MIN, RATE_MAX);
+  const pf = 1.0 / rate;
   if (Math.abs(pf - 1.0) < 0.005) {
     if (pitchShifterNode) disconnectPitchShifter();
     return;
   }
+  if (isSoundTouchWorkletNode(pitchShifterNode)) {
+    updateSoundTouchNodeParams(pitchShifterNode, rate, { smooth: true });
+    return;
+  }
+  if (await ensureSoundTouchWorkletRegistered()) {
+    await connectPitchShifter();
+    return;
+  }
   if (pitchShifterNode) {
     pitchShifterNode._pitchFactor = pf;
+    pitchShifterNode._targetPitchFactor = pf;
   } else {
-    connectPitchShifter();
+    await connectPitchShifter();
   }
+  })();
 }
 
 function togglePreservePitch(on) {
+  return (async () => {
   preservePitch = !!on;
   try { localStorage.setItem('seamlessplayer-preserve-pitch', preservePitch ? '1' : '0'); } catch {}
   const btn = document.getElementById('preservePitchBtn');
   if (btn) btn.setAttribute('aria-pressed', preservePitch ? 'true' : 'false');
-  updatePitchShifter();
+  await updatePitchShifter();
+  })();
 }
 
 function stopPlaylistPlayback() {
@@ -2757,6 +2921,7 @@ function ensureAudio() {
     try { master.connect(analyser); } catch {}
     audioOut = document.getElementById('audioOut');
     if (audioOut) audioOut.srcObject = mediaDest.stream;
+    try { void ensureSoundTouchWorkletRegistered(); } catch {}
   }
 }
 
@@ -3181,7 +3346,7 @@ async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, cu
   loopGain.connect(master);
 
   // Re-insert pitch shifter if preserve-pitch is active.
-  try { updatePitchShifter(); } catch {}
+  try { await updatePitchShifter(); } catch {}
 
   master.gain.cancelScheduledValues(audioCtx.currentTime);
   master.gain.setValueAtTime(master.gain.value, audioCtx.currentTime);
@@ -5906,7 +6071,9 @@ function showHelpOverlay() {
   ov.querySelectorAll('[data-help-target]').forEach((button) => {
     button.onclick = () => {
       const section = ov.querySelector(`#help-section-${button.getAttribute('data-help-target')}`);
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!section) return;
+      const top = Math.max(0, section.offsetTop - 16);
+      card.scrollTo({ top, behavior: 'smooth' });
     };
   });
   card.onscroll = updateBackToTopButton;
@@ -7032,16 +7199,30 @@ function disconnectPadPitchShifter() {
 }
 
 function connectPadPitchShifter(rate) {
+  return (async () => {
   if (!audioCtx || !padGainNode || !master) return;
   disconnectPadPitchShifter();
-  const pf = 1.0 / clamp(rate, RATE_MIN, RATE_MAX);
+  const normalizedRate = clamp(rate, RATE_MIN, RATE_MAX);
+  const pf = 1.0 / normalizedRate;
   if (Math.abs(pf - 1.0) < 0.005) return;
+  if (await ensureSoundTouchWorkletRegistered()) {
+    try {
+      padPitchShifterNode = new soundTouchNodeCtor(audioCtx);
+      padGainNode.disconnect();
+      padGainNode.connect(padPitchShifterNode);
+      padPitchShifterNode.connect(master);
+      updateSoundTouchNodeParams(padPitchShifterNode, normalizedRate, { smooth: false });
+      return;
+    } catch {}
+  }
   try {
     padPitchShifterNode = createPitchShifterNode(audioCtx, pf);
+    padPitchShifterNode._targetPitchFactor = pf;
     padGainNode.disconnect();
     padGainNode.connect(padPitchShifterNode);
     padPitchShifterNode.connect(master);
   } catch {}
+  })();
 }
 
 function savePadAssignments() {
@@ -7225,7 +7406,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   padSource.connect(padGainNode);
   padGainNode.connect(master);
   if (a.preservePitch) {
-    connectPadPitchShifter(rate);
+    await connectPadPitchShifter(rate);
   } else {
     disconnectPadPitchShifter();
     try { padGainNode.disconnect(); } catch {}
@@ -8493,6 +8674,10 @@ function bindUI() {
   const showOverlay = (el) => {
     if (!el) return;
     el.classList.remove('hidden');
+    try {
+      const card = el.querySelector('.overlay-card');
+      if (card) card.scrollTop = 0;
+    } catch {}
     try { updateScrollState(); } catch {}
   };
 
@@ -8500,6 +8685,66 @@ function bindUI() {
     if (!el) return;
     el.classList.add('hidden');
     try { updateScrollState(); } catch {}
+  };
+
+  const requestOverlayClose = (el) => {
+    if (!el || el.classList.contains('hidden')) return;
+    switch (el.id) {
+      case 'playlistOverlay':
+        closePlaylist();
+        break;
+      case 'loopPickerOverlay':
+        closePicker();
+        break;
+      case 'detailLoopRepsOverlay':
+        closeDetailLoopRepsPrompt(false);
+        break;
+      case 'playlistDeleteOverlay':
+        pendingDeletePlaylistId = null;
+        hideOverlay(el);
+        break;
+      case 'padAssignOverlay':
+        closePadAssignModal();
+        break;
+      case 'drumAssignOverlay':
+        closeDrumAssignModal();
+        break;
+      case 'padSessionSaveOverlay':
+        closePadSessionSaveModal();
+        break;
+      case 'padSessionRecallOverlay':
+        hideOverlay(el);
+        break;
+      case 'padSessionDeleteOverlay':
+        closePadSessionDeleteModal();
+        break;
+      case 'drumSessionSaveOverlay':
+        closeDrumSessionSaveModal();
+        break;
+      case 'drumSessionRecallOverlay':
+        hideOverlay(el);
+        break;
+      case 'drumSessionDeleteOverlay':
+        closeDrumSessionDeleteModal();
+        break;
+      case 'trimSaveOverlay':
+      case 'helpOverlay':
+        el.classList.add('hidden');
+        try { updateScrollState(); } catch {}
+        break;
+      default:
+        hideOverlay(el);
+        break;
+    }
+  };
+
+  const bindOverlayDismiss = (el) => {
+    if (!el || el.dataset.dismissBound === '1') return;
+    el.dataset.dismissBound = '1';
+    el.addEventListener('click', (event) => {
+      if (event.target !== el) return;
+      requestOverlayClose(el);
+    });
   };
 
   let savePlaylistTimer = 0;
@@ -8745,6 +8990,32 @@ function bindUI() {
     });
     showOverlay(loopPickerOverlay);
   };
+
+  [
+    playlistOverlay,
+    loopPickerOverlay,
+    detailLoopRepsOverlay,
+    playlistDeleteOverlay,
+    document.getElementById('padAssignOverlay'),
+    document.getElementById('drumAssignOverlay'),
+    document.getElementById('padSessionSaveOverlay'),
+    document.getElementById('padSessionRecallOverlay'),
+    document.getElementById('padSessionDeleteOverlay'),
+    document.getElementById('drumSessionSaveOverlay'),
+    document.getElementById('drumSessionRecallOverlay'),
+    document.getElementById('drumSessionDeleteOverlay')
+  ].forEach(bindOverlayDismiss);
+
+  if (!document.body.dataset.overlayEscapeBound) {
+    document.body.dataset.overlayEscapeBound = '1';
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const overlays = Array.from(document.querySelectorAll('.overlay:not(.hidden)'));
+      const topOverlay = overlays.length ? overlays[overlays.length - 1] : null;
+      if (!topOverlay) return;
+      requestOverlayClose(topOverlay);
+    });
+  }
 
   newPlaylistFromPage && newPlaylistFromPage.addEventListener('click', () => {
     if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();

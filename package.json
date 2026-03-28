@@ -25,5 +25,8 @@
     "win": {
       "target": "nsis"
     }
+  },
+  "dependencies": {
+    "@soundtouchjs/audio-worklet": "^1.0.8"
   }
 }
