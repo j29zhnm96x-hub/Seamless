@@ -11,6 +11,7 @@ let soundTouchNodeCtor = null;
 let soundTouchWorkletReady = false;
 let soundTouchWorkletFailed = false;
 let soundTouchWorkletRegistrationPromise = null;
+const BACKUP_VERSION = 2;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -211,6 +212,15 @@ const I18N = {
     help_troubleshooting_b4: 'If saved data appears missing, confirm you are in the same browser profile and restore the latest export if necessary.',
     help_actions_note: 'Tip: change the app language in Settings and reopen Help to read the guide in the selected language.',
     help_back_to_top: 'Back to top',
+    common_edit: 'Edit',
+    status_pad_edit_mode: 'Loop Trigger edit mode: tap a pad to edit it.',
+    status_drum_edit_mode: 'Drum Machine edit mode: tap a pad to edit it.',
+    status_edit_mode_off: 'Edit mode off.',
+    pad_missing_audio: 'Missing audio',
+    status_session_loaded_missing_audio: 'Session "{name}" loaded. {count} assignment(s) are missing audio.',
+    status_export_complete_warning: 'Export complete with warnings. {count} audio file(s) were unavailable.',
+    status_import_complete_warning: 'Import complete with warnings. {count} audio file(s) were missing from the backup.',
+    status_backup_version_unsupported: 'This backup was created by a newer app version and cannot be imported safely.',
     help_close: 'Close',
     playlist_create_title: 'Create Playlist',
     playlist_name_label: 'Playlist name',
@@ -421,6 +431,15 @@ const I18N = {
     help_troubleshooting_b4: 'Ako vam se čini da nedostaju spremljeni podaci, provjerite jeste li u istom profilu preglednika i po potrebi vratite zadnji export.',
     help_actions_note: 'Savjet: promijenite jezik aplikacije u Postavkama i ponovno otvorite Pomoć kako biste vodič čitali na odabranom jeziku.',
     help_back_to_top: 'Povratak na vrh',
+    common_edit: 'Uredi',
+    status_pad_edit_mode: 'Loop Trigger način uređivanja: dodirnite pad koji želite urediti.',
+    status_drum_edit_mode: 'Drum Machine način uređivanja: dodirnite pad koji želite urediti.',
+    status_edit_mode_off: 'Način uređivanja je isključen.',
+    pad_missing_audio: 'Nedostaje audio',
+    status_session_loaded_missing_audio: 'Sesija "{name}" je učitana. {count} dodjela nema dostupan audio.',
+    status_export_complete_warning: 'Izvoz je dovršen uz upozorenja. {count} audio datoteka nije bila dostupna.',
+    status_import_complete_warning: 'Uvoz je dovršen uz upozorenja. {count} audio datoteka nedostajalo je u sigurnosnoj kopiji.',
+    status_backup_version_unsupported: 'Ova sigurnosna kopija izrađena je novijom verzijom aplikacije i nije je sigurno uvesti.',
     help_close: 'Zatvori',
     playlist_create_title: 'Nova playlista',
     playlist_name_label: 'Naziv playliste',
@@ -471,6 +490,14 @@ const I18N = {
 function t(key) {
   const langTable = I18N[currentLang] || I18N.en;
   return (langTable && langTable[key]) || (I18N.en && I18N.en[key]) || key;
+}
+
+function tf(key, values = {}) {
+  let text = String(t(key));
+  Object.keys(values || {}).forEach((name) => {
+    text = text.split(`{${name}}`).join(String(values[name]));
+  });
+  return text;
 }
 
 function getHelpSections() {
@@ -723,6 +750,11 @@ function applyLanguage(lang) {
   if (padsHead) padsHead.textContent = t('pads_title');
   const padsSaveBtn = document.getElementById('padsSaveSession');
   if (padsSaveBtn) padsSaveBtn.textContent = t('pads_save');
+  const padsEditBtn = document.getElementById('padsEditMode');
+  if (padsEditBtn) {
+    padsEditBtn.textContent = t('common_edit');
+    padsEditBtn.setAttribute('aria-label', `${t('common_edit')} ${t('pads_title')}`);
+  }
   const loopTriggerCard = document.getElementById('loopTriggerCard');
   if (loopTriggerCard) loopTriggerCard.setAttribute('aria-label', t('pads_title'));
   const loopTriggerNote = document.getElementById('loopTriggerCollapsedNote');
@@ -746,6 +778,11 @@ function applyLanguage(lang) {
   if (drumCard) drumCard.setAttribute('aria-label', t('drum_title'));
   const drumSaveBtn = document.getElementById('drumSaveSession');
   if (drumSaveBtn) drumSaveBtn.textContent = t('drum_save');
+  const drumEditBtn = document.getElementById('drumEditMode');
+  if (drumEditBtn) {
+    drumEditBtn.textContent = t('common_edit');
+    drumEditBtn.setAttribute('aria-label', `${t('common_edit')} ${t('drum_title')}`);
+  }
   const drumNote = document.getElementById('drumMachineCollapsedNote');
   if (drumNote) drumNote.textContent = t('island_collapsed_note');
   setText('#drumSessionsTitle', t('drum_sessions_title'));
@@ -909,6 +946,8 @@ function applyLanguage(lang) {
 
   // Player page dynamic bits
   try { updatePlayerPlaylistUI(); } catch {}
+  try { refreshPadEditButton(); } catch {}
+  try { refreshDrumEditButton(); } catch {}
 }
 
 function openPlaylistsDb() {
@@ -2566,6 +2605,30 @@ function getAllLoopChoices() {
     else if (p.url) choices.push({ presetKey: `url:${p.url}`, label: stripFileExt(p.name || p.url) });
   }
   return choices;
+}
+
+function isPresetKeyAvailable(presetKey) {
+  if (!presetKey) return false;
+  const s = String(presetKey);
+  const sep = s.indexOf(':');
+  if (sep < 0) return false;
+  const kind = s.slice(0, sep);
+  const rest = s.slice(sep + 1);
+  if (!kind || !rest) return false;
+  if (kind === 'builtin' || kind === 'url') return true;
+  if (kind === 'upload') {
+    return userPresets.some((preset) => preset && String(preset.id) === String(rest) && !!preset.blob);
+  }
+  return false;
+}
+
+function countMissingAssignmentAudio(assignments) {
+  if (!Array.isArray(assignments)) return 0;
+  let missing = 0;
+  assignments.forEach((assignment) => {
+    if (assignment && assignment.presetKey && !isPresetKeyAvailable(assignment.presetKey)) missing += 1;
+  });
+  return missing;
 }
 
 async function loadBufferFromPresetKey(presetKey) {
@@ -5551,6 +5614,7 @@ async function exportAppData() {
     const overrides = (() => {
       try { return getUploadNameOverrides() || {}; } catch { return {}; }
     })();
+    const missingUploadCount = (uploads || []).reduce((count, upload) => count + (upload && upload.id && !upload.blob ? 1 : 0), 0);
 
     const uploadMeta = (uploads || []).map(u => {
       const overrideName = getUploadNameOverride(u && u.id);
@@ -5605,7 +5669,7 @@ async function exportAppData() {
 
     const data = {
       app: 'seamlessplayer',
-      version: 2,
+      version: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
       playlists: playlists || [],
       uploads: uploadMeta,
@@ -5640,7 +5704,7 @@ async function exportAppData() {
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-      setStatus('Export complete');
+      setStatus(missingUploadCount ? tf('status_export_complete_warning', { count: missingUploadCount }) : 'Export complete');
       return;
     }
 
@@ -5654,7 +5718,7 @@ async function exportAppData() {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-    setStatus('Export complete (JSON)');
+    setStatus(missingUploadCount ? tf('status_export_complete_warning', { count: missingUploadCount }) : 'Export complete (JSON)');
   } catch (e) {
     setStatus('Export failed');
   }
@@ -5678,6 +5742,7 @@ async function importZipBackup(file) {
   const jsonText = await backupFile.async('string');
   const data = JSON.parse(jsonText);
   if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
+  if (Number(data.version || 1) > BACKUP_VERSION) { setStatus(t('status_backup_version_unsupported')); return; }
 
   // Restore upload name overrides (safe even if uploads are missing).
   try {
@@ -5752,13 +5817,14 @@ async function importZipBackup(file) {
   // Import uploads (blob + trim metadata) preserving IDs.
   if (Array.isArray(data.uploads)) {
     let imported = 0;
+    let missingEntries = 0;
     for (const meta of data.uploads) {
       if (!meta || !meta.id) continue;
       const id = String(meta.id);
       const path = String(meta.file || `uploads/${id}`);
 
       const entry = zip.file(path) || zip.file(`uploads/${id}`);
-      if (!entry) continue;
+      if (!entry) { missingEntries++; continue; }
 
       try {
         let blob = await entry.async('blob');
@@ -5781,6 +5847,7 @@ async function importZipBackup(file) {
         if (imported % 3 === 0) setStatus(`Importing… (${imported})`);
       } catch {}
     }
+    if (missingEntries) data.__missingUploadEntries = missingEntries;
   }
 
   // Sync in-memory presets with persisted uploads.
@@ -5815,7 +5882,9 @@ async function importZipBackup(file) {
     }
   } catch {}
 
-  setStatus('Import complete');
+  setStatus(data.__missingUploadEntries
+    ? tf('status_import_complete_warning', { count: data.__missingUploadEntries })
+    : 'Import complete');
   if (activeTab === 'playlists') renderPlaylistsPage();
   if (activeTab === 'loops') renderLoopsPage();
   try { renderPadGrid(); } catch {}
@@ -5846,6 +5915,7 @@ async function importAppData(file) {
     const text = await file.text();
     const data = JSON.parse(text);
     if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
+    if (Number(data.version || 1) > BACKUP_VERSION) { setStatus(t('status_backup_version_unsupported')); return; }
 
     // Restore upload name overrides if present.
     try {
@@ -6195,12 +6265,68 @@ let padCountdownStartTime = 0;
 let padCountdownDuration = 0;
 let padCountdownRepeats = true;
 let padCountdownCircumference = 2 * Math.PI * 18;
+let padEditMode = false;
+let drumEditMode = false;
 const drumBufferWarmPromises = new Map();
 const drumVoices = [];
 const drumPadHitUntil = new Array(PAD_COUNT).fill(0);
 let drumAssignTarget = -1;
 let drumAssignSelectedKey = '';
 let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
+
+function refreshPadEditButton() {
+  const btn = document.getElementById('padsEditMode');
+  if (!btn) return;
+  btn.textContent = t('common_edit');
+  btn.setAttribute('aria-label', `${t('common_edit')} ${t('pads_title')}`);
+  btn.setAttribute('aria-pressed', padEditMode ? 'true' : 'false');
+  btn.classList.toggle('is-active', padEditMode);
+}
+
+function refreshDrumEditButton() {
+  const btn = document.getElementById('drumEditMode');
+  if (!btn) return;
+  btn.textContent = t('common_edit');
+  btn.setAttribute('aria-label', `${t('common_edit')} ${t('drum_title')}`);
+  btn.setAttribute('aria-pressed', drumEditMode ? 'true' : 'false');
+  btn.classList.toggle('is-active', drumEditMode);
+}
+
+function setPadEditMode(enabled, { silent = false, suppressRender = false } = {}) {
+  const next = !!enabled;
+  if (next === padEditMode) {
+    refreshPadEditButton();
+    if (!suppressRender) renderPadGrid();
+    return;
+  }
+  padEditMode = next;
+  if (next && drumEditMode) {
+    drumEditMode = false;
+    refreshDrumEditButton();
+    renderDrumGrid();
+  }
+  refreshPadEditButton();
+  if (!suppressRender) renderPadGrid();
+  if (!silent) setStatus(t(next ? 'status_pad_edit_mode' : 'status_edit_mode_off'));
+}
+
+function setDrumEditMode(enabled, { silent = false, suppressRender = false } = {}) {
+  const next = !!enabled;
+  if (next === drumEditMode) {
+    refreshDrumEditButton();
+    if (!suppressRender) renderDrumGrid();
+    return;
+  }
+  drumEditMode = next;
+  if (next && padEditMode) {
+    padEditMode = false;
+    refreshPadEditButton();
+    renderPadGrid();
+  }
+  refreshDrumEditButton();
+  if (!suppressRender) renderDrumGrid();
+  if (!silent) setStatus(t(next ? 'status_drum_edit_mode' : 'status_edit_mode_off'));
+}
 
 function setIslandCollapsed(cardId, titleId, storageKey, collapsed) {
   const card = document.getElementById(cardId);
@@ -6969,20 +7095,26 @@ function renderDrumGrid() {
     if (oldName) oldName.remove();
 
     if (assignment) {
+      const isAvailable = isPresetKeyAvailable(assignment.presetKey);
       const colorKey = normalizePadColorKey(assignment.colorKey, assignment.color);
       const displayText = assignment.displayName || assignment.label || '';
       el.style.background = resolvePadDisplayColor(colorKey, theme);
-      el.setAttribute('aria-label', `Drum pad ${i + 1} - ${displayText || 'Assigned'}`);
+      el.setAttribute('aria-label', `Drum pad ${i + 1} - ${displayText || 'Assigned'}${isAvailable ? '' : ` - ${t('pad_missing_audio')}`}`);
+      el.title = isAvailable ? displayText : `${displayText || t('pad_missing_audio')} (${t('pad_missing_audio')})`;
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
-      nameEl.textContent = formatPadDisplayText(displayText);
+      nameEl.textContent = formatPadDisplayText(isAvailable ? displayText : `${displayText || ''}\n${t('pad_missing_audio')}`.trim());
       el.appendChild(nameEl);
+      el.classList.toggle('pad-missing', !isAvailable);
     } else {
       el.style.background = '';
       el.setAttribute('aria-label', `Drum pad ${i + 1} - Empty`);
+      el.title = '';
+      el.classList.remove('pad-missing');
     }
 
     el.classList.toggle('pad-hit', drumPadHitUntil[i] > now);
+    el.classList.toggle('pad-edit-selecting', drumEditMode);
   });
 }
 
@@ -7045,6 +7177,11 @@ function stopDrumPlayback(immediate = false) {
 async function triggerDrumPad(index) {
   const assignment = drumAssignments[index];
   if (!assignment) return;
+  if (!isPresetKeyAvailable(assignment.presetKey)) {
+    setStatus(`Drum pad ${index + 1}: ${t('pad_missing_audio')}`);
+    renderDrumGrid();
+    return;
+  }
 
   ensureAudio();
   if (audioCtx.state === 'suspended') {
@@ -7111,6 +7248,7 @@ async function triggerDrumPad(index) {
 }
 
 function openDrumAssignModal(padIndex) {
+  setDrumEditMode(false, { silent: true });
   drumAssignTarget = padIndex;
   const existing = drumAssignments[padIndex];
   const overlay = document.getElementById('drumAssignOverlay');
@@ -7280,22 +7418,28 @@ function renderPadGrid() {
     if (oldName) oldName.remove();
 
     if (a) {
+      const isAvailable = isPresetKeyAvailable(a.presetKey);
       const colorKey = normalizePadColorKey(a.colorKey, a.color);
       const displayText = a.displayName || a.label || '';
       el.style.background = resolvePadDisplayColor(colorKey, theme);
-      el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}`);
+      el.setAttribute('aria-label', `Pad ${i + 1} - ${displayText || 'Assigned'}${isAvailable ? '' : ` - ${t('pad_missing_audio')}`}`);
+      el.title = isAvailable ? displayText : `${displayText || t('pad_missing_audio')} (${t('pad_missing_audio')})`;
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
-      nameEl.textContent = formatPadDisplayText(displayText);
+      nameEl.textContent = formatPadDisplayText(isAvailable ? displayText : `${displayText || ''}\n${t('pad_missing_audio')}`.trim());
       el.appendChild(nameEl);
+      el.classList.toggle('pad-missing', !isAvailable);
     } else {
       el.style.background = '';
       el.setAttribute('aria-label', `Pad ${i + 1} - Empty`);
+      el.title = '';
+      el.classList.remove('pad-missing');
     }
 
     el.classList.toggle('pad-active', i === padActiveIndex && padPlaying);
     el.classList.toggle('pad-queued', i === padQueuedIndex);
     el.classList.toggle('pad-finishing', i === padActiveIndex && padFinishing);
+    el.classList.toggle('pad-edit-selecting', padEditMode);
   });
 }
 
@@ -7347,6 +7491,11 @@ async function startPadLoopOnce(index) {
 async function startPadLoopInternal(index, oneShot = false) {
   const a = padAssignments[index];
   if (!a) return;
+  if (!isPresetKeyAvailable(a.presetKey)) {
+    setStatus(`Pad ${index + 1}: ${t('pad_missing_audio')}`);
+    renderPadGrid();
+    return;
+  }
   const effectiveOneShot = !!oneShot || a.loop === false;
   const tapPerfNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
   const requestToken = ++padStartRequestToken;
@@ -7540,6 +7689,7 @@ let padAssignPreservePitch = false;
 let padAssignLoop = true;
 
 function openPadAssignModal(padIndex) {
+  setPadEditMode(false, { silent: true });
   padAssignTarget = padIndex;
   const existing = padAssignments[padIndex];
 
@@ -7794,7 +7944,10 @@ function applyPadSession(session) {
   try { warmAssignedPadBuffers(); } catch {}
   stopPadPlayback(0.02);
   renderPadGrid();
-  setStatus(`Session "${session.name}" loaded.`);
+  const missingCount = countMissingAssignmentAudio(padAssignments);
+  setStatus(missingCount
+    ? tf('status_session_loaded_missing_audio', { name: session.name, count: missingCount })
+    : `Session "${session.name}" loaded.`);
   // Switch to player to see the pads
   switchTab('player');
 }
@@ -7954,7 +8107,10 @@ function applyDrumSession(session) {
   try { warmAssignedDrumBuffers(); } catch {}
   stopDrumPlayback(true);
   renderDrumGrid();
-  setStatus(`Session "${session.name}" loaded.`);
+  const missingCount = countMissingAssignmentAudio(drumAssignments);
+  setStatus(missingCount
+    ? tf('status_session_loaded_missing_audio', { name: session.name, count: missingCount })
+    : `Session "${session.name}" loaded.`);
   switchTab('player');
 }
 
@@ -7962,9 +8118,6 @@ function bindPadsUI() {
   const grid = document.getElementById('padsGrid');
   if (!grid) return;
 
-  const longPressDelay = 750;
-  let longPressTimer = 0;
-  let longPressFired = false;
   let dblClickTimer = 0;
   let lastTapPad = -1;
   const DBL_CLICK_MS = 350;
@@ -7972,25 +8125,16 @@ function bindPadsUI() {
   grid.querySelectorAll('.pad').forEach(padEl => {
     const idx = parseInt(padEl.getAttribute('data-pad'), 10) - 1;
 
-    const startLongPress = () => {
-      longPressFired = false;
-      longPressTimer = setTimeout(() => {
-        longPressFired = true;
+    const handleTap = () => {
+      if (padEditMode) {
         dblClickTimer = 0;
         lastTapPad = -1;
         if (padActiveIndex === idx && padPlaying) {
           stopPadPlayback(0.02);
         }
         openPadAssignModal(idx);
-      }, longPressDelay);
-    };
-
-    const cancelLongPress = () => {
-      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = 0; }
-    };
-
-    const handleTap = () => {
-      if (longPressFired) return;
+        return;
+      }
       if (!padAssignments[idx]) return;
 
       const now = Date.now();
@@ -8024,16 +8168,9 @@ function bindPadsUI() {
       if (e.pointerType !== 'mouse' || e.button === 0) {
         e.preventDefault();
       }
-      startLongPress();
       handleTap();
     });
-    padEl.addEventListener('pointerup', () => {
-      cancelLongPress();
-    });
-    padEl.addEventListener('pointerleave', cancelLongPress);
-    padEl.addEventListener('pointercancel', cancelLongPress);
 
-    // Prevent context menu on long press
     padEl.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
@@ -8116,6 +8253,8 @@ function bindPadsUI() {
   // Save Session
   const saveSessBtn = document.getElementById('padsSaveSession');
   if (saveSessBtn) saveSessBtn.addEventListener('click', openPadSessionSaveModal);
+  const editModeBtn = document.getElementById('padsEditMode');
+  if (editModeBtn) editModeBtn.addEventListener('click', () => setPadEditMode(!padEditMode));
 
   const sessConfirm = document.getElementById('padSessionSaveConfirm');
   const sessCancel = document.getElementById('padSessionSaveCancel');
@@ -8149,31 +8288,15 @@ function bindDrumMachineUI() {
   const grid = document.getElementById('drumPadsGrid');
   if (!grid) return;
 
-  const longPressDelay = 750;
-  let longPressTimer = 0;
-  let longPressFired = false;
-
   grid.querySelectorAll('.drum-pad').forEach(padEl => {
     const idx = parseInt(padEl.getAttribute('data-drum-pad'), 10) - 1;
 
-    const startLongPress = () => {
-      longPressFired = false;
-      longPressTimer = setTimeout(() => {
-        longPressFired = true;
+    const handleTap = () => {
+      if (drumEditMode) {
         stopDrumVoicesByPad(idx, true);
         openDrumAssignModal(idx);
-      }, longPressDelay);
-    };
-
-    const cancelLongPress = () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = 0;
+        return;
       }
-    };
-
-    const handleTap = () => {
-      if (longPressFired) return;
       if (!drumAssignments[idx]) return;
       void triggerDrumPad(idx);
     };
@@ -8182,12 +8305,8 @@ function bindDrumMachineUI() {
       if (e.pointerType !== 'mouse' || e.button === 0) {
         e.preventDefault();
       }
-      startLongPress();
       handleTap();
     });
-    padEl.addEventListener('pointerup', cancelLongPress);
-    padEl.addEventListener('pointerleave', cancelLongPress);
-    padEl.addEventListener('pointercancel', cancelLongPress);
     padEl.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
@@ -8218,6 +8337,7 @@ function bindDrumMachineUI() {
   const drumAssignClear = document.getElementById('drumAssignClear');
   const drumAssignClose = document.getElementById('drumAssignClose');
   const drumSaveSessBtn = document.getElementById('drumSaveSession');
+  const drumEditModeBtn = document.getElementById('drumEditMode');
   const drumSessConfirm = document.getElementById('drumSessionSaveConfirm');
   const drumSessCancel = document.getElementById('drumSessionSaveCancel');
   const drumRecallConfirm = document.getElementById('drumSessionRecallConfirm');
@@ -8229,6 +8349,7 @@ function bindDrumMachineUI() {
   if (drumAssignClear) drumAssignClear.addEventListener('click', clearDrumAssignment);
   if (drumAssignClose) drumAssignClose.addEventListener('click', closeDrumAssignModal);
   if (drumSaveSessBtn) drumSaveSessBtn.addEventListener('click', openDrumSessionSaveModal);
+  if (drumEditModeBtn) drumEditModeBtn.addEventListener('click', () => setDrumEditMode(!drumEditMode));
   if (drumSessConfirm) drumSessConfirm.addEventListener('click', confirmSaveDrumSession);
   if (drumSessCancel) drumSessCancel.addEventListener('click', closeDrumSessionSaveModal);
   if (drumRecallConfirm) drumRecallConfirm.addEventListener('click', () => {

@@ -1369,9 +1369,22 @@ html.theme-light #drumMachineCard{
 }
 .island-card.collapsed .island-body{display:none}
 .island-card.collapsed .island-collapsed-note{display:block}
-.island-card.collapsed .pads-save-btn{display:none}
+.island-card.collapsed .island-actions{display:none}
 .island-card.collapsed{padding:12px 14px}
+.island-actions{display:flex;align-items:center;gap:8px}
 .pads-save-btn{font-size:11px;padding:3px 10px;min-height:28px}
+.pads-edit-btn{
+  background:transparent;
+  color:var(--text);
+  border:1px solid var(--border-2);
+  box-shadow:none;
+}
+.pads-edit-btn:hover{background:var(--surface-2)}
+.pads-edit-btn.is-active{
+  background:var(--accent-soft);
+  color:var(--accent);
+  border-color:var(--accent-mid);
+}
 
 .pad-countdown{
   position:absolute;
@@ -1458,6 +1471,26 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
   outline:2px solid var(--accent);
   outline-offset:2px;
   animation:none;
+}
+.pad.pad-edit-selecting{
+  animation:padEditBlink 0.9s ease-in-out infinite;
+  outline:2px dashed rgba(255,255,255,0.55);
+  outline-offset:2px;
+}
+@keyframes padEditBlink{
+  0%,100%{transform:translateY(0);filter:brightness(1)}
+  50%{transform:translateY(-1px);filter:brightness(1.12)}
+}
+.pad.pad-missing{
+  box-shadow:inset 0 0 0 1px rgba(217,79,79,0.55), var(--pad-tile-shadow);
+}
+.pad.pad-missing::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:12px;
+  background:linear-gradient(135deg, rgba(217,79,79,0.18), rgba(217,79,79,0.04));
+  pointer-events:none;
 }
 .pad-num{
   position:absolute;
