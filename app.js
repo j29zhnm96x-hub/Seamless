@@ -118,20 +118,94 @@ const I18N = {
     settings_help_main: 'Help',
     settings_help_hint: 'Controls, pads, playlists, backups',
     help_title: 'Help',
+    help_intro_kicker: 'SeamlessPlayer Guide',
+    help_intro_p: 'A complete guide to playback, loop management, live performance tools, backups, and mobile behavior.',
+    help_meta_playback_label: 'Playback',
+    help_meta_playback_value: 'Gapless loops, playlists, and live triggering',
+    help_meta_storage_label: 'Storage',
+    help_meta_storage_value: 'Local browser data with export and import backups',
+    help_meta_mobile_label: 'Mobile',
+    help_meta_mobile_value: 'Built to behave well on iPhone and iPad after user-initiated playback',
+    help_index_title: 'Index',
+    help_overview_h: 'Overview',
+    help_overview_p: 'SeamlessPlayer is a browser-based audio app for gapless loop playback, loop curation, playlists, and pad-based performance.',
+    help_overview_b1: 'The app runs locally in your browser. Imported audio, playlists, favorites, pad sessions, and most settings stay on this device until you export them.',
+    help_overview_b2: 'Built-in libraries such as DRUM-KIT, Drums & Percussions, Frequencies, Nature, Noises, and Soundscapes are available immediately with no setup.',
+    help_overview_b3: 'A typical workflow is: browse or import audio, trim it if needed, organize it into favorites or playlists, then assign it to Loop Trigger or Drum Machine pads for quick recall.',
+    help_quickstart_h: 'Quick Start',
+    help_quickstart_p: 'If you are opening the app for the first time, this is the fastest way to get useful results.',
+    help_quickstart_b1: 'Open Audio Loops and choose a built-in file, or import your own sample from a file, clipboard, drag-and-drop, or supported URL paste.',
+    help_quickstart_b2: 'Tap a loop to load it into the Player page, then adjust Volume, Rate, and Preserve pitch as needed.',
+    help_quickstart_b3: 'Open Trim Loop for imported or edited audio when you need cleaner loop points, shorter regions, or a one-shot test.',
+    help_quickstart_b4: 'Use the plus buttons to save favorites, or build a playlist from the Playlists tab.',
+    help_quickstart_b5: 'Long-press a Loop Trigger or Drum Machine pad to assign sounds, then save the session if you want to reopen the exact setup later.',
     help_player_h: 'Player',
-    help_player_p: 'Tap Play to start the current loop or Stop to fade playback out. Use Volume for master level, Rate to speed up or slow down playback, and Preserve pitch if you want tempo changes without shifting pitch. When a playlist is playing, Repeat loops the whole playlist and the countdown row shows the remaining time for the current cycle. On desktop you can also toggle the visualizer and fullscreen it. On iPhone and iPad, start playback with a user tap first so the browser unlocks audio.',
-    help_favorites_h: 'Favorites',
-    help_favorites_p: 'Use the plus button beside the current loop, playlist, playlist detail view, or loop info page to pin items to Favorites. The Favorites island on the Player page becomes a quick launcher for saved loops and playlists, and tapping the plus again removes an item.',
-    help_pads_h: 'Loop Trigger & Drum Machine',
-    help_pads_p: 'Loop Trigger gives you 9 performance pads for seamless loop switching. Long-press a pad to assign a loop, custom display name, playback rate, pitch-preserve option, repeat mode, and color. Single tap starts a pad or queues a switch to another pad at the next loop boundary, while double tap lets the current pad finish its last cycle and stop, or queues the next pad as a one-shot ending. Drum Machine adds a separate 9-pad one-shot layer with up to 32 overlapping voices and optional link or choke targets between used drum pads only, so you can cut one sample instantly when another is triggered.',
+    help_player_p: 'The Player page is the main transport for current loop playback and playlist playback.',
+    help_player_b1: 'Play starts the current loop or the active playlist entry. Stop fades playback out instead of cutting abruptly.',
+    help_player_b2: 'Volume controls the master output. Rate changes playback speed, and Preserve pitch keeps pitch stable while tempo changes.',
+    help_player_b3: 'Repeat applies to playlist playback. When enabled, the app loops the full playlist after the last entry finishes.',
+    help_player_b4: 'The countdown row shows remaining time for the current playlist cycle, and the waveform area shows the active loop.',
+    help_player_b5: 'On desktop, you can enable the visualizer and expand it to fullscreen.',
+    help_loop_trigger_h: 'Loop Trigger',
+    help_loop_trigger_p: 'Loop Trigger is the timed performance section for switching loops musically without losing sync.',
+    help_loop_trigger_b1: 'There are 9 pads. Long-press a pad to assign a loop, display name, rate, per-pad volume, preserve-pitch setting, repeat mode, and color.',
+    help_loop_trigger_b2: 'Single tap starts a pad immediately if nothing else is playing, or queues the switch at the next loop boundary if another loop-trigger pad is active.',
+    help_loop_trigger_b3: 'Double tap lets the current pad finish its final cycle and stop, or turns a queued next pad into an ending one-shot depending on the current state.',
+    help_loop_trigger_b4: 'Use Save to store the full 9-pad setup as a Loop Trigger session and recall it later from the Playlists page.',
+    help_drum_machine_h: 'Drum Machine',
+    help_drum_machine_p: 'Drum Machine is the separate one-shot performance layer for hits, drums, stabs, vocals, and sound effects.',
+    help_drum_machine_b1: 'It provides 9 drum pads with up to 32 overlapping voices, so fast rolls and layered playback are possible.',
+    help_drum_machine_b2: 'Each pad can store its own sound, display name, color, and volume, which is useful for balancing mixed kits.',
+    help_drum_machine_b3: 'Link or Choke lets one used drum pad stop another immediately, which is ideal for open and closed hi-hat behavior or exclusive sample groups.',
+    help_drum_machine_b4: 'Save stores the current drum layout as a Drum Machine session so you can switch kits quickly.',
     help_playlists_h: 'Playlists',
-    help_playlists_p: 'Create playlists from the Playlists tab, open one to play it, mark it as a favorite, rename it, or delete it. In edit mode you can add loops, change repetitions, adjust per-loop volume, and reorder rows by dragging on desktop. When a playlist plays, the app steps through each entry automatically and can repeat the whole sequence if Repeat is enabled.',
-    help_loops_h: 'Audio Loops',
-    help_loops_p: 'Browse built-in loops by category, search across all loops, or import your own audio. You can import with the file picker, paste audio from the clipboard when supported, and also use dropped or pasted files and links where available. Imported loops stay local to your browser, can be renamed, recategorized, described, favorited, trimmed, and then reused in playlists or pads. Newly saved trimmed loops are stored in the Edited category.',
+    help_playlists_p: 'Playlists are for structured playback sequences, ambient sets, practice routines, and layered arrangements.',
+    help_playlists_b1: 'Create a playlist from the Playlists page, then add loops, rename the playlist, or delete it when it is no longer needed.',
+    help_playlists_b2: 'Each row can store repetitions and per-loop volume, letting you shape intensity over time without editing the source audio.',
+    help_playlists_b3: 'Open a playlist detail page to play it, favorite it, edit it, or inspect how many loops it contains.',
+    help_playlists_b4: 'When a playlist is running, SeamlessPlayer advances automatically from one entry to the next and respects the Repeat toggle for full-sequence looping.',
+    help_library_h: 'Audio Loops Library',
+    help_library_p: 'The Audio Loops page is the central browser for built-in content and imported material.',
+    help_library_b1: 'Browse by category, use search across all loops, and expand or collapse built-in subfolders such as DRUM-KIT sections.',
+    help_library_b2: 'Imported loops can be renamed, moved to another category, described, favorited, trimmed, and reused anywhere in the app.',
+    help_library_b3: 'Loop info shows description, category, file size, and file type, which makes large libraries easier to organize.',
+    help_library_b4: 'Import supports local files, pasted audio where the browser allows it, drag-and-drop, and supported links, but remote URLs still depend on CORS permissions.',
+    help_library_b5: 'Edited trims are stored separately so you can keep original recordings and shorter derived versions side by side.',
     help_trimmer_h: 'Trimmer',
-    help_trimmer_p: 'Open Trim Loop from an imported loop when you need cleaner loop points. Drag the IN and OUT markers, move the playhead, use Set IN or Set OUT for exact placement, then zoom in for fine adjustment. Test Loop previews the current loop region, Save stores the new points, Reset returns to automatic points, and Rename lets you update the loop name.',
-    help_settings_h: 'Settings',
-    help_settings_p: 'Settings handles backup and appearance. Export creates a ZIP backup of playlists, saved loops, favorites, pad assignments, and other local data. Import restores backups from ZIP or older JSON files. You can also switch between dark and light themes and change the app language at any time.',
+    help_trimmer_p: 'The Trimmer lets you refine loop boundaries, create shorter playable regions, and save polished versions of imported audio.',
+    help_trimmer_b1: 'Drag IN and OUT markers to set the playable range. Use the lower waveform edges to adjust fade-in and fade-out.',
+    help_trimmer_b2: 'Set IN and Set OUT place markers at the current playhead for precise edits after zooming in.',
+    help_trimmer_b3: 'Test Loop previews the current selection. The repeat toggle can be turned off when you want one-shot testing for drum hits or stabs.',
+    help_trimmer_b4: 'Save can overwrite the original imported loop or create a new edited version, depending on the save option you choose.',
+    help_trimmer_b5: 'When trimming from pad assignment flows, the result can be sent back into the pad workflow after saving.',
+    help_favorites_h: 'Favorites',
+    help_favorites_p: 'Favorites are the fastest recall layer for loops and playlists you use often.',
+    help_favorites_b1: 'Use the plus button beside a current loop, playlist, playlist detail view, or loop info view to add or remove it from Favorites.',
+    help_favorites_b2: 'The Favorites island on the Player page becomes a quick launcher for pinned loops and playlists.',
+    help_settings_h: 'Settings and Backups',
+    help_settings_p: 'Settings covers appearance, language, and backup or restore workflows.',
+    help_settings_b1: 'Export creates a backup package containing local playlists, imported or edited loops, favorites, pad assignments, sessions, and related metadata.',
+    help_settings_b2: 'Import restores backups from supported ZIP or legacy JSON packages into the current browser storage.',
+    help_settings_b3: 'Theme lets you switch between dark and light mode. Language changes the full interface, including this help guide.',
+    help_settings_b4: 'If you work across devices or browsers, export regularly because local browser storage does not sync automatically by itself.',
+    help_mobile_h: 'Mobile and iOS Notes',
+    help_mobile_p: 'The app is optimized for mobile browsers, but a few playback rules come from the operating system.',
+    help_mobile_b1: 'On iPhone and iPad, the first playback action should come from a direct user tap so the browser unlocks audio output.',
+    help_mobile_b2: 'Background or lock-screen playback can vary by browser and iOS version, but the app uses a hidden audio output path to maximize reliability.',
+    help_mobile_b3: 'Clipboard import, drag-and-drop, and some link workflows depend on browser support, so desktop browsers usually offer the broadest import options.',
+    help_storage_h: 'Storage and Data Safety',
+    help_storage_p: 'Understanding what is stored locally helps avoid accidental data loss.',
+    help_storage_b1: 'Imported audio and saved app data live in the current browser profile on the current device.',
+    help_storage_b2: 'Clearing site storage, using private browsing, or switching browsers can remove access to imported loops unless you exported a backup first.',
+    help_storage_b3: 'Built-in audio libraries ship with the app, so they do not need to be backed up the same way imported files do.',
+    help_storage_b4: 'For important projects, keep periodic exports so playlists, pad setups, favorites, and edited audio can be restored quickly.',
+    help_troubleshooting_h: 'Troubleshooting',
+    help_troubleshooting_p: 'If something does not behave as expected, these checks usually solve it quickly.',
+    help_troubleshooting_b1: 'No sound on mobile usually means the browser is still waiting for a user-initiated play action or the device volume is muted.',
+    help_troubleshooting_b2: 'If a remote URL will not import, the source server may be blocking cross-origin requests.',
+    help_troubleshooting_b3: 'If a trim still clicks or loops awkwardly, zoom in further, adjust fades, and test again with repeat on or off depending on the sound.',
+    help_troubleshooting_b4: 'If saved data appears missing, confirm you are in the same browser profile and restore the latest export if necessary.',
+    help_actions_note: 'Tip: change the app language in Settings and reopen Help to read the guide in the selected language.',
     help_close: 'Close',
     playlist_create_title: 'Create Playlist',
     playlist_name_label: 'Playlist name',
@@ -253,20 +327,94 @@ const I18N = {
     settings_help_main: 'Pomoć',
     settings_help_hint: 'Kontrole, padovi, playliste, sigurnosne kopije',
     help_title: 'Pomoć',
+    help_intro_kicker: 'Vodič za SeamlessPlayer',
+    help_intro_p: 'Potpuni vodič za reprodukciju, upravljanje loopovima, live alate, sigurnosne kopije i ponašanje na mobitelu.',
+    help_meta_playback_label: 'Reprodukcija',
+    help_meta_playback_value: 'Gapless loopovi, playliste i live okidanje',
+    help_meta_storage_label: 'Pohrana',
+    help_meta_storage_value: 'Lokalni podaci preglednika uz export i import sigurnosne kopije',
+    help_meta_mobile_label: 'Mobitel',
+    help_meta_mobile_value: 'Prilagođeno za iPhone i iPad nakon prvog pokretanja dodirom',
+    help_index_title: 'Sadržaj',
+    help_overview_h: 'Pregled',
+    help_overview_p: 'SeamlessPlayer je preglednička audio aplikacija za gapless reprodukciju loopova, organizaciju sadržaja, playliste i sviranje preko padova.',
+    help_overview_b1: 'Aplikacija radi lokalno u pregledniku. Uvezeni audio, playliste, favoriti, pad sesije i većina postavki ostaju na ovom uređaju dok ih ne izvezete.',
+    help_overview_b2: 'Ugrađene biblioteke poput DRUM-KIT, Bubnjevi i perkusije, Frekvencije, Priroda, Šumovi i Zvučni pejzaži dostupne su odmah bez dodatnog podešavanja.',
+    help_overview_b3: 'Tipičan tijek rada je: pregledaj ili uvezi audio, po potrebi ga trimaj, organiziraj u favorite ili playliste, pa ga dodijeli Loop Trigger ili Drum Machine padovima za brzi pristup.',
+    help_quickstart_h: 'Brzi početak',
+    help_quickstart_p: 'Ako aplikaciju otvarate prvi put, ovo je najbrži put do korisnog rezultata.',
+    help_quickstart_b1: 'Otvorite Audio loopove i odaberite ugrađenu datoteku ili uvezite vlastiti sample iz datoteke, međuspremnika, drag-and-drop postupkom ili podržanim URL lijepljenjem.',
+    help_quickstart_b2: 'Dodirnite loop kako biste ga učitali na stranicu Reprodukcija, zatim po potrebi prilagodite Volume, Rate i Preserve pitch.',
+    help_quickstart_b3: 'Otvorite Trim Loop za uvezeni ili uređeni audio kada trebate čistije granice, kraći raspon ili one-shot test.',
+    help_quickstart_b4: 'Koristite plus gumbe za spremanje favorita ili složite playlistu na kartici Playliste.',
+    help_quickstart_b5: 'Dugo pritisnite Loop Trigger ili Drum Machine pad za dodjelu zvuka, a zatim spremite sesiju ako želite kasnije vratiti isti raspored.',
     help_player_h: 'Reprodukcija',
-    help_player_p: 'Dodirnite Play za pokretanje trenutnog loopa ili Stop za postupno gašenje reprodukcije. Koristite Volume za glavnu glasnoću, Rate za ubrzavanje ili usporavanje reprodukcije, a Preserve pitch ako želite mijenjati tempo bez promjene visine tona. Kad svira playlista, Repeat ponavlja cijelu playlistu, a red s odbrojavanjem pokazuje preostalo vrijeme trenutnog ciklusa. Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona. Na iPhoneu i iPadu prvo pokrenite zvuk dodirom kako bi preglednik otključao audio.',
-    help_favorites_h: 'Favoriti',
-    help_favorites_p: 'Koristite plus pokraj trenutnog loopa, playliste, detalja playliste ili stranice s informacijama o loopu kako biste spremili stavke u Favorite. Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih loopova i playlista, a ponovni dodir na plus uklanja stavku.',
-    help_pads_h: 'Loop Trigger i Drum Machine',
-    help_pads_p: 'Loop Trigger nudi 9 izvedbenih padova za glatko prebacivanje loopova. Dugi pritisak na pad otvara dodjelu loopa, vlastitog naziva, brzine, opcije očuvanja visine tona, načina ponavljanja i boje. Jedan dodir pokreće pad ili zakazuje prijelaz na drugi pad na sljedećoj granici loopa, a dvostruki dodir dopušta da trenutačni pad odsvira zadnji krug i stane ili zakazuje sljedeći pad kao završni one-shot. Drum Machine dodaje odvojenih 9 padova za one-shot okidanje s do 32 istodobna glasa i opcionalnim link ili choke ciljevima samo između korištenih drum padova, kako biste jednim udarcem odmah prekinuli drugi sample.',
+    help_player_p: 'Stranica Reprodukcija glavni je transport za trenutačni loop i reprodukciju playliste.',
+    help_player_b1: 'Play pokreće trenutačni loop ili aktivnu stavku playliste. Stop postupno gasi zvuk umjesto naglog prekida.',
+    help_player_b2: 'Volume upravlja glavnim izlazom. Rate mijenja brzinu reprodukcije, a Preserve pitch zadržava visinu tona dok se tempo mijenja.',
+    help_player_b3: 'Repeat se odnosi na playlistu. Kada je uključen, aplikacija ponovno pokreće cijelu playlistu nakon zadnje stavke.',
+    help_player_b4: 'Red s odbrojavanjem pokazuje preostalo vrijeme trenutačnog ciklusa playliste, a područje valnog oblika prikazuje aktivni loop.',
+    help_player_b5: 'Na desktopu možete uključiti vizualizator i otvoriti ga preko cijelog zaslona.',
+    help_loop_trigger_h: 'Loop Trigger',
+    help_loop_trigger_p: 'Loop Trigger je izvedbeni dio za glazbeno prebacivanje loopova bez gubitka sinkronizacije.',
+    help_loop_trigger_b1: 'Na raspolaganju je 9 padova. Dugi pritisak otvara dodjelu loopa, prikaznog naziva, brzine, glasnoće po padu, Preserve pitch postavke, načina ponavljanja i boje.',
+    help_loop_trigger_b2: 'Jedan dodir pokreće pad odmah ako ništa drugo ne svira ili zakazuje prijelaz na sljedećoj granici loopa ako je drugi Loop Trigger pad već aktivan.',
+    help_loop_trigger_b3: 'Dvostruki dodir dopušta da trenutačni pad odsvira zadnji ciklus i zaustavi se ili pretvara sljedeći zakazani pad u završni one-shot, ovisno o stanju.',
+    help_loop_trigger_b4: 'Save sprema cijeli raspored od 9 padova kao Loop Trigger sesiju koju kasnije možete vratiti sa stranice Playliste.',
+    help_drum_machine_h: 'Drum Machine',
+    help_drum_machine_p: 'Drum Machine je odvojeni izvedbeni sloj za one-shot udarce, bubnjeve, stabove, vokale i efekte.',
+    help_drum_machine_b1: 'Ima 9 drum padova s do 32 istodobna glasa pa su mogući brzi rollovi i slojevita reprodukcija.',
+    help_drum_machine_b2: 'Svaki pad može imati vlastiti zvuk, prikazni naziv, boju i glasnoću, što je korisno za balansiranje kompleta.',
+    help_drum_machine_b3: 'Link ili Choke omogućuje da jedan korišteni drum pad odmah prekine drugi, što je idealno za open i closed hi-hat ponašanje ili ekskluzivne sample grupe.',
+    help_drum_machine_b4: 'Save sprema trenutačni drum raspored kao Drum Machine sesiju kako biste brzo mijenjali kitove.',
     help_playlists_h: 'Playliste',
-    help_playlists_p: 'Stvorite playliste na kartici Playliste, otvorite ih za reprodukciju, označite kao favorite, preimenujte ili izbrišite. U načinu uređivanja možete dodavati loopove, mijenjati broj ponavljanja, prilagoditi glasnoću po loopu i na desktopu preslagivati retke povlačenjem. Kad playlista svira, aplikacija automatski prolazi kroz svaku stavku i može ponavljati cijeli niz ako je Repeat uključen.',
-    help_loops_h: 'Audio loopovi',
-    help_loops_p: 'Pregledajte ugrađene loopove po kategorijama, pretražujte sve loopove ili uvezite vlastiti audio. Uvoz možete napraviti biračem datoteka, lijepljenjem zvuka iz međuspremnika kada je podržano te povlačenjem ili lijepljenjem datoteka i poveznica gdje je dostupno. Uvezeni loopovi ostaju lokalno u pregledniku, mogu se preimenovati, premještati po kategorijama, opisivati, dodavati u favorite, obrezivati te ponovno koristiti u playlistama ili padovima. Novi spremljeni trimani loopovi spremaju se u kategoriju Edited.',
+    help_playlists_p: 'Playliste služe za strukturirane sekvence, ambijentalne setove, rutine za vježbu i složene aranžmane.',
+    help_playlists_b1: 'Stvorite playlistu na stranici Playliste, zatim dodajte loopove, preimenujte playlistu ili je izbrišite kada više nije potrebna.',
+    help_playlists_b2: 'Svaki red može spremiti broj ponavljanja i glasnoću po loopu, što omogućuje oblikovanje dinamike bez uređivanja izvornog zvuka.',
+    help_playlists_b3: 'Otvorite detalje playliste da biste je pokrenuli, označili kao favorit, uredili ili provjerili koliko sadrži loopova.',
+    help_playlists_b4: 'Dok playlista svira, SeamlessPlayer automatski prelazi sa stavke na stavku i poštuje Repeat za ponovno pokretanje cijelog niza.',
+    help_library_h: 'Biblioteka audio loopova',
+    help_library_p: 'Stranica Audio loopovi glavni je preglednik ugrađenog sadržaja i uvezenog materijala.',
+    help_library_b1: 'Pregledavajte po kategorijama, koristite pretragu kroz sve loopove i otvarajte ili zatvarajte ugrađene podmape poput DRUM-KIT sekcija.',
+    help_library_b2: 'Uvezeni loopovi mogu se preimenovati, premjestiti u drugu kategoriju, opisati, dodati u favorite, trimati i ponovno koristiti bilo gdje u aplikaciji.',
+    help_library_b3: 'Informacije o loopu prikazuju opis, kategoriju, veličinu i vrstu datoteke, što olakšava organizaciju većih biblioteka.',
+    help_library_b4: 'Uvoz podržava lokalne datoteke, lijepljeni audio kada ga preglednik dopušta, drag-and-drop i podržane poveznice, ali udaljeni URL-ovi i dalje ovise o CORS pravilima.',
+    help_library_b5: 'Uređeni trimovi spremaju se odvojeno pa možete zadržati izvornike i kraće izvedene verzije jednu uz drugu.',
     help_trimmer_h: 'Trimer',
-    help_trimmer_p: 'Otvorite Trim Loop na uvezenom loopu kad trebate preciznije granice loopa. Povucite IN i OUT markere, pomičite playhead, koristite Set IN ili Set OUT za točno postavljanje, zatim zumirajte za finu prilagodbu. Test Loop reproducira trenutačni raspon, Save sprema nove točke, Reset vraća automatski izračunate točke, a Rename omogućuje promjenu naziva loopa.',
-    help_settings_h: 'Postavke',
-    help_settings_p: 'Postavke služe za sigurnosne kopije i izgled. Export stvara ZIP sigurnosnu kopiju playlista, spremljenih loopova, favorita, dodjela padova i ostalih lokalnih podataka. Import vraća sigurnosne kopije iz ZIP-a ili starijih JSON datoteka. U svakom trenutku možete promijeniti tamnu ili svijetlu temu te jezik aplikacije.',
+    help_trimmer_p: 'Trimer služi za preciziranje granica loopa, izradu kraćih odsječaka i spremanje dotjeranih verzija uvezenog audija.',
+    help_trimmer_b1: 'Povucite IN i OUT markere za određivanje raspona reprodukcije. Donje rubove vala koristite za fade-in i fade-out.',
+    help_trimmer_b2: 'Set IN i Set OUT postavljaju markere na trenutačni playhead za precizne izmjene nakon zumiranja.',
+    help_trimmer_b3: 'Test Loop reproducira trenutačni odabir. Ponavljanje se može isključiti kada želite one-shot test za udarce, stabove ili kratke sampleove.',
+    help_trimmer_b4: 'Save može prepisati izvorni uvezeni loop ili stvoriti novu uređenu verziju, ovisno o odabranoj opciji spremanja.',
+    help_trimmer_b5: 'Kada trim pokrenete iz dodjele padova, spremljeni rezultat možete vratiti natrag u taj isti workflow.',
+    help_favorites_h: 'Favoriti',
+    help_favorites_p: 'Favoriti su najbrži sloj za ponovno otvaranje loopova i playlista koje često koristite.',
+    help_favorites_b1: 'Koristite plus pokraj trenutačnog loopa, playliste, detalja playliste ili prikaza informacija o loopu kako biste stavku dodali ili uklonili iz favorita.',
+    help_favorites_b2: 'Favorites otok na stranici Reprodukcija postaje brzi pokretač spremljenih loopova i playlista.',
+    help_settings_h: 'Postavke i sigurnosne kopije',
+    help_settings_p: 'Postavke pokrivaju izgled, jezik i tijek rada za sigurnosne kopije i vraćanje podataka.',
+    help_settings_b1: 'Export stvara paket sigurnosne kopije koji sadrži lokalne playliste, uvezene ili uređene loopove, favorite, dodjele padova, sesije i povezane metapodatke.',
+    help_settings_b2: 'Import vraća sigurnosne kopije iz podržanih ZIP ili starijih JSON paketa u trenutačnu pohranu preglednika.',
+    help_settings_b3: 'Tema omogućuje prebacivanje između tamnog i svijetlog izgleda. Jezik mijenja cijelo sučelje, uključujući i ovaj vodič.',
+    help_settings_b4: 'Ako radite na više uređaja ili u više preglednika, redovito izvozite podatke jer se lokalna pohrana ne sinkronizira sama od sebe.',
+    help_mobile_h: 'Napomene za mobitel i iOS',
+    help_mobile_p: 'Aplikacija je optimizirana za mobilne preglednike, ali neka pravila reprodukcije određuje sam operativni sustav.',
+    help_mobile_b1: 'Na iPhoneu i iPadu prvo pokretanje zvuka treba doći iz izravnog dodira korisnika kako bi preglednik otključao audio izlaz.',
+    help_mobile_b2: 'Reprodukcija u pozadini ili na zaključanom zaslonu može varirati ovisno o pregledniku i verziji iOS-a, ali aplikacija koristi skriveni audio izlaz kako bi povećala pouzdanost.',
+    help_mobile_b3: 'Uvoz iz međuspremnika, drag-and-drop i neke poveznice ovise o podršci preglednika pa desktop obično nudi najšire mogućnosti uvoza.',
+    help_storage_h: 'Pohrana i sigurnost podataka',
+    help_storage_p: 'Ako razumijete što se sprema lokalno, lakše ćete izbjeći slučajni gubitak podataka.',
+    help_storage_b1: 'Uvezeni audio i spremljeni podaci aplikacije žive u trenutačnom profilu preglednika na ovom uređaju.',
+    help_storage_b2: 'Brisanje podataka stranice, privatno pregledavanje ili prelazak u drugi preglednik može ukloniti pristup uvezenim loopovima ako prethodno niste izvezli sigurnosnu kopiju.',
+    help_storage_b3: 'Ugrađene biblioteke audija dolaze s aplikacijom pa ih nije potrebno sigurnosno kopirati na isti način kao uvezene datoteke.',
+    help_storage_b4: 'Za važne projekte čuvajte povremene izvoze kako bi se playliste, pad postavke, favoriti i uređeni audio mogli brzo vratiti.',
+    help_troubleshooting_h: 'Rješavanje problema',
+    help_troubleshooting_p: 'Ako se nešto ne ponaša kako očekujete, ove provjere obično brzo riješe problem.',
+    help_troubleshooting_b1: 'Ako nema zvuka na mobitelu, preglednik vjerojatno još čeka prvo pokretanje dodirom ili je glasnoća uređaja utišana.',
+    help_troubleshooting_b2: 'Ako se udaljeni URL ne može uvesti, izvorni server možda blokira cross-origin zahtjeve.',
+    help_troubleshooting_b3: 'Ako trim i dalje klikće ili neugodno loopa, dodatno zumirajte, prilagodite fadeove i ponovno testirajte s uključenim ili isključenim ponavljanjem, ovisno o zvuku.',
+    help_troubleshooting_b4: 'Ako vam se čini da nedostaju spremljeni podaci, provjerite jeste li u istom profilu preglednika i po potrebi vratite zadnji export.',
+    help_actions_note: 'Savjet: promijenite jezik aplikacije u Postavkama i ponovno otvorite Pomoć kako biste vodič čitali na odabranom jeziku.',
     help_close: 'Zatvori',
     playlist_create_title: 'Nova playlista',
     playlist_name_label: 'Naziv playliste',
@@ -317,6 +465,148 @@ const I18N = {
 function t(key) {
   const langTable = I18N[currentLang] || I18N.en;
   return (langTable && langTable[key]) || (I18N.en && I18N.en[key]) || key;
+}
+
+function getHelpSections() {
+  return [
+    {
+      id: 'overview',
+      title: t('help_overview_h'),
+      intro: t('help_overview_p'),
+      bullets: [t('help_overview_b1'), t('help_overview_b2'), t('help_overview_b3')]
+    },
+    {
+      id: 'quickstart',
+      title: t('help_quickstart_h'),
+      intro: t('help_quickstart_p'),
+      bullets: [
+        t('help_quickstart_b1'),
+        t('help_quickstart_b2'),
+        t('help_quickstart_b3'),
+        t('help_quickstart_b4'),
+        t('help_quickstart_b5')
+      ]
+    },
+    {
+      id: 'player',
+      title: t('help_player_h'),
+      intro: t('help_player_p'),
+      bullets: [t('help_player_b1'), t('help_player_b2'), t('help_player_b3'), t('help_player_b4'), t('help_player_b5')]
+    },
+    {
+      id: 'loop-trigger',
+      title: t('help_loop_trigger_h'),
+      intro: t('help_loop_trigger_p'),
+      bullets: [
+        t('help_loop_trigger_b1'),
+        t('help_loop_trigger_b2'),
+        t('help_loop_trigger_b3'),
+        t('help_loop_trigger_b4')
+      ]
+    },
+    {
+      id: 'drum-machine',
+      title: t('help_drum_machine_h'),
+      intro: t('help_drum_machine_p'),
+      bullets: [
+        t('help_drum_machine_b1'),
+        t('help_drum_machine_b2'),
+        t('help_drum_machine_b3'),
+        t('help_drum_machine_b4')
+      ]
+    },
+    {
+      id: 'playlists',
+      title: t('help_playlists_h'),
+      intro: t('help_playlists_p'),
+      bullets: [
+        t('help_playlists_b1'),
+        t('help_playlists_b2'),
+        t('help_playlists_b3'),
+        t('help_playlists_b4')
+      ]
+    },
+    {
+      id: 'library',
+      title: t('help_library_h'),
+      intro: t('help_library_p'),
+      bullets: [
+        t('help_library_b1'),
+        t('help_library_b2'),
+        t('help_library_b3'),
+        t('help_library_b4'),
+        t('help_library_b5')
+      ]
+    },
+    {
+      id: 'trimmer',
+      title: t('help_trimmer_h'),
+      intro: t('help_trimmer_p'),
+      bullets: [
+        t('help_trimmer_b1'),
+        t('help_trimmer_b2'),
+        t('help_trimmer_b3'),
+        t('help_trimmer_b4'),
+        t('help_trimmer_b5')
+      ]
+    },
+    {
+      id: 'favorites',
+      title: t('help_favorites_h'),
+      intro: t('help_favorites_p'),
+      bullets: [t('help_favorites_b1'), t('help_favorites_b2')]
+    },
+    {
+      id: 'settings',
+      title: t('help_settings_h'),
+      intro: t('help_settings_p'),
+      bullets: [
+        t('help_settings_b1'),
+        t('help_settings_b2'),
+        t('help_settings_b3'),
+        t('help_settings_b4')
+      ]
+    },
+    {
+      id: 'mobile',
+      title: t('help_mobile_h'),
+      intro: t('help_mobile_p'),
+      bullets: [t('help_mobile_b1'), t('help_mobile_b2'), t('help_mobile_b3')]
+    },
+    {
+      id: 'storage',
+      title: t('help_storage_h'),
+      intro: t('help_storage_p'),
+      bullets: [t('help_storage_b1'), t('help_storage_b2'), t('help_storage_b3'), t('help_storage_b4')]
+    },
+    {
+      id: 'troubleshooting',
+      title: t('help_troubleshooting_h'),
+      intro: t('help_troubleshooting_p'),
+      bullets: [
+        t('help_troubleshooting_b1'),
+        t('help_troubleshooting_b2'),
+        t('help_troubleshooting_b3'),
+        t('help_troubleshooting_b4')
+      ]
+    }
+  ];
+}
+
+function renderHelpSection(section, index) {
+  const bulletsHtml = section.bullets && section.bullets.length
+    ? `<ul class="help-section-list">${section.bullets.map((item) => `<li>${item}</li>`).join('')}</ul>`
+    : '';
+  return `<section id="help-section-${section.id}" class="help-section">
+    <div class="help-section-head">
+      <span class="help-section-number">${String(index + 1).padStart(2, '0')}</span>
+      <div>
+        <h3>${section.title}</h3>
+      </div>
+    </div>
+    <p class="help-section-intro">${section.intro}</p>
+    ${bulletsHtml}
+  </section>`;
 }
 
 function getTranslatedLoopCategoryName(category) {
@@ -5530,7 +5820,6 @@ function loadSavedTheme() {
 }
 
 function showHelpOverlay() {
-  // Reuse the picker overlay (or create a dynamic one).
   let ov = document.getElementById('helpOverlay');
   if (!ov) {
     ov = document.createElement('div');
@@ -5541,35 +5830,73 @@ function showHelpOverlay() {
     document.body.appendChild(ov);
   }
 
-  // Always re-render content so language updates apply immediately.
+  const sections = getHelpSections();
+  const indexMarkup = sections
+    .map((section, index) => `<button type="button" class="help-index-link" data-help-target="${section.id}"><span>${String(index + 1).padStart(2, '0')}</span>${section.title}</button>`)
+    .join('');
+  const sectionsMarkup = sections.map((section, index) => renderHelpSection(section, index)).join('');
+
   ov.setAttribute('aria-label', t('help_title'));
-  ov.innerHTML = `<div class="overlay-card">
-    <h2>${t('help_title')}</h2>
-    <div class="help-content">
-      <h3>${t('help_player_h')}</h3>
-      <p>${t('help_player_p')}</p>
-      <h3>${t('help_favorites_h')}</h3>
-      <p>${t('help_favorites_p')}</p>
-      <h3>${t('help_pads_h')}</h3>
-      <p>${t('help_pads_p')}</p>
-      <h3>${t('help_playlists_h')}</h3>
-      <p>${t('help_playlists_p')}</p>
-      <h3>${t('help_loops_h')}</h3>
-      <p>${t('help_loops_p')}</p>
-      <h3>${t('help_trimmer_h')}</h3>
-      <p>${t('help_trimmer_p')}</p>
-      <h3>${t('help_settings_h')}</h3>
-      <p>${t('help_settings_p')}</p>
+  ov.innerHTML = `<div class="overlay-card help-overlay-card">
+    <div class="help-scroll">
+      <div class="help-hero">
+        <div class="help-hero-copy">
+          <p class="help-kicker">${t('help_intro_kicker')}</p>
+          <h2>${t('help_title')}</h2>
+          <p class="help-hero-text">${t('help_intro_p')}</p>
+        </div>
+        <div class="help-meta" aria-label="${t('help_title')}">
+          <div class="help-meta-item">
+            <span class="help-meta-label">${t('help_meta_playback_label')}</span>
+            <strong>${t('help_meta_playback_value')}</strong>
+          </div>
+          <div class="help-meta-item">
+            <span class="help-meta-label">${t('help_meta_storage_label')}</span>
+            <strong>${t('help_meta_storage_value')}</strong>
+          </div>
+          <div class="help-meta-item">
+            <span class="help-meta-label">${t('help_meta_mobile_label')}</span>
+            <strong>${t('help_meta_mobile_value')}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="help-layout">
+        <nav class="help-index" aria-label="${t('help_index_title')}">
+          <p class="help-index-title">${t('help_index_title')}</p>
+          ${indexMarkup}
+        </nav>
+        <div class="help-body">
+          ${sectionsMarkup}
+        </div>
+      </div>
+      <div class="overlay-actions help-actions">
+        <p class="help-actions-note">${t('help_actions_note')}</p>
+        <button id="closeHelp" class="secondary">${t('help_close')}</button>
+      </div>
     </div>
-    <div class="overlay-actions"><button id="closeHelp" class="secondary">${t('help_close')}</button></div>
   </div>`;
 
-  ov.querySelector('#closeHelp').addEventListener('click', () => {
+  const closeHelp = () => {
     ov.classList.add('hidden');
     try { updateScrollState(); } catch {}
+  };
+
+  ov.onclick = (event) => {
+    if (event.target === ov) closeHelp();
+  };
+  const card = ov.querySelector('.help-overlay-card');
+  card.onclick = (event) => event.stopPropagation();
+  const closeButton = ov.querySelector('#closeHelp');
+  closeButton.onclick = closeHelp;
+  ov.querySelectorAll('[data-help-target]').forEach((button) => {
+    button.onclick = () => {
+      const section = ov.querySelector(`#help-section-${button.getAttribute('data-help-target')}`);
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
   });
 
   ov.classList.remove('hidden');
+  try { closeButton.focus({ preventScroll: true }); } catch {}
   try { updateScrollState(); } catch {}
 }
 
