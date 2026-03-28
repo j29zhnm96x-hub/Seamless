@@ -167,24 +167,44 @@
 
       <section id="page-playlists" class="page" aria-label="Playlists Page">
         <div class="page-header">
-          <h2>Playlists</h2>
-          <button id="newPlaylistFromPage" class="btn-sm" aria-label="New playlist">+ New</button>
+          <h2 id="playlistsTitle">Playlists</h2>
+          <div class="page-header-actions">
+            <button id="playlistsImportBtn" type="button" class="page-header-icon-btn" aria-label="Import playlist package" title="Import playlist package">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            </button>
+            <button id="newPlaylistFromPage" class="btn-sm" aria-label="New playlist">+ New</button>
+          </div>
         </div>
         <ul id="playlistsList" class="playlist-list" aria-label="Saved playlists"></ul>
 
         <div class="page-header pads-sessions-header">
           <h2 id="projectsTitle">Projects</h2>
-          <button id="saveProjectBtn" class="btn-sm" aria-label="Save current project">Save</button>
+          <div class="page-header-actions">
+            <button id="projectsImportBtn" type="button" class="page-header-icon-btn" aria-label="Import project package" title="Import project package">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            </button>
+            <button id="saveProjectBtn" class="btn-sm" aria-label="Save current project">Save</button>
+          </div>
         </div>
         <ul id="projectsList" class="playlist-list" aria-label="Saved projects"></ul>
 
         <div class="page-header pads-sessions-header">
-          <h2>Pads Sessions</h2>
+          <h2 id="padsSessionsTitle">Pads Sessions</h2>
+          <div class="page-header-actions">
+            <button id="padsSessionsImportBtn" type="button" class="page-header-icon-btn" aria-label="Import loop trigger session package" title="Import loop trigger session package">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            </button>
+          </div>
         </div>
         <ul id="padsSessionsList" class="playlist-list" aria-label="Saved pads sessions"></ul>
 
         <div class="page-header pads-sessions-header">
           <h2 id="drumSessionsTitle">Drum Machine Sessions</h2>
+          <div class="page-header-actions">
+            <button id="drumSessionsImportBtn" type="button" class="page-header-icon-btn" aria-label="Import drum machine session package" title="Import drum machine session package">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            </button>
+          </div>
         </div>
         <ul id="drumSessionsList" class="playlist-list" aria-label="Saved drum machine sessions"></ul>
       </section>
@@ -676,6 +696,17 @@
       <div class="overlay-actions">
         <button id="projectDeleteConfirm" type="button" class="danger" aria-label="Confirm delete project">Delete</button>
         <button id="projectDeleteCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="itemExportOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Export item package">
+    <div class="overlay-card">
+      <h2 id="itemExportTitle">Export Session</h2>
+      <p class="hint" id="itemExportText">Export this saved item with the audio it uses?</p>
+      <div class="overlay-actions">
+        <button id="itemExportConfirm" type="button" aria-label="Export selected item">Export Package</button>
+        <button id="itemExportCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
       </div>
     </div>
   </div>

@@ -60,6 +60,11 @@ const I18N = {
     projects_title: 'Projects',
     projects_save: 'Save',
     projects_no_projects: 'No saved projects yet.',
+    common_import: 'Import',
+    playlists_import: 'Import playlist package',
+    projects_import: 'Import project package',
+    pads_sessions_import: 'Import Loop Trigger session package',
+    drum_sessions_import: 'Import Drum Machine session package',
     project_save_title: 'Save Project',
     project_name_label: 'Project name',
     project_name_placeholder: 'My project',
@@ -247,8 +252,24 @@ const I18N = {
     playlist_create_btn: 'Create',
     common_close: 'Close',
     common_cancel: 'Cancel',
+    common_share: 'Share',
+    common_export_package: 'Export Package',
     playlist_add: 'Add',
     playlist_play: 'Play',
+    playlist_delete: 'Delete',
+    item_export_title: 'Export Saved Item',
+    item_export_text: 'Export "{name}" as a standalone package with the audio it uses?',
+    item_export_hint_playlist: 'Playlist package',
+    item_export_hint_pad_session: 'Loop Trigger session package',
+    item_export_hint_drum_session: 'Drum Machine session package',
+    item_export_hint_project: 'Project package',
+    status_item_export_complete: 'Exported "{name}".',
+    status_item_export_warning: 'Exported "{name}" with warnings. {count} audio file(s) were unavailable.',
+    status_item_export_failed: 'Failed to export "{name}".',
+    status_item_import_complete: 'Imported "{name}".',
+    status_item_import_warning: 'Imported "{name}" with warnings. {count} audio file(s) were unavailable.',
+    status_item_import_wrong_section: 'This package belongs to a different section.',
+    status_item_import_use_settings: 'Use Settings import for full app backups.',
     preserve_pitch: 'Preserve pitch',
     pads_title: 'Loop Trigger',
     pads_save: 'Save',
@@ -304,6 +325,11 @@ const I18N = {
     projects_title: 'Projekti',
     projects_save: 'Spremi',
     projects_no_projects: 'Nema spremljenih projekata.',
+    common_import: 'Uvezi',
+    playlists_import: 'Uvezi paket playliste',
+    projects_import: 'Uvezi paket projekta',
+    pads_sessions_import: 'Uvezi paket Loop Trigger sesije',
+    drum_sessions_import: 'Uvezi paket Drum Machine sesije',
     project_save_title: 'Spremi projekt',
     project_name_label: 'Naziv projekta',
     project_name_placeholder: 'Moj projekt',
@@ -491,8 +517,24 @@ const I18N = {
     playlist_create_btn: 'Stvori',
     common_close: 'Zatvori',
     common_cancel: 'Odustani',
+    common_share: 'Podijeli',
+    common_export_package: 'Izvezi paket',
     playlist_add: 'Dodaj',
     playlist_play: 'Pokreni',
+    playlist_delete: 'Obriši',
+    item_export_title: 'Izvezi spremljenu stavku',
+    item_export_text: 'Izvesti "{name}" kao zaseban paket zajedno s audiom koji koristi?',
+    item_export_hint_playlist: 'Paket playliste',
+    item_export_hint_pad_session: 'Paket Loop Trigger sesije',
+    item_export_hint_drum_session: 'Paket Drum Machine sesije',
+    item_export_hint_project: 'Paket projekta',
+    status_item_export_complete: 'Izvezeno: "{name}".',
+    status_item_export_warning: 'Izvezeno: "{name}" uz upozorenja. {count} audio datoteka nije bila dostupna.',
+    status_item_export_failed: 'Izvoz nije uspio za "{name}".',
+    status_item_import_complete: 'Uvezeno: "{name}".',
+    status_item_import_warning: 'Uvezeno: "{name}" uz upozorenja. {count} audio datoteka nije bilo dostupno.',
+    status_item_import_wrong_section: 'Ovaj paket pripada drugom odjeljku.',
+    status_item_import_use_settings: 'Za pune sigurnosne kopije koristite uvoz u Postavkama.',
     preserve_pitch: 'Očuvaj visinu tona',
     pads_title: 'Loop Trigger',
     pads_save: 'Spremi',
@@ -790,16 +832,36 @@ function applyLanguage(lang) {
   if (tabSettings) { tabSettings.textContent = t('tab_settings'); tabSettings.setAttribute('aria-label', t('tab_settings')); }
 
   // Playlists page
-  setText('#page-playlists .page-header h2', t('playlists_title'));
+  setText('#playlistsTitle', t('playlists_title'));
   const newPl = document.getElementById('newPlaylistFromPage');
   if (newPl) { newPl.textContent = t('playlists_new'); newPl.setAttribute('aria-label', t('playlists_new')); }
+  const playlistsImportBtn = document.getElementById('playlistsImportBtn');
+  if (playlistsImportBtn) {
+    playlistsImportBtn.setAttribute('aria-label', t('playlists_import'));
+    playlistsImportBtn.title = t('playlists_import');
+  }
   setText('#projectsTitle', t('projects_title'));
   const saveProjectBtn = document.getElementById('saveProjectBtn');
   if (saveProjectBtn) {
     saveProjectBtn.textContent = t('projects_save');
     saveProjectBtn.setAttribute('aria-label', t('projects_save'));
   }
-  setText('.pads-sessions-header h2', t('pads_sessions_title'));
+  const projectsImportBtn = document.getElementById('projectsImportBtn');
+  if (projectsImportBtn) {
+    projectsImportBtn.setAttribute('aria-label', t('projects_import'));
+    projectsImportBtn.title = t('projects_import');
+  }
+  setText('#padsSessionsTitle', t('pads_sessions_title'));
+  const padsSessionsImportBtn = document.getElementById('padsSessionsImportBtn');
+  if (padsSessionsImportBtn) {
+    padsSessionsImportBtn.setAttribute('aria-label', t('pads_sessions_import'));
+    padsSessionsImportBtn.title = t('pads_sessions_import');
+  }
+  const drumSessionsImportBtn = document.getElementById('drumSessionsImportBtn');
+  if (drumSessionsImportBtn) {
+    drumSessionsImportBtn.setAttribute('aria-label', t('drum_sessions_import'));
+    drumSessionsImportBtn.title = t('drum_sessions_import');
+  }
 
   // Pads island
   const padsHead = document.getElementById('loopTriggerTitle');
@@ -1004,6 +1066,13 @@ function applyLanguage(lang) {
   if (createBtn) createBtn.textContent = t('playlist_create_btn');
   const closeOverlay = document.getElementById('closePlaylistOverlay');
   if (closeOverlay) closeOverlay.textContent = t('common_close');
+  setText('#itemExportTitle', t('item_export_title'));
+  const itemExportText = document.getElementById('itemExportText');
+  if (itemExportText && !itemExportText.dataset.dynamic) itemExportText.textContent = t('item_export_text').replace('{name}', '');
+  const itemExportConfirm = document.getElementById('itemExportConfirm');
+  if (itemExportConfirm) itemExportConfirm.textContent = t('common_export_package');
+  const itemExportCancel = document.getElementById('itemExportCancel');
+  if (itemExportCancel) itemExportCancel.textContent = t('common_cancel');
   const addBtn = document.getElementById('playlistAddLoop');
   if (addBtn) addBtn.textContent = t('playlist_add');
   const playBtn = document.getElementById('playlistPlay');
@@ -3702,6 +3771,380 @@ function switchTab(tab) {
   setTimeout(updateScrollState, 50);
 }
 
+const ITEM_EXPORT_PACKAGE_TYPE = 'item-export';
+let pendingItemExport = null;
+let pendingImportScope = '';
+
+function sanitizeExportFileName(name, fallback = 'seamless-item') {
+  const cleaned = String(name || fallback)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return cleaned || fallback;
+}
+
+function makeRowActionButton({ label, className = '', icon, onClick }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `playlist-list-play ${className}`.trim();
+  button.setAttribute('aria-label', label);
+  button.innerHTML = icon;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick(event);
+  });
+  return button;
+}
+
+function getItemExportKindHint(kind) {
+  if (kind === 'playlist') return t('item_export_hint_playlist');
+  if (kind === 'pad-session') return t('item_export_hint_pad_session');
+  if (kind === 'drum-session') return t('item_export_hint_drum_session');
+  if (kind === 'project') return t('item_export_hint_project');
+  return t('item_export_title');
+}
+
+function getPresetKeysFromPlaylistItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => item && item.presetKey).filter(Boolean);
+}
+
+function getPresetKeysForSharedItem(kind, record) {
+  if (!record) return [];
+  if (kind === 'playlist') return getPresetKeysFromPlaylistItems(record.items);
+  if (kind === 'pad-session') return (record.assignments || []).map((assignment) => assignment && assignment.presetKey).filter(Boolean);
+  if (kind === 'drum-session') return (record.assignments || []).map((assignment) => assignment && assignment.presetKey).filter(Boolean);
+  if (kind === 'project') {
+    const keys = [];
+    (record.padAssignments || []).forEach((assignment) => { if (assignment && assignment.presetKey) keys.push(assignment.presetKey); });
+    (record.drumAssignments || []).forEach((assignment) => { if (assignment && assignment.presetKey) keys.push(assignment.presetKey); });
+    if (record.player && record.player.loop && record.player.loop.presetKey) keys.push(record.player.loop.presetKey);
+    keys.push(...getPresetKeysFromPlaylistItems(record.player && record.player.playlist && record.player.playlist.items));
+    return keys;
+  }
+  return [];
+}
+
+function cloneSharedItemRecord(kind, record) {
+  if (!record) return null;
+  if (kind === 'playlist') {
+    return {
+      id: record.id || makePlaylistId(),
+      name: record.name || 'Playlist',
+      createdAt: record.createdAt || Date.now(),
+      items: clonePlaylistItems(record.items)
+    };
+  }
+  if (kind === 'pad-session') {
+    return {
+      id: record.id || `pad-session-${Date.now().toString(36)}`,
+      name: record.name || 'Session',
+      createdAt: record.createdAt || Date.now(),
+      assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(record.assignments && record.assignments[index]))
+    };
+  }
+  if (kind === 'drum-session') {
+    return {
+      id: record.id || `drum-session-${Date.now().toString(36)}`,
+      name: record.name || 'Session',
+      createdAt: record.createdAt || Date.now(),
+      assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(record.assignments && record.assignments[index]))
+    };
+  }
+  if (kind === 'project') {
+    return normalizeProjectRecord(record);
+  }
+  return null;
+}
+
+async function collectUploadsForPresetKeys(presetKeys = []) {
+  const ids = Array.from(new Set((presetKeys || []).map(extractUploadIdFromPresetKey).filter(Boolean)));
+  if (!ids.length) return { uploadMeta: [], uploadFiles: [], missingCount: 0 };
+
+  let persisted = [];
+  try { persisted = await listPersistedUploads().catch(() => []); } catch {}
+  const persistedById = new Map((persisted || []).filter(Boolean).map((item) => [String(item.id), item]));
+
+  const uploadMeta = [];
+  const uploadFiles = [];
+  let missingCount = 0;
+
+  ids.forEach((id) => {
+    const memPreset = userPresets.find((preset) => preset && String(preset.id) === String(id) && preset.blob) || null;
+    const persistedRecord = persistedById.get(String(id)) || null;
+    const source = memPreset || persistedRecord;
+    if (!source || !source.blob) {
+      missingCount += 1;
+      return;
+    }
+    const blob = source.blob;
+    const overrideName = getUploadNameOverride(id);
+    uploadMeta.push({
+      id: String(id),
+      name: overrideName || source.name || 'Audio',
+      createdAt: source.createdAt || Date.now(),
+      trimIn: source.trimIn != null ? source.trimIn : undefined,
+      trimOut: source.trimOut != null ? source.trimOut : undefined,
+      file: `uploads/${String(id)}`,
+      type: blob.type || undefined,
+      size: blob.size || undefined,
+    });
+    uploadFiles.push({ id: String(id), blob });
+  });
+
+  return { uploadMeta, uploadFiles, missingCount };
+}
+
+function openItemExportOverlay(kind, record, name) {
+  pendingItemExport = {
+    kind,
+    name: String(name || (record && record.name) || 'Item'),
+    record: cloneSharedItemRecord(kind, record)
+  };
+  const overlay = document.getElementById('itemExportOverlay');
+  const text = document.getElementById('itemExportText');
+  if (text) {
+    text.dataset.dynamic = '1';
+    text.textContent = `${tf('item_export_text', { name: pendingItemExport.name })} ${getItemExportKindHint(kind)}.`;
+  }
+  if (overlay) overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closeItemExportOverlay() {
+  const overlay = document.getElementById('itemExportOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  pendingItemExport = null;
+  try { updateScrollState(); } catch {}
+}
+
+async function exportPendingItemPackage() {
+  const pending = pendingItemExport;
+  closeItemExportOverlay();
+  if (!pending || !pending.record) return;
+  try {
+    const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
+    if (!JSZipRef) throw new Error('ZIP export not available');
+    setStatus('Building package…');
+    const presetKeys = getPresetKeysForSharedItem(pending.kind, pending.record);
+    const uploads = await collectUploadsForPresetKeys(presetKeys);
+    const uploadOverrides = {};
+    uploads.uploadMeta.forEach((meta) => {
+      const override = getUploadNameOverride(meta.id);
+      if (override) uploadOverrides[meta.id] = override;
+    });
+
+    const data = {
+      app: 'seamlessplayer',
+      version: BACKUP_VERSION,
+      packageType: ITEM_EXPORT_PACKAGE_TYPE,
+      itemKind: pending.kind,
+      itemName: pending.name,
+      exportedAt: new Date().toISOString(),
+      uploadNameOverrides: uploadOverrides,
+      uploads: uploads.uploadMeta,
+      sharedItem: {
+        kind: pending.kind,
+        name: pending.name,
+        record: pending.record
+      }
+    };
+
+    const zip = new JSZipRef();
+    zip.file('backup.json', JSON.stringify(data, null, 2));
+    const folder = zip.folder('uploads');
+    uploads.uploadFiles.forEach((file) => {
+      try { folder.file(file.id, file.blob); } catch {}
+    });
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeExportFileName(pending.name)}.seamless.zip`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch {}
+      try { URL.revokeObjectURL(url); } catch {}
+    }, 200);
+
+    setStatus(uploads.missingCount
+      ? tf('status_item_export_warning', { name: pending.name, count: uploads.missingCount })
+      : tf('status_item_export_complete', { name: pending.name }));
+  } catch {
+    setStatus(tf('status_item_export_failed', { name: pending.name || 'Item' }));
+  }
+}
+
+function isItemExportPackage(data) {
+  return !!(data && data.app === 'seamlessplayer' && data.packageType === ITEM_EXPORT_PACKAGE_TYPE && data.sharedItem && data.sharedItem.kind && data.sharedItem.record);
+}
+
+function openScopedImportPicker(kind) {
+  pendingImportScope = String(kind || '');
+  const input = document.getElementById('importJsonInput');
+  if (input) {
+    try { input.value = ''; } catch {}
+    input.click();
+  }
+}
+
+function validateScopedImportData(data, expectedItemKind = '') {
+  if (!expectedItemKind) return true;
+  if (!isItemExportPackage(data)) {
+    setStatus(t('status_item_import_use_settings'));
+    return false;
+  }
+  if (String(data.sharedItem.kind || '') !== String(expectedItemKind)) {
+    setStatus(t('status_item_import_wrong_section'));
+    return false;
+  }
+  return true;
+}
+
+function makeImportedRecordId(kind) {
+  if (kind === 'playlist') return makePlaylistId();
+  return `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function makeImportedSharedItemRecord(kind, record) {
+  const cloned = cloneSharedItemRecord(kind, record);
+  if (!cloned) return null;
+  cloned.id = makeImportedRecordId(kind);
+  return cloned;
+}
+
+async function importUploadsFromPackage(data, zip = null) {
+  let missingEntries = 0;
+  if (Array.isArray(data.uploads)) {
+    for (const meta of data.uploads) {
+      if (!meta || !meta.id) continue;
+      if (!zip) {
+        missingEntries += 1;
+        continue;
+      }
+      const id = String(meta.id);
+      const entry = zip.file(String(meta.file || `uploads/${id}`)) || zip.file(`uploads/${id}`);
+      if (!entry) {
+        missingEntries += 1;
+        continue;
+      }
+      try {
+        let blob = await entry.async('blob');
+        const mimeType = meta.type ? String(meta.type) : '';
+        if (mimeType && (!blob.type || blob.type === 'application/octet-stream')) {
+          blob = blob.slice(0, blob.size, mimeType);
+        }
+        await putPersistedUploadRecord({
+          id,
+          name: meta.name || 'Audio',
+          blob,
+          createdAt: meta.createdAt || Date.now(),
+          trimIn: meta.trimIn != null ? meta.trimIn : undefined,
+          trimOut: meta.trimOut != null ? meta.trimOut : undefined,
+        });
+      } catch {
+        missingEntries += 1;
+      }
+    }
+  }
+  return missingEntries;
+}
+
+async function syncImportedUploadsIntoUserPresets() {
+  try {
+    const items = await listPersistedUploads();
+    if (!Array.isArray(items)) return;
+    const byId = new Map();
+    userPresets.forEach((preset) => { if (preset && preset.id) byId.set(String(preset.id), preset); });
+    items.forEach((item) => {
+      if (!item || !item.id || !item.blob) return;
+      const id = String(item.id);
+      const overrideName = getUploadNameOverride(id);
+      const name = overrideName || item.name || 'Audio';
+      const existing = byId.get(id);
+      if (existing) {
+        existing.blob = item.blob;
+        existing.persisted = true;
+        existing.createdAt = item.createdAt || existing.createdAt || 0;
+        existing.name = name;
+        if (item.trimIn != null) existing.trimIn = item.trimIn; else delete existing.trimIn;
+        if (item.trimOut != null) existing.trimOut = item.trimOut; else delete existing.trimOut;
+      } else {
+        const preset = { id: item.id, name, blob: item.blob, persisted: true, createdAt: item.createdAt || 0 };
+        if (item.trimIn != null) preset.trimIn = item.trimIn;
+        if (item.trimOut != null) preset.trimOut = item.trimOut;
+        userPresets.unshift(preset);
+      }
+    });
+  } catch {}
+}
+
+async function importSharedItemPackage(data, zip = null) {
+  const shared = data && data.sharedItem;
+  if (!shared || !shared.kind || !shared.record) {
+    setStatus('Invalid shared item package');
+    return;
+  }
+
+  try {
+    const mergedOverrides = { ...(getUploadNameOverrides() || {}) };
+    if (data.uploadNameOverrides && typeof data.uploadNameOverrides === 'object') {
+      Object.entries(data.uploadNameOverrides).forEach(([key, value]) => {
+        if (key) mergedOverrides[key] = value;
+      });
+      localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(mergedOverrides));
+    }
+  } catch {}
+
+  const missingCount = await importUploadsFromPackage(data, zip);
+  await syncImportedUploadsIntoUserPresets();
+
+  const kind = String(shared.kind);
+  const name = shared.name || (shared.record && shared.record.name) || 'Item';
+
+  if (kind === 'playlist') {
+    const record = makeImportedSharedItemRecord(kind, shared.record);
+    if (record) await savePlaylistRecord(record).catch(() => {});
+  } else if (kind === 'pad-session') {
+    const sessions = loadPadSessions();
+    const record = makeImportedSharedItemRecord(kind, shared.record);
+    if (record) {
+      sessions.push(record);
+      savePadSessions(sessions);
+    }
+  } else if (kind === 'drum-session') {
+    const sessions = loadDrumSessions();
+    const record = makeImportedSharedItemRecord(kind, shared.record);
+    if (record) {
+      sessions.push(record);
+      saveDrumSessions(sessions);
+    }
+  } else if (kind === 'project') {
+    const projects = loadProjects();
+    const record = makeImportedSharedItemRecord(kind, shared.record);
+    if (record) {
+      projects.push(normalizeProjectRecord(record));
+      saveProjects(projects);
+    }
+  } else {
+    setStatus('Unsupported shared item package');
+    return;
+  }
+
+  try { renderPlaylistsPage(); } catch {}
+  try { renderProjectsList(); } catch {}
+  try { renderPadSessionsList(); } catch {}
+  try { renderDrumSessionsList(); } catch {}
+  try { if (activeTab === 'loops') renderLoopsPage(); } catch {}
+  setStatus(missingCount
+    ? tf('status_item_import_warning', { name, count: missingCount })
+    : tf('status_item_import_complete', { name }));
+}
+
 async function renderPlaylistsPage() {
   const listEl = document.getElementById('playlistsList');
   if (!listEl) return;
@@ -3778,8 +4221,31 @@ async function renderPlaylistsPage() {
       await playActivePlaylist();
     });
 
+    const shareBtn = makeRowActionButton({
+      label: `${t('common_share')}: ${(pl && pl.name) ? pl.name : 'Playlist'}`,
+      className: 'playlist-list-share',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5L8.6 10.5"/></svg>',
+      onClick: () => openItemExportOverlay('playlist', pl, (pl && pl.name) ? pl.name : 'Playlist')
+    });
+
+    const delBtn = makeRowActionButton({
+      label: `${t('playlist_delete')}: ${(pl && pl.name) ? pl.name : 'Playlist'}`,
+      className: 'playlist-list-delete',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+      onClick: () => {
+        pendingDeletePlaylistId = pl && pl.id;
+        const txt = document.getElementById('playlistDeleteText');
+        if (txt) txt.textContent = `Delete "${(pl && pl.name) ? pl.name : 'Playlist'}"?`;
+        const ov = document.getElementById('playlistDeleteOverlay');
+        if (ov) ov.classList.remove('hidden');
+        try { updateScrollState(); } catch {}
+      }
+    });
+
     li.appendChild(btn);
     li.appendChild(playBtn);
+    li.appendChild(shareBtn);
+    li.appendChild(delBtn);
     listEl.appendChild(li);
 
     getPlaylistTotalDurationSec(pl).then((totalSec) => {
@@ -5996,7 +6462,7 @@ async function exportAppData() {
   }
 }
 
-async function importZipBackup(file) {
+async function importZipBackup(file, { expectedItemKind = '' } = {}) {
   if (!file) return;
   const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
   if (!JSZipRef) { setStatus('ZIP import not available'); return; }
@@ -6015,6 +6481,11 @@ async function importZipBackup(file) {
   const data = JSON.parse(jsonText);
   if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
   if (Number(data.version || 1) > BACKUP_VERSION) { setStatus(t('status_backup_version_unsupported')); return; }
+  if (!validateScopedImportData(data, expectedItemKind)) return;
+  if (isItemExportPackage(data)) {
+    await importSharedItemPackage(data, zip);
+    return;
+  }
 
   // Restore upload name overrides (safe even if uploads are missing).
   try {
@@ -6171,7 +6642,7 @@ async function importZipBackup(file) {
   try { renderDrumSessionsList(); } catch {}
 }
 
-async function importAppData(file) {
+async function importAppData(file, { expectedItemKind = '' } = {}) {
   if (!file) return;
   try {
     const isZip = (() => {
@@ -6185,7 +6656,7 @@ async function importAppData(file) {
       }
     })();
     if (isZip) {
-      await importZipBackup(file);
+      await importZipBackup(file, { expectedItemKind });
       return;
     }
 
@@ -6194,6 +6665,11 @@ async function importAppData(file) {
     const data = JSON.parse(text);
     if (!data || data.app !== 'seamlessplayer') { setStatus('Invalid backup file'); return; }
     if (Number(data.version || 1) > BACKUP_VERSION) { setStatus(t('status_backup_version_unsupported')); return; }
+    if (!validateScopedImportData(data, expectedItemKind)) return;
+    if (isItemExportPackage(data)) {
+      await importSharedItemPackage(data, null);
+      return;
+    }
 
     // Restore upload name overrides if present.
     try {
@@ -8558,9 +9034,16 @@ function renderPadSessionsList() {
       confirmRecallPadSession(session);
     });
 
+    const shareBtn = makeRowActionButton({
+      label: `${t('common_share')}: ${session.name}`,
+      className: 'playlist-list-share',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5L8.6 10.5"/></svg>',
+      onClick: () => openItemExportOverlay('pad-session', session, session.name)
+    });
+
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
-    delBtn.className = 'playlist-list-play';
+    delBtn.className = 'playlist-list-play playlist-list-delete';
     delBtn.setAttribute('aria-label', `Delete: ${session.name}`);
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
     delBtn.addEventListener('click', (e) => {
@@ -8569,6 +9052,7 @@ function renderPadSessionsList() {
     });
 
     li.appendChild(btn);
+  li.appendChild(shareBtn);
     li.appendChild(delBtn);
     listEl.appendChild(li);
   }
@@ -8668,9 +9152,16 @@ function renderProjectsList() {
     btn.appendChild(chevron);
     btn.addEventListener('click', () => confirmRecallProject(project));
 
+    const shareBtn = makeRowActionButton({
+      label: `${t('common_share')}: ${project.name || 'Project'}`,
+      className: 'playlist-list-share',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5L8.6 10.5"/></svg>',
+      onClick: () => openItemExportOverlay('project', project, project.name || 'Project')
+    });
+
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
-    delBtn.className = 'playlist-list-play';
+    delBtn.className = 'playlist-list-play playlist-list-delete';
     delBtn.setAttribute('aria-label', `Delete: ${project.name || 'Project'}`);
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
     delBtn.addEventListener('click', (e) => {
@@ -8680,6 +9171,7 @@ function renderProjectsList() {
     });
 
     li.appendChild(btn);
+  li.appendChild(shareBtn);
     li.appendChild(delBtn);
     listEl.appendChild(li);
   });
@@ -8920,9 +9412,16 @@ function renderDrumSessionsList() {
       confirmRecallDrumSession(session);
     });
 
+    const shareBtn = makeRowActionButton({
+      label: `${t('common_share')}: ${session.name}`,
+      className: 'playlist-list-share',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5L8.6 10.5"/></svg>',
+      onClick: () => openItemExportOverlay('drum-session', session, session.name)
+    });
+
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
-    delBtn.className = 'playlist-list-play';
+    delBtn.className = 'playlist-list-play playlist-list-delete';
     delBtn.setAttribute('aria-label', `Delete: ${session.name}`);
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>';
     delBtn.addEventListener('click', (e) => {
@@ -8931,6 +9430,7 @@ function renderDrumSessionsList() {
     });
 
     li.appendChild(btn);
+  li.appendChild(shareBtn);
     li.appendChild(delBtn);
     listEl.appendChild(li);
   }
@@ -9299,11 +9799,17 @@ function bindUI() {
   const playlistPlay = document.getElementById('playlistPlay');
   const playlistClose = document.getElementById('playlistClose');
 
+  const playlistsImportBtn = document.getElementById('playlistsImportBtn');
   const newPlaylistFromPage = document.getElementById('newPlaylistFromPage');
+  const projectsImportBtn = document.getElementById('projectsImportBtn');
+  const padsSessionsImportBtn = document.getElementById('padsSessionsImportBtn');
+  const drumSessionsImportBtn = document.getElementById('drumSessionsImportBtn');
   const saveProjectBtn = document.getElementById('saveProjectBtn');
   const playlistDeleteOverlay = document.getElementById('playlistDeleteOverlay');
   const confirmDeletePlaylist = document.getElementById('confirmDeletePlaylist');
   const cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
+  const itemExportConfirm = document.getElementById('itemExportConfirm');
+  const itemExportCancel = document.getElementById('itemExportCancel');
   const projectSaveConfirm = document.getElementById('projectSaveConfirm');
   const projectSaveCancel = document.getElementById('projectSaveCancel');
   const projectRecallConfirm = document.getElementById('projectRecallConfirm');
@@ -9768,6 +10274,9 @@ function bindUI() {
       case 'projectDeleteOverlay':
         closeProjectDeleteModal();
         break;
+      case 'itemExportOverlay':
+        closeItemExportOverlay();
+        break;
       case 'trimSaveOverlay':
       case 'helpOverlay':
         el.classList.add('hidden');
@@ -10047,7 +10556,8 @@ function bindUI() {
     document.getElementById('drumSessionDeleteOverlay'),
     document.getElementById('projectSaveOverlay'),
     document.getElementById('projectRecallOverlay'),
-    document.getElementById('projectDeleteOverlay')
+    document.getElementById('projectDeleteOverlay'),
+    document.getElementById('itemExportOverlay')
   ].forEach(bindOverlayDismiss);
 
   if (!document.body.dataset.overlayEscapeBound) {
@@ -10065,6 +10575,8 @@ function bindUI() {
     if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();
   });
   saveProjectBtn && saveProjectBtn.addEventListener('click', openProjectSaveModal);
+  itemExportConfirm && itemExportConfirm.addEventListener('click', () => { void exportPendingItemPackage(); });
+  itemExportCancel && itemExportCancel.addEventListener('click', closeItemExportOverlay);
   projectSaveConfirm && projectSaveConfirm.addEventListener('click', confirmSaveProject);
   projectSaveCancel && projectSaveCancel.addEventListener('click', closeProjectSaveModal);
   projectRecallConfirm && projectRecallConfirm.addEventListener('click', async () => {
@@ -10513,13 +11025,21 @@ function bindUI() {
   // ---- Settings bindings ----
   exportJsonBtn && exportJsonBtn.addEventListener('click', () => exportAppData());
   importJsonBtn && importJsonBtn.addEventListener('click', () => {
+    pendingImportScope = '';
     if (importJsonInput) importJsonInput.click();
   });
   importJsonInput && importJsonInput.addEventListener('change', () => {
     const f = importJsonInput.files && importJsonInput.files[0];
-    if (f) importAppData(f);
+    const expectedItemKind = pendingImportScope;
+    pendingImportScope = '';
+    if (f) importAppData(f, { expectedItemKind });
     try { importJsonInput.value = ''; } catch {}
   });
+
+  playlistsImportBtn && playlistsImportBtn.addEventListener('click', () => openScopedImportPicker('playlist'));
+  projectsImportBtn && projectsImportBtn.addEventListener('click', () => openScopedImportPicker('project'));
+  padsSessionsImportBtn && padsSessionsImportBtn.addEventListener('click', () => openScopedImportPicker('pad-session'));
+  drumSessionsImportBtn && drumSessionsImportBtn.addEventListener('click', () => openScopedImportPicker('drum-session'));
 
   if (themeToggle) {
     themeToggle.querySelectorAll('.theme-opt').forEach(btn => {

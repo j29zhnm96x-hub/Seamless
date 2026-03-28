@@ -9,6 +9,8 @@ A minimal web-based loop player that produces gapless background loops with smoo
 - Load audio from file picker, drag-and-drop, or clipboard (when supported).
 - Imported audio is saved locally (IndexedDB) when supported.
 - Project snapshots save the full working setup: player context, pads, drum machine, and transport state.
+- Individual playlists, sessions, and projects can be exported as standalone share packages with only the audio they use.
+- The Playlists page also provides section-level import buttons so shared playlist, session, or project packages can be imported directly into the matching section.
 - Simple volume control.
 - Media Session metadata + lock screen play/pause (where supported).
 - URL loading (input, paste, or drop a link).
@@ -38,6 +40,8 @@ Open http://localhost:5173 in your browser.
 - Open the "Audio Loops" tab to browse built-in loops and session imports.
 - Use the Settings tab to tweak loop detection and click "Recompute".
 - Use the Playlists tab to save a Project when you want to reopen the current player, Loop Trigger, and Drum Machine setup together.
+- Use the share action on saved playlists, sessions, or projects to export just that item and its required audio for another device or user.
+- Use the import icon in each Playlists-page section header to import the matching shared package type without going through the full app restore flow.
 
 ### Backup / Restore
 - Settings → Export creates a `.zip` backup that includes playlists, imported audio files, saved projects, current pad assignments, and saved pad sessions.

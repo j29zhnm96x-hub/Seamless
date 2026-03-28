@@ -364,6 +364,14 @@ button.danger{background:var(--danger);color:#fff}
 .page-header h2{
   margin:0;font-size:17px;font-weight:700;letter-spacing:-.2px;
 }
+.page-header-actions{display:flex;align-items:center;gap:8px}
+.page-header-icon-btn{
+  width:40px;height:40px;display:grid;place-items:center;
+  padding:0;border:1px solid var(--border);border-radius:12px;
+  background:var(--surface);color:var(--text-2);box-shadow:none;
+}
+.page-header-icon-btn:hover{color:var(--accent);border-color:var(--accent-mid);background:var(--surface-2)}
+.page-header-icon-btn svg{width:18px;height:18px}
 
 /* -------- Playlists list -------- */
 .playlist-list{
@@ -437,6 +445,8 @@ button.danger{background:var(--danger);color:#fff}
 }
 .playlist-list-play:hover{color:var(--accent)}
 .playlist-list-play svg{width:18px;height:18px}
+.playlist-list-share:hover{color:var(--accent)}
+.playlist-list-delete:hover{color:var(--danger)}
 
 /* -------- Playlist detail page -------- */
 .detail-back{
