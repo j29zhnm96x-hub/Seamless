@@ -8,6 +8,7 @@ A minimal web-based loop player that produces gapless background loops with smoo
 - iOS background/lock-friendly: routes audio through a hidden `<audio>` via `MediaStreamDestination`.
 - Load audio from file picker, drag-and-drop, or clipboard (when supported).
 - Imported audio is saved locally (IndexedDB) when supported.
+- Project snapshots save the full working setup: player context, pads, drum machine, and transport state.
 - Simple volume control.
 - Media Session metadata + lock screen play/pause (where supported).
 - URL loading (input, paste, or drop a link).
@@ -36,9 +37,10 @@ Open http://localhost:5173 in your browser.
 - Volume slider adjusts the master output.
 - Open the "Audio Loops" tab to browse built-in loops and session imports.
 - Use the Settings tab to tweak loop detection and click "Recompute".
+- Use the Playlists tab to save a Project when you want to reopen the current player, Loop Trigger, and Drum Machine setup together.
 
 ### Backup / Restore
-- Settings → Export creates a `.zip` backup that includes playlists, imported audio files, current pad assignments, and saved pad sessions.
+- Settings → Export creates a `.zip` backup that includes playlists, imported audio files, saved projects, current pad assignments, and saved pad sessions.
 - Settings → Import accepts `.zip` backups (full restore) and `.json` backups (metadata-only / backward compatible).
 
 ## iOS Notes

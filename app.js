@@ -11,7 +11,7 @@ let soundTouchNodeCtor = null;
 let soundTouchWorkletReady = false;
 let soundTouchWorkletFailed = false;
 let soundTouchWorkletRegistrationPromise = null;
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -57,6 +57,22 @@ const I18N = {
     tab_settings: 'Settings',
     playlists_title: 'Playlists',
     playlists_new: '+ New',
+    projects_title: 'Projects',
+    projects_save: 'Save',
+    projects_no_projects: 'No saved projects yet.',
+    project_save_title: 'Save Project',
+    project_name_label: 'Project name',
+    project_name_placeholder: 'My project',
+    project_recall_title: 'Load Project',
+    project_recall_text: 'Replace the current working setup with this project?',
+    project_delete_title: 'Delete Project',
+    project_player_mode_none: 'Empty player',
+    project_player_mode_loop: 'Loop loaded',
+    project_player_mode_playlist: 'Playlist ready',
+    status_project_saved: 'Project "{name}" saved.',
+    status_project_loaded: 'Project "{name}" loaded.',
+    status_project_loaded_warning: 'Project "{name}" loaded. {count} reference(s) are unavailable.',
+    status_project_deleted: 'Project "{name}" deleted.',
     loops_title: 'Audio Loops',
     loops_hint: 'Browse by category or search your loops.',
     loops_import: 'Import Loop',
@@ -217,6 +233,9 @@ const I18N = {
     status_drum_edit_mode: 'Drum Machine edit mode: tap a pad to edit it.',
     status_edit_mode_off: 'Edit mode off.',
     pad_missing_audio: 'Missing audio',
+    status_upload_cleanup_warning: 'Saved with cleanup. {count} older unreferenced audio file(s) were removed from local storage.',
+    status_upload_session_only: 'Loaded, but browser storage failed. This audio is available only for the current session unless you export it now.',
+    status_upload_limit_reached: 'Saved, but local storage is still over the safe limit because the remaining audio is referenced by your project.',
     status_session_loaded_missing_audio: 'Session "{name}" loaded. {count} assignment(s) are missing audio.',
     status_export_complete_warning: 'Export complete with warnings. {count} audio file(s) were unavailable.',
     status_import_complete_warning: 'Import complete with warnings. {count} audio file(s) were missing from the backup.',
@@ -237,6 +256,12 @@ const I18N = {
     pads_no_sessions: 'No saved sessions yet.',
     pads_assign_title: 'Assign Pad',
     pads_loop_label: 'Loop',
+    common_search: 'Search',
+    assign_search_placeholder: 'Search samples and loops…',
+    assign_search_no_results: 'No samples or loops match your search.',
+    assign_display_name_placeholder: 'Custom name (optional)',
+    status_preview_failed: 'Preview failed.',
+    status_previewing_audio: 'Previewing: {name}',
     pads_rate_label: 'Rate',
     pads_color_label: 'Color',
     pads_repeat_label: 'Repeat',
@@ -276,6 +301,22 @@ const I18N = {
     tab_settings: 'Postavke',
     playlists_title: 'Playliste',
     playlists_new: '+ Novo',
+    projects_title: 'Projekti',
+    projects_save: 'Spremi',
+    projects_no_projects: 'Nema spremljenih projekata.',
+    project_save_title: 'Spremi projekt',
+    project_name_label: 'Naziv projekta',
+    project_name_placeholder: 'Moj projekt',
+    project_recall_title: 'Učitaj projekt',
+    project_recall_text: 'Zamijeniti trenutni radni setup ovim projektom?',
+    project_delete_title: 'Obriši projekt',
+    project_player_mode_none: 'Prazan player',
+    project_player_mode_loop: 'Loop je učitan',
+    project_player_mode_playlist: 'Playlista je spremna',
+    status_project_saved: 'Projekt "{name}" je spremljen.',
+    status_project_loaded: 'Projekt "{name}" je učitan.',
+    status_project_loaded_warning: 'Projekt "{name}" je učitan. {count} referenci nije dostupno.',
+    status_project_deleted: 'Projekt "{name}" je obrisan.',
     loops_title: 'Audio loopovi',
     loops_hint: 'Pregledajte po kategoriji ili pretražite loopove.',
     loops_import: 'Uvezi loop',
@@ -436,6 +477,9 @@ const I18N = {
     status_drum_edit_mode: 'Drum Machine način uređivanja: dodirnite pad koji želite urediti.',
     status_edit_mode_off: 'Način uređivanja je isključen.',
     pad_missing_audio: 'Nedostaje audio',
+    status_upload_cleanup_warning: 'Spremljeno uz čišćenje. {count} starijih nepovezanih audio datoteka uklonjeno je iz lokalne pohrane.',
+    status_upload_session_only: 'Učitano je, ali spremanje u preglednik nije uspjelo. Ovaj audio dostupan je samo u trenutačnoj sesiji osim ako ga odmah ne izvezete.',
+    status_upload_limit_reached: 'Spremljeno je, ali lokalna pohrana je i dalje iznad sigurne granice jer je preostali audio povezan s vašim projektom.',
     status_session_loaded_missing_audio: 'Sesija "{name}" je učitana. {count} dodjela nema dostupan audio.',
     status_export_complete_warning: 'Izvoz je dovršen uz upozorenja. {count} audio datoteka nije bila dostupna.',
     status_import_complete_warning: 'Uvoz je dovršen uz upozorenja. {count} audio datoteka nedostajalo je u sigurnosnoj kopiji.',
@@ -456,6 +500,12 @@ const I18N = {
     pads_no_sessions: 'Nema spremljenih sesija.',
     pads_assign_title: 'Dodijeli pad',
     pads_loop_label: 'Loop',
+    common_search: 'Pretraži',
+    assign_search_placeholder: 'Pretraži sampleove i loopove…',
+    assign_search_no_results: 'Nijedan sample ili loop ne odgovara pretrazi.',
+    assign_display_name_placeholder: 'Prikazni naziv (nije obavezno)',
+    status_preview_failed: 'Pregled nije uspio.',
+    status_previewing_audio: 'Pregled: {name}',
     pads_rate_label: 'Brzina',
     pads_color_label: 'Boja',
     pads_repeat_label: 'Ponovi',
@@ -743,6 +793,12 @@ function applyLanguage(lang) {
   setText('#page-playlists .page-header h2', t('playlists_title'));
   const newPl = document.getElementById('newPlaylistFromPage');
   if (newPl) { newPl.textContent = t('playlists_new'); newPl.setAttribute('aria-label', t('playlists_new')); }
+  setText('#projectsTitle', t('projects_title'));
+  const saveProjectBtn = document.getElementById('saveProjectBtn');
+  if (saveProjectBtn) {
+    saveProjectBtn.textContent = t('projects_save');
+    saveProjectBtn.setAttribute('aria-label', t('projects_save'));
+  }
   setText('.pads-sessions-header h2', t('pads_sessions_title'));
 
   // Pads island
@@ -759,6 +815,19 @@ function applyLanguage(lang) {
   if (loopTriggerCard) loopTriggerCard.setAttribute('aria-label', t('pads_title'));
   const loopTriggerNote = document.getElementById('loopTriggerCollapsedNote');
   if (loopTriggerNote) loopTriggerNote.textContent = t('island_collapsed_note');
+  const padAssignTitle = document.getElementById('padAssignTitle');
+  if (padAssignTitle) padAssignTitle.textContent = t('pads_assign_title');
+  const padAssignOverlay = document.getElementById('padAssignOverlay');
+  if (padAssignOverlay) padAssignOverlay.setAttribute('aria-label', t('pads_assign_title'));
+  setText('#padLoopLabel', t('pads_loop_label'));
+  setText('#padPickerSearchLabel', t('common_search'));
+  setText('#padDisplayNameLabel', t('drum_display_name_label'));
+  setText('#padRateLabel', t('pads_rate_label'));
+  setText('#padColorLabel', t('pads_color_label'));
+  const padPickerSearchInput = document.getElementById('padPickerSearchInput');
+  if (padPickerSearchInput) padPickerSearchInput.placeholder = t('assign_search_placeholder');
+  const padDisplayNameInput = document.getElementById('padDisplayNameInput');
+  if (padDisplayNameInput) padDisplayNameInput.placeholder = t('assign_display_name_placeholder');
   const padRepeatLabel = document.getElementById('padRepeatLabel');
   if (padRepeatLabel) padRepeatLabel.textContent = t('pads_repeat_label');
   const padVolumeLabel = document.getElementById('padVolumeLabel');
@@ -790,24 +859,32 @@ function applyLanguage(lang) {
   if (drumAssignTitle) drumAssignTitle.textContent = t('drum_assign_title');
   const drumOverlay = document.getElementById('drumAssignOverlay');
   if (drumOverlay) drumOverlay.setAttribute('aria-label', t('drum_assign_title'));
-  const drumLabels = drumOverlay ? drumOverlay.querySelectorAll('.pad-assign-label') : [];
-  if (drumLabels[0]) drumLabels[0].textContent = t('drum_loop_label');
-  if (drumLabels[1]) drumLabels[1].textContent = t('drum_display_name_label');
-  if (drumLabels[2]) drumLabels[2].textContent = t('common_volume');
-  if (drumLabels[3]) drumLabels[3].textContent = t('drum_color_label');
-  if (drumLabels[4]) drumLabels[4].textContent = t('drum_choke_label');
+  setText('#drumLoopLabel', t('drum_loop_label'));
+  setText('#drumPickerSearchLabel', t('common_search'));
+  setText('#drumDisplayNameLabel', t('drum_display_name_label'));
+  setText('#drumColorLabel', t('drum_color_label'));
+  setText('#drumChokeLabel', t('drum_choke_label'));
   const drumAssignSave = document.getElementById('drumAssignSave');
   if (drumAssignSave) drumAssignSave.textContent = t('drum_assign_save');
   const drumAssignClear = document.getElementById('drumAssignClear');
   if (drumAssignClear) drumAssignClear.textContent = t('drum_assign_clear');
   const drumAssignClose = document.getElementById('drumAssignClose');
   if (drumAssignClose) drumAssignClose.textContent = t('common_cancel');
+  setText('#projectSaveTitle', t('project_save_title'));
+  setText('#projectNameLabel', t('project_name_label'));
+  setText('#projectRecallTitle', t('project_recall_title'));
+  setText('#projectRecallText', t('project_recall_text'));
+  setText('#projectDeleteTitle', t('project_delete_title'));
+  const projectNameInput = document.getElementById('projectNameInput');
+  if (projectNameInput) projectNameInput.placeholder = t('project_name_placeholder');
   setText('#drumSessionSaveTitle', t('drum_session_save_title'));
   setText('#drumSessionNameLabel', t('pads_session_name_label'));
   setText('#drumSessionRecallTitle', t('drum_session_recall_title'));
   setText('#drumSessionRecallText', t('drum_session_recall_text'));
   const drumDisplayNameInput = document.getElementById('drumDisplayNameInput');
-  if (drumDisplayNameInput) drumDisplayNameInput.placeholder = 'Custom name (optional)';
+  if (drumDisplayNameInput) drumDisplayNameInput.placeholder = t('assign_display_name_placeholder');
+  const drumPickerSearchInput = document.getElementById('drumPickerSearchInput');
+  if (drumPickerSearchInput) drumPickerSearchInput.placeholder = t('assign_search_placeholder');
   try { renderDrumChokeOptions(); } catch {}
 
   // Loops page
@@ -1326,6 +1403,189 @@ function addUserPresetFromBlob({ name, blob, saved }) {
   return presetObj;
 }
 
+function extractUploadIdFromPresetKey(presetKey) {
+  const key = String(presetKey || '');
+  if (!key.startsWith('upload:')) return '';
+  return key.slice('upload:'.length);
+}
+
+async function collectProtectedUploadIds(extraIds = []) {
+  const protectedIds = new Set();
+  const addId = (value) => {
+    const id = String(value || '').trim();
+    if (id) protectedIds.add(id);
+  };
+  const addFromPresetKey = (presetKey) => addId(extractUploadIdFromPresetKey(presetKey));
+
+  extraIds.forEach(addId);
+  addId(currentPresetId);
+  addFromPresetKey(currentPresetKey);
+  if (trimPreset && trimPreset.id) addId(trimPreset.id);
+
+  padAssignments.forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+  drumAssignments.forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+
+  try {
+    loadPadSessions().forEach((session) => {
+      (session && Array.isArray(session.assignments) ? session.assignments : []).forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+    });
+  } catch {}
+  try {
+    loadDrumSessions().forEach((session) => {
+      (session && Array.isArray(session.assignments) ? session.assignments : []).forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+    });
+  } catch {}
+  try {
+    loadProjects().forEach((project) => {
+      (project && Array.isArray(project.padAssignments) ? project.padAssignments : []).forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+      (project && Array.isArray(project.drumAssignments) ? project.drumAssignments : []).forEach((assignment) => addFromPresetKey(assignment && assignment.presetKey));
+      const player = project && project.player;
+      if (player && player.loop) addFromPresetKey(player.loop.presetKey);
+      (player && player.playlist && Array.isArray(player.playlist.items) ? player.playlist.items : []).forEach((item) => addFromPresetKey(item && item.presetKey));
+    });
+  } catch {}
+
+  try {
+    (favoriteEntries || []).forEach((entry) => {
+      if (entry && entry.kind === 'loop') addFromPresetKey(entry.key);
+    });
+  } catch {}
+
+  try {
+    const transientPlaylists = [activePlaylist, playerPlaylist];
+    transientPlaylists.forEach((playlist) => {
+      (playlist && Array.isArray(playlist.items) ? playlist.items : []).forEach((item) => addFromPresetKey(item && item.presetKey));
+    });
+  } catch {}
+
+  try {
+    const storedPlaylists = await listPlaylistRecords().catch(() => []);
+    (storedPlaylists || []).forEach((playlist) => {
+      (playlist && Array.isArray(playlist.items) ? playlist.items : []).forEach((item) => addFromPresetKey(item && item.presetKey));
+    });
+  } catch {}
+
+  return protectedIds;
+}
+
+function removeUploadArtifactsFromState(uploadId) {
+  const id = String(uploadId || '').trim();
+  if (!id) return;
+  const presetKey = `upload:${id}`;
+
+  try {
+    const idx = userPresets.findIndex((preset) => preset && String(preset.id) === id);
+    if (idx >= 0) userPresets.splice(idx, 1);
+  } catch {}
+
+  try { clearPresetBufferCache(id); } catch {}
+
+  try {
+    if (currentPresetId && String(currentPresetId) === id) {
+      currentPresetId = null;
+      currentPresetKey = null;
+      currentPresetRef = null;
+      currentSourceLabel = null;
+      currentBuffer = null;
+      try { setLoopInfo(''); } catch {}
+      try { drawWaveform(); } catch {}
+    }
+  } catch {}
+
+  try {
+    const overrides = getUploadNameOverrides();
+    if (Object.prototype.hasOwnProperty.call(overrides, id)) {
+      delete overrides[id];
+      localStorage.setItem(UPLOAD_NAME_OVERRIDES_KEY, JSON.stringify(overrides));
+    }
+  } catch {}
+
+  try {
+    const assignments = getLoopCatAssignments();
+    if (Object.prototype.hasOwnProperty.call(assignments, id)) {
+      delete assignments[id];
+      saveLoopCatAssignments(assignments);
+    }
+  } catch {}
+
+  try {
+    const descriptions = getLoopDescriptions();
+    if (Object.prototype.hasOwnProperty.call(descriptions, id)) {
+      delete descriptions[id];
+      localStorage.setItem(LOOP_DESCRIPTIONS_KEY, JSON.stringify(descriptions));
+    }
+  } catch {}
+
+  try {
+    const nextFavorites = (favoriteEntries || []).filter((entry) => !(entry && entry.kind === 'loop' && entry.key === presetKey));
+    if (nextFavorites.length !== favoriteEntries.length) {
+      favoriteEntries = nextFavorites;
+      saveFavoriteEntries();
+      updateFavoritesUI();
+    }
+  } catch {}
+}
+
+async function enforcePersistedUploadCap(db, { keepIds = [] } = {}) {
+  const all = await idbTx(db, 'readonly', (store) => {
+    return new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  });
+  if (!Array.isArray(all) || all.length <= MAX_PERSISTED_UPLOADS) {
+    return { evictedIds: [], overflow: 0 };
+  }
+
+  const protectedIds = await collectProtectedUploadIds(keepIds);
+  const overflow = Math.max(0, all.length - MAX_PERSISTED_UPLOADS);
+  const evictable = all
+    .filter((record) => record && record.id && !protectedIds.has(String(record.id)))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const toDelete = evictable.slice(0, overflow);
+  const evictedIds = toDelete.map((record) => String(record.id));
+
+  if (evictedIds.length) {
+    await idbTx(db, 'readwrite', (store) => {
+      evictedIds.forEach((id) => {
+        try { store.delete(id); } catch {}
+      });
+    });
+    evictedIds.forEach(removeUploadArtifactsFromState);
+  }
+
+  return {
+    evictedIds,
+    overflow: Math.max(0, overflow - evictedIds.length)
+  };
+}
+
+function getPersistedUploadWarningText(saved) {
+  if (!saved) return t('status_upload_session_only');
+  if (saved.evictedIds && saved.evictedIds.length) {
+    return tf('status_upload_cleanup_warning', { count: saved.evictedIds.length });
+  }
+  if (saved.overflow > 0) {
+    return t('status_upload_limit_reached');
+  }
+  return '';
+}
+
+async function storeUserPresetBlob({ name, blob, category = '', trimIn, trimOut, fadeIn, fadeOut }) {
+  let saved = null;
+  try {
+    saved = await savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOut });
+  } catch {}
+  const preset = addUserPresetFromBlob({ name, blob, saved });
+  if (saved && saved.id && category) setLoopCategory(saved.id, category);
+  return {
+    preset,
+    saved,
+    warningText: getPersistedUploadWarningText(saved)
+  };
+}
+
 async function listPersistedUploads() {
   const db = await openUploadsDb();
   const items = await idbTx(db, 'readonly', (store) => {
@@ -1355,26 +1615,10 @@ async function savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOu
 
   await idbTx(db, 'readwrite', (store) => store.put(record));
 
-  // Enforce a simple cap to reduce quota risk.
-  try {
-    const all = await idbTx(db, 'readonly', (store) => {
-      return new Promise((resolve, reject) => {
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-    });
-    if (Array.isArray(all) && all.length > MAX_PERSISTED_UPLOADS) {
-      all.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      const toDelete = all.slice(0, Math.max(0, all.length - MAX_PERSISTED_UPLOADS));
-      await idbTx(db, 'readwrite', (store) => {
-        toDelete.forEach(r => { try { store.delete(r.id); } catch {} });
-      });
-    }
-  } catch {}
+  const capResult = await enforcePersistedUploadCap(db, { keepIds: [record.id] }).catch(() => ({ evictedIds: [], overflow: 0 }));
 
   try { db.close(); } catch {}
-  return record;
+  return { ...record, ...capResult };
 }
 
 async function putPersistedUploadRecord(record) {
@@ -1395,26 +1639,10 @@ async function putPersistedUploadRecord(record) {
 
   await idbTx(db, 'readwrite', (store) => store.put(rec));
 
-  // Enforce a simple cap to reduce quota risk.
-  try {
-    const all = await idbTx(db, 'readonly', (store) => {
-      return new Promise((resolve, reject) => {
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-    });
-    if (Array.isArray(all) && all.length > MAX_PERSISTED_UPLOADS) {
-      all.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      const toDelete = all.slice(0, Math.max(0, all.length - MAX_PERSISTED_UPLOADS));
-      await idbTx(db, 'readwrite', (store) => {
-        toDelete.forEach(r => { try { store.delete(r.id); } catch {} });
-      });
-    }
-  } catch {}
+  const capResult = await enforcePersistedUploadCap(db, { keepIds: [rec.id] }).catch(() => ({ evictedIds: [], overflow: 0 }));
 
   try { db.close(); } catch {}
-  return rec;
+  return { ...rec, ...capResult };
 }
 
 async function renamePersistedUpload(id, newName) {
@@ -3492,6 +3720,7 @@ async function renderPlaylistsPage() {
     div.textContent = 'No playlists yet. Tap + New to create one.';
     li.appendChild(div);
     listEl.appendChild(li);
+    try { renderProjectsList(); } catch {}
     try { renderPadSessionsList(); } catch {}
     try { renderDrumSessionsList(); } catch {}
     try { setTimeout(updateScrollState, 50); } catch {}
@@ -3559,6 +3788,7 @@ async function renderPlaylistsPage() {
       durationSpan.textContent = '—';
     });
   }
+  try { renderProjectsList(); } catch {}
   try { renderPadSessionsList(); } catch {}
   try { renderDrumSessionsList(); } catch {}
   try { setTimeout(updateScrollState, 50); } catch {}
@@ -3995,18 +4225,53 @@ function clearPresetBufferCache(presetId) {
   try { bufferCache.delete(`upload:${presetId}`); } catch {}
 }
 
-function refreshPresetReferenceAfterOverwrite(preset, { name, blob, trimIn, trimOut }) {
+function refreshPresetReferenceAfterOverwrite(preset, { name, blob, trimIn, trimOut, fadeIn, fadeOut }) {
   if (!preset) return;
   preset.name = name;
   preset.blob = blob;
   preset.persisted = true;
   preset.trimIn = trimIn;
   preset.trimOut = trimOut;
-  preset.fadeIn = trimFadeInSec;
-  preset.fadeOut = trimFadeOutSec;
+  preset.fadeIn = fadeIn != null ? fadeIn : trimFadeInSec;
+  preset.fadeOut = fadeOut != null ? fadeOut : trimFadeOutSec;
   if (currentPresetRef && preset === currentPresetRef) {
     currentSourceLabel = stripFileExt(name);
   }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms || 0)));
+}
+
+async function waitForCondition(check, { timeout = 400, interval = 16 } = {}) {
+  const deadline = Date.now() + Math.max(0, timeout || 0);
+  while (Date.now() <= deadline) {
+    try {
+      if (check()) return true;
+    } catch {}
+    await wait(interval);
+  }
+  try {
+    return !!check();
+  } catch {
+    return false;
+  }
+}
+
+async function stopPadPlaybackAndWait(ramp = 0.05) {
+  const hadSource = !!padSource;
+  stopPadPlayback(ramp);
+  if (!hadSource) return;
+  const timeout = Math.max(180, Math.round((Math.max(0, ramp) + 0.18) * 1000));
+  await waitForCondition(() => !padSource, { timeout });
+}
+
+async function stopDrumPlaybackAndWait(immediate = false) {
+  const hadVoices = drumVoices.length > 0;
+  stopDrumPlayback(immediate);
+  if (!hadVoices) return;
+  const timeout = immediate ? 220 : 320;
+  await waitForCondition(() => drumVoices.length === 0, { timeout });
 }
 
 function clampTrimFadeDurations() {
@@ -4155,7 +4420,9 @@ async function overwriteTrimmedLoopOriginal() {
       name: saved.name,
       blob: wavBlob,
       trimIn: 0,
-      trimOut: saved.trimOut != null ? saved.trimOut : (rendered.duration || range.segDur)
+      trimOut: saved.trimOut != null ? saved.trimOut : (rendered.duration || range.segDur),
+      fadeIn: saved.fadeIn != null ? saved.fadeIn : trimFadeInSec,
+      fadeOut: saved.fadeOut != null ? saved.fadeOut : trimFadeOutSec
     });
     clearPresetBufferCache(saved.id);
     if (currentPresetRef && trimPreset === currentPresetRef) {
@@ -4822,23 +5089,22 @@ async function createTrimmedLoopAsWav(customName = '') {
     const requestedName = String(customName || '').trim();
     const name = requestedName || getDefaultTrimmedLoopName();
 
-    const saved = await savePersistedUpload({
+    const stored = await storeUserPresetBlob({
       name,
       blob: wavBlob,
+      category: 'Edited',
       trimIn: 0,
       trimOut: rendered.duration || range.segDur,
       fadeIn: trimFadeInSec,
       fadeOut: trimFadeOutSec
     });
 
-    addUserPresetFromBlob({ name, blob: wavBlob, saved });
-    if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
-    assignSavedLoopToPadTarget(saved, name);
+    assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
     clearTrimAssignmentTargets();
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
-    setStatus('Trimmed loop created (WAV)');
+    setStatus(stored.warningText ? `Trimmed loop created (WAV). ${stored.warningText}` : 'Trimmed loop created (WAV)');
   } catch {
     setStatus('Failed to create trimmed loop');
   }
@@ -4933,46 +5199,44 @@ async function createTrimmedLoopAsCompressed(customName = '') {
       const requestedName = String(customName || '').trim();
       const name = requestedName || withTrimmedSuffix(trimPreset.name, '(Trimmed WAV)');
 
-      const saved = await savePersistedUpload({
+      const stored = await storeUserPresetBlob({
         name,
         blob: wavBlob,
+        category: 'Edited',
         trimIn: 0,
         trimOut: rendered.duration || range.segDur,
         fadeIn: trimFadeInSec,
         fadeOut: trimFadeOutSec
       });
 
-      addUserPresetFromBlob({ name, blob: wavBlob, saved });
-      if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
-      assignSavedLoopToPadTarget(saved, name);
+      assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
       clearTrimAssignmentTargets();
       try { renderLoopsPage(); } catch {}
       stopTrimTest();
       switchTab('loops');
-      setStatus('Trimmed loop created (WAV)');
+      setStatus(stored.warningText ? `Trimmed loop created (WAV). ${stored.warningText}` : 'Trimmed loop created (WAV)');
       return;
     }
 
     const requestedName = String(customName || '').trim();
     const name = requestedName || withTrimmedSuffix(trimPreset.name, suffix);
 
-    const saved = await savePersistedUpload({
+    const stored = await storeUserPresetBlob({
       name,
       blob,
+      category: 'Edited',
       trimIn: 0,
       trimOut: rendered.duration || range.segDur,
       fadeIn: trimFadeInSec,
       fadeOut: trimFadeOutSec
     });
 
-    addUserPresetFromBlob({ name, blob, saved });
-    if (saved && saved.id) setLoopCategory(saved.id, 'Edited');
-    assignSavedLoopToPadTarget(saved, name);
+    assignSavedLoopToPadTarget(stored.saved || stored.preset, name);
     clearTrimAssignmentTargets();
     try { renderLoopsPage(); } catch {}
     stopTrimTest();
     switchTab('loops');
-    setStatus(`Trimmed loop created (${statusLabel})`);
+    setStatus(stored.warningText ? `Trimmed loop created (${statusLabel}). ${stored.warningText}` : `Trimmed loop created (${statusLabel})`);
   } catch {
     setStatus('Failed to create trimmed loop');
   }
@@ -5666,6 +5930,13 @@ async function exportAppData() {
         return [];
       }
     })();
+    const exportedProjects = (() => {
+      try {
+        return loadProjects().map((project, index) => normalizeProjectRecord(project, index));
+      } catch {
+        return [];
+      }
+    })();
 
     const data = {
       app: 'seamlessplayer',
@@ -5681,6 +5952,7 @@ async function exportAppData() {
       padSessions: exportedPadSessions,
       drumAssignments: exportedDrumAssignments,
       drumSessions: exportedDrumSessions,
+      projects: exportedProjects,
     };
 
     const JSZipRef = (typeof window !== 'undefined') ? window.JSZip : null;
@@ -5805,6 +6077,11 @@ async function importZipBackup(file) {
       saveDrumSessions(sessions);
     }
   } catch {}
+  try {
+    if (Array.isArray(data.projects)) {
+      saveProjects(data.projects.map((project, index) => normalizeProjectRecord(project, index)));
+    }
+  } catch {}
 
   // Import playlists.
   if (Array.isArray(data.playlists)) {
@@ -5889,6 +6166,7 @@ async function importZipBackup(file) {
   if (activeTab === 'loops') renderLoopsPage();
   try { renderPadGrid(); } catch {}
   try { renderDrumGrid(); } catch {}
+  try { renderProjectsList(); } catch {}
   try { renderPadSessionsList(); } catch {}
   try { renderDrumSessionsList(); } catch {}
 }
@@ -5978,6 +6256,11 @@ async function importAppData(file) {
         saveDrumSessions(sessions);
       }
     } catch {}
+    try {
+      if (Array.isArray(data.projects)) {
+        saveProjects(data.projects.map((project, index) => normalizeProjectRecord(project, index)));
+      }
+    } catch {}
 
     // Import playlists.
     if (Array.isArray(data.playlists)) {
@@ -6025,6 +6308,7 @@ async function importAppData(file) {
     setStatus('Import complete');
     if (activeTab === 'playlists') renderPlaylistsPage();
     if (activeTab === 'loops') renderLoopsPage();
+    try { renderProjectsList(); } catch {}
     try { renderPadGrid(); } catch {}
     try { renderDrumGrid(); } catch {}
     try { renderPadSessionsList(); } catch {}
@@ -6162,6 +6446,7 @@ const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
 const DRUM_ASSIGNMENTS_KEY = 'seamlessplayer-drum-assignments';
 const DRUM_SESSIONS_KEY = 'seamlessplayer-drum-sessions';
+const PROJECTS_KEY = 'seamlessplayer-projects';
 const LOOP_TRIGGER_COLLAPSED_KEY = 'seamlessplayer-loop-trigger-collapsed';
 const DRUM_MACHINE_COLLAPSED_KEY = 'seamlessplayer-drum-machine-collapsed';
 const PAD_COUNT = 9;
@@ -6222,12 +6507,17 @@ const PAD_LEGACY_COLOR_KEY_MAP = Object.freeze({
 });
 const padPickerCollapsedCategories = new Set();
 let padPickerLastOpenCategory = '';
+let padPickerSearchQuery = '';
 const padPickerCollapsedSubfolders = new Set();
 let padPickerCollapsedSubfoldersLoaded = false;
 const drumPickerCollapsedCategories = new Set();
 let drumPickerLastOpenCategory = '';
+let drumPickerSearchQuery = '';
 const drumPickerCollapsedSubfolders = new Set();
 let drumPickerCollapsedSubfoldersLoaded = false;
+let pickerPreviewSource = null;
+let pickerPreviewGain = null;
+let pickerPreviewStopTimer = 0;
 
 function loadPickerCollapsedSubfolders(storageKey, targetSet) {
   try {
@@ -6618,6 +6908,7 @@ async function openSelectedPadLoopInTrimmer() {
   trimPadTargetIndex = padAssignTarget;
   trimDrumTargetIndex = -1;
   closePadAssignModal();
+  stopPickerPreview(true);
   await openTrimmer(preset);
 }
 
@@ -6631,6 +6922,7 @@ async function openSelectedDrumLoopInTrimmer() {
   trimDrumTargetIndex = drumAssignTarget;
   trimPadTargetIndex = -1;
   closeDrumAssignModal();
+  stopPickerPreview(true);
   await openTrimmer(preset);
 }
 
@@ -6671,6 +6963,143 @@ function getPadLoopChoicesByCategory() {
 
   Object.values(map).forEach(items => items.sort((a, b) => a.label.localeCompare(b.label)));
   return map;
+}
+
+function pickerItemMatchesQuery(item, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    item && item.label,
+    item && item.category,
+    item && getTranslatedLoopCategoryName(item.category),
+    item && item.subfolder
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
+function stopPickerPreview(immediate = true) {
+  if (pickerPreviewStopTimer) {
+    clearTimeout(pickerPreviewStopTimer);
+    pickerPreviewStopTimer = 0;
+  }
+  const source = pickerPreviewSource;
+  const gainNode = pickerPreviewGain;
+  pickerPreviewSource = null;
+  pickerPreviewGain = null;
+  if (!source) return;
+  const fade = immediate ? 0.005 : 0.03;
+  try {
+    if (audioCtx && gainNode) {
+      const now = audioCtx.currentTime;
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+      gainNode.gain.linearRampToValueAtTime(0, now + fade);
+    }
+  } catch {}
+  pickerPreviewStopTimer = setTimeout(() => {
+    try { source.stop(); } catch {}
+    try { source.disconnect(); } catch {}
+    try { if (gainNode) gainNode.disconnect(); } catch {}
+    pickerPreviewStopTimer = 0;
+  }, Math.max(16, Math.round((fade + 0.03) * 1000)));
+}
+
+async function previewPickerItemOnce(item) {
+  if (!item || !item.presetKey) return false;
+  stopPickerPreview(true);
+  ensureAudio();
+  if (audioCtx && audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch {}
+  }
+  startOutputIfNeeded();
+
+  const loaded = await loadBufferFromPresetKey(item.presetKey).catch(() => null);
+  if (!loaded || !loaded.buffer || !audioCtx || !master) {
+    setStatus(t('status_preview_failed'));
+    return false;
+  }
+
+  const buffer = loaded.buffer;
+  const ref = loaded.presetRef;
+  const startOffset = ref && ref.trimIn != null ? clamp(Number(ref.trimIn) || 0, 0, Math.max(0, buffer.duration - 0.001)) : 0;
+  const endOffset = ref && ref.trimOut != null
+    ? clamp(Number(ref.trimOut) || buffer.duration, startOffset + 0.001, buffer.duration)
+    : buffer.duration;
+  const duration = Math.max(0.01, endOffset - startOffset);
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = false;
+
+  const gainNode = audioCtx.createGain();
+  const now = audioCtx.currentTime;
+  try {
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(1, now + 0.01);
+  } catch {}
+
+  source.connect(gainNode);
+  gainNode.connect(master);
+  try {
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(volumeVal, now + 0.01);
+  } catch {}
+
+  pickerPreviewSource = source;
+  pickerPreviewGain = gainNode;
+  source.addEventListener('ended', () => {
+    if (pickerPreviewSource === source) pickerPreviewSource = null;
+    if (pickerPreviewGain === gainNode) pickerPreviewGain = null;
+    try { source.disconnect(); } catch {}
+    try { gainNode.disconnect(); } catch {}
+  }, { once: true });
+
+  source.start(now, startOffset, duration);
+  setStatus(tf('status_previewing_audio', { name: item.label || loaded.sourceLabel || 'Audio' }));
+  return true;
+}
+
+function attachPickerItemInteractions(button, item, onSelect) {
+  let pressTimer = 0;
+  let suppressClick = false;
+
+  const clearPress = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = 0;
+    }
+  };
+
+  button.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button === 0) e.preventDefault();
+    suppressClick = false;
+    clearPress();
+    pressTimer = setTimeout(() => {
+      suppressClick = true;
+      button.classList.add('previewing');
+      void previewPickerItemOnce(item).finally(() => {
+        setTimeout(() => {
+          try { button.classList.remove('previewing'); } catch {}
+        }, 120);
+      });
+    }, 360);
+  });
+
+  button.addEventListener('pointerup', clearPress);
+  button.addEventListener('pointerleave', clearPress);
+  button.addEventListener('pointercancel', clearPress);
+  button.addEventListener('contextmenu', (e) => e.preventDefault());
+  button.addEventListener('click', (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onSelect();
+  });
 }
 
 function normalizePadRateValue(rawValue, fallback = 1.0) {
@@ -6758,14 +7187,17 @@ function renderPadLoopPicker() {
 
   const byCategory = getPadLoopChoicesByCategory();
   const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b));
+  const query = String(padPickerSearchQuery || '').trim().toLowerCase();
+  let visibleCount = 0;
 
   categories.forEach(category => {
-    const items = byCategory[category];
+    const items = (byCategory[category] || []).filter((item) => pickerItemMatchesQuery(item, query));
     if (!items || !items.length) return;
+    visibleCount += items.length;
 
     const section = document.createElement('div');
     section.className = 'pad-picker-category';
-    const collapsed = padPickerCollapsedCategories.has(category);
+    const collapsed = query ? false : padPickerCollapsedCategories.has(category);
     if (collapsed) section.classList.add('collapsed');
 
     const header = document.createElement('button');
@@ -6773,6 +7205,7 @@ function renderPadLoopPicker() {
     header.className = 'pad-picker-category-header';
     header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${getTranslatedLoopCategoryName(category)}</span></span><span class="pad-picker-count">${items.length}</span>`;
     header.addEventListener('click', () => {
+      if (query) return;
       const nextExpandedCategory = padPickerCollapsedCategories.has(category) ? category : '';
       padPickerLastOpenCategory = category;
       setPadPickerExpandedCategory(nextExpandedCategory, categories);
@@ -6797,7 +7230,7 @@ function renderPadLoopPicker() {
         button.type = 'button';
         button.className = `pad-picker-item${item.presetKey === padAssignSelectedKey ? ' selected' : ''}`;
         button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
-        button.addEventListener('click', () => {
+        attachPickerItemInteractions(button, item, () => {
           padAssignSelectedKey = item.presetKey;
           updatePadAssignTrimButton();
           renderPadLoopPicker();
@@ -6828,7 +7261,7 @@ function renderPadLoopPicker() {
         const subSection = document.createElement('div');
         subSection.className = 'pad-picker-subfolder';
         const subKey = `${category}::${subfolder}`;
-        const subCollapsed = padPickerCollapsedSubfolders.has(subKey);
+        const subCollapsed = query ? false : padPickerCollapsedSubfolders.has(subKey);
         if (subCollapsed) subSection.classList.add('collapsed');
 
         const subHeader = document.createElement('button');
@@ -6837,6 +7270,7 @@ function renderPadLoopPicker() {
         subHeader.setAttribute('aria-expanded', subCollapsed ? 'false' : 'true');
         subHeader.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${subCollapsed ? '▸' : '▾'}</span><span>${subfolder}</span></span><span class="pad-picker-count">${subItems.length}</span>`;
         subHeader.addEventListener('click', () => {
+          if (query) return;
           if (padPickerCollapsedSubfolders.has(subKey)) padPickerCollapsedSubfolders.delete(subKey);
           else padPickerCollapsedSubfolders.add(subKey);
           savePickerCollapsedSubfolders(PAD_PICKER_COLLAPSED_SUBFOLDERS_KEY, padPickerCollapsedSubfolders);
@@ -6857,7 +7291,14 @@ function renderPadLoopPicker() {
     list.appendChild(section);
   });
 
-  if (padPickerLastOpenCategory) {
+  if (!visibleCount) {
+    const empty = document.createElement('div');
+    empty.className = 'pad-picker-empty';
+    empty.textContent = t('assign_search_no_results');
+    list.appendChild(empty);
+  }
+
+  if (!query && padPickerLastOpenCategory) {
     const target = Array.from(list.querySelectorAll('.pad-picker-category')).find(el => el.dataset.category === padPickerLastOpenCategory);
     if (target) {
       try { target.scrollIntoView({ block: 'nearest' }); } catch {}
@@ -6872,14 +7313,17 @@ function renderDrumLoopPicker() {
 
   const byCategory = getPadLoopChoicesByCategory();
   const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b));
+  const query = String(drumPickerSearchQuery || '').trim().toLowerCase();
+  let visibleCount = 0;
 
   categories.forEach(category => {
-    const items = byCategory[category];
+    const items = (byCategory[category] || []).filter((item) => pickerItemMatchesQuery(item, query));
     if (!items || !items.length) return;
+    visibleCount += items.length;
 
     const section = document.createElement('div');
     section.className = 'pad-picker-category';
-    const collapsed = drumPickerCollapsedCategories.has(category);
+    const collapsed = query ? false : drumPickerCollapsedCategories.has(category);
     if (collapsed) section.classList.add('collapsed');
 
     const header = document.createElement('button');
@@ -6887,6 +7331,7 @@ function renderDrumLoopPicker() {
     header.className = 'pad-picker-category-header';
     header.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${collapsed ? '▸' : '▾'}</span><span>${getTranslatedLoopCategoryName(category)}</span></span><span class="pad-picker-count">${items.length}</span>`;
     header.addEventListener('click', () => {
+      if (query) return;
       const nextExpandedCategory = drumPickerCollapsedCategories.has(category) ? category : '';
       drumPickerLastOpenCategory = category;
       setDrumPickerExpandedCategory(nextExpandedCategory, categories);
@@ -6910,7 +7355,7 @@ function renderDrumLoopPicker() {
         button.type = 'button';
         button.className = `pad-picker-item${item.presetKey === drumAssignSelectedKey ? ' selected' : ''}`;
         button.innerHTML = `<span>${item.label}</span><span class="pad-picker-item-meta">${item.isBuiltin ? t('loops_builtin') : t('loops_imported')}</span>`;
-        button.addEventListener('click', () => {
+        attachPickerItemInteractions(button, item, () => {
           drumAssignSelectedKey = item.presetKey;
           updateDrumAssignTrimButton();
           renderDrumLoopPicker();
@@ -6941,7 +7386,7 @@ function renderDrumLoopPicker() {
         const subSection = document.createElement('div');
         subSection.className = 'pad-picker-subfolder';
         const subKey = `${category}::${subfolder}`;
-        const subCollapsed = drumPickerCollapsedSubfolders.has(subKey);
+        const subCollapsed = query ? false : drumPickerCollapsedSubfolders.has(subKey);
         if (subCollapsed) subSection.classList.add('collapsed');
 
         const subHeader = document.createElement('button');
@@ -6950,6 +7395,7 @@ function renderDrumLoopPicker() {
         subHeader.setAttribute('aria-expanded', subCollapsed ? 'false' : 'true');
         subHeader.innerHTML = `<span class="pad-picker-category-name"><span class="pad-picker-chevron">${subCollapsed ? '▸' : '▾'}</span><span>${subfolder}</span></span><span class="pad-picker-count">${subItems.length}</span>`;
         subHeader.addEventListener('click', () => {
+          if (query) return;
           if (drumPickerCollapsedSubfolders.has(subKey)) drumPickerCollapsedSubfolders.delete(subKey);
           else drumPickerCollapsedSubfolders.add(subKey);
           savePickerCollapsedSubfolders(DRUM_PICKER_COLLAPSED_SUBFOLDERS_KEY, drumPickerCollapsedSubfolders);
@@ -6969,6 +7415,13 @@ function renderDrumLoopPicker() {
     section.appendChild(body);
     list.appendChild(section);
   });
+
+  if (!visibleCount) {
+    const empty = document.createElement('div');
+    empty.className = 'pad-picker-empty';
+    empty.textContent = t('assign_search_no_results');
+    list.appendChild(empty);
+  }
 }
 
 function loadPadAssignments() {
@@ -7253,6 +7706,7 @@ function openDrumAssignModal(padIndex) {
   const existing = drumAssignments[padIndex];
   const overlay = document.getElementById('drumAssignOverlay');
   const title = document.getElementById('drumAssignTitle');
+  const searchInput = document.getElementById('drumPickerSearchInput');
   const displayNameInput = document.getElementById('drumDisplayNameInput');
   const volumeInput = document.getElementById('drumAssignVolume');
   const volumeReadout = document.getElementById('drumAssignVolumeReadout');
@@ -7261,6 +7715,8 @@ function openDrumAssignModal(padIndex) {
   if (title) title.textContent = `${t('drum_assign_title')} ${padIndex + 1}`;
   drumAssignSelectedKey = (existing && existing.presetKey) || '';
   drumAssignSelectedColorKey = normalizePadColorKey(existing && existing.colorKey, existing && existing.color);
+  drumPickerSearchQuery = '';
+  if (searchInput) searchInput.value = '';
   initializeDrumPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderDrumLoopPicker();
   renderDrumChokeOptions();
@@ -7277,6 +7733,7 @@ function openDrumAssignModal(padIndex) {
 function closeDrumAssignModal() {
   const overlay = document.getElementById('drumAssignOverlay');
   if (overlay) overlay.classList.add('hidden');
+  stopPickerPreview(true);
   drumAssignTarget = -1;
   try { updateScrollState(); } catch {}
 }
@@ -7390,6 +7847,231 @@ function loadDrumSessions() {
 
 function saveDrumSessions(sessions) {
   try { localStorage.setItem(DRUM_SESSIONS_KEY, JSON.stringify(sessions)); } catch {}
+}
+
+function clonePlaylistItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.filter(Boolean).map((item, index) => ({
+    itemId: item && item.itemId ? item.itemId : `project-item-${index}`,
+    presetKey: item && item.presetKey ? item.presetKey : '',
+    label: item && item.label ? item.label : 'Loop',
+    reps: Math.max(1, parseInt(item && item.reps, 10) || 1),
+    volume: normalizeAssignmentVolume(item && item.volume, 1.0)
+  }));
+}
+
+function normalizeProjectRecord(project, projectIndex = 0) {
+  const player = project && typeof project.player === 'object' ? project.player : {};
+  const playlist = player && player.playlist && typeof player.playlist === 'object'
+    ? {
+        id: player.playlist.id || '',
+        name: player.playlist.name || 'Playlist',
+        createdAt: player.playlist.createdAt || Date.now(),
+        items: clonePlaylistItems(player.playlist.items)
+      }
+    : null;
+  return {
+    id: project && project.id ? project.id : `project-${Date.now().toString(36)}-${projectIndex}`,
+    name: project && project.name ? project.name : `Project ${projectIndex + 1}`,
+    createdAt: project && project.createdAt ? project.createdAt : Date.now(),
+    player: {
+      mode: player && player.mode === 'playlist'
+        ? 'playlist'
+        : (player && player.mode === 'loop' ? 'loop' : 'none'),
+      playlist,
+      loop: player && player.loop && player.loop.presetKey
+        ? {
+            presetKey: player.loop.presetKey,
+            label: player.loop.label || player.loop.sourceLabel || 'Loop',
+            sourceLabel: player.loop.sourceLabel || player.loop.label || 'Loop'
+          }
+        : null,
+      volume: clamp(Number(player && player.volume) || volumeVal || 0.5, 0, 1),
+      rate: clamp(Number(player && player.rate) || 1.0, RATE_MIN, RATE_MAX),
+      preservePitch: !!(player && player.preservePitch),
+      playlistRepeat: !!(player && player.playlistRepeat)
+    },
+    padAssignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(project && Array.isArray(project.padAssignments) ? project.padAssignments[index] : null)),
+    drumAssignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(project && Array.isArray(project.drumAssignments) ? project.drumAssignments[index] : null))
+  };
+}
+
+function loadProjects() {
+  try {
+    const raw = localStorage.getItem(PROJECTS_KEY);
+    return JSON.parse(raw || '[]').map((project, index) => normalizeProjectRecord(project, index)).filter(project => project && project.name);
+  } catch {
+    return [];
+  }
+}
+
+function saveProjects(projects) {
+  try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects.map((project, index) => normalizeProjectRecord(project, index)))); } catch {}
+}
+
+function getProjectPlayerMode() {
+  if (playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) return 'playlist';
+  if (currentPresetKey) return 'loop';
+  return 'none';
+}
+
+function buildPlayerProjectSnapshot() {
+  const mode = getProjectPlayerMode();
+  return {
+    mode,
+    playlist: mode === 'playlist' && playerPlaylist
+      ? {
+          id: playerPlaylist.id || '',
+          name: playerPlaylist.name || 'Playlist',
+          createdAt: playerPlaylist.createdAt || Date.now(),
+          items: clonePlaylistItems(playerPlaylist.items)
+        }
+      : null,
+    loop: mode === 'loop' && currentPresetKey
+      ? {
+          presetKey: currentPresetKey,
+          label: currentSourceLabel || resolveLoopFavoriteLabelByKey(currentPresetKey, 'Loop'),
+          sourceLabel: currentSourceLabel || resolveLoopFavoriteLabelByKey(currentPresetKey, 'Loop')
+        }
+      : null,
+    volume: volumeVal,
+    rate: currentRate,
+    preservePitch: preservePitch,
+    playlistRepeat: playlistRepeat
+  };
+}
+
+function buildProjectSnapshot(name) {
+  return normalizeProjectRecord({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name,
+    createdAt: Date.now(),
+    player: buildPlayerProjectSnapshot(),
+    padAssignments: padAssignments.map(a => serializePadAssignment(a)),
+    drumAssignments: drumAssignments.map(a => serializeDrumAssignment(a))
+  });
+}
+
+function getProjectMissingReferenceCount(project) {
+  if (!project) return 0;
+  let missing = 0;
+  missing += countMissingAssignmentAudio(project.padAssignments);
+  missing += countMissingAssignmentAudio(project.drumAssignments);
+  if (project.player && project.player.mode === 'loop' && project.player.loop && !isPresetKeyAvailable(project.player.loop.presetKey)) missing += 1;
+  if (project.player && project.player.playlist && Array.isArray(project.player.playlist.items)) {
+    project.player.playlist.items.forEach((item) => {
+      if (item && item.presetKey && !isPresetKeyAvailable(item.presetKey)) missing += 1;
+    });
+  }
+  return missing;
+}
+
+function syncPlayerTransportControls() {
+  const volume = document.getElementById('volume');
+  const volumeReadout = document.getElementById('volumeReadout');
+  const repeatBtn = document.getElementById('repeat');
+  const rateJog = document.getElementById('rateJog');
+  const rateJogThumb = document.getElementById('rateJogThumb');
+  const rateReadout = document.getElementById('rateReadout');
+  const ppBtn = document.getElementById('preservePitchBtn');
+  const percent = clamp(Math.round(volumeVal * 100), 0, 100);
+  if (volume) volume.value = String(percent);
+  if (volumeReadout) volumeReadout.textContent = `${percent}%`;
+  if (repeatBtn) {
+    repeatBtn.classList.toggle('active', playlistRepeat);
+    repeatBtn.setAttribute('aria-pressed', String(playlistRepeat));
+  }
+  if (ppBtn) ppBtn.setAttribute('aria-pressed', preservePitch ? 'true' : 'false');
+  if (rateReadout) rateReadout.textContent = `${Number(currentRate).toFixed(2)}×`;
+  if (rateJog) {
+    let n = 0;
+    if (currentRate < 1) n = -Math.pow((1 - currentRate) / (1 - RATE_MIN), 1 / 1.7);
+    else if (currentRate > 1) n = Math.pow((currentRate - 1) / (RATE_MAX - 1), 1 / 1.7);
+    const track = rateJog.querySelector('.rate-jog-track');
+    const jogRect = rateJog.getBoundingClientRect();
+    const trackRect = (track ? track.getBoundingClientRect() : jogRect);
+    const thumbRect = (rateJogThumb ? rateJogThumb.getBoundingClientRect() : { width: 54 });
+    const thumbHalf = Math.max(1, (thumbRect.width || 54) / 2);
+    const localTrackLeft = trackRect.left - jogRect.left;
+    const localTrackRight = trackRect.right - jogRect.left;
+    const minCenterX = localTrackLeft + thumbHalf;
+    const maxCenterX = localTrackRight - thumbHalf;
+    const t = (clamp(n, -1, 1) + 1) / 2;
+    const cx = minCenterX + t * Math.max(0, maxCenterX - minCenterX);
+    if (rateJogThumb) {
+      rateJogThumb.style.left = `${cx}px`;
+      rateJogThumb.style.transform = 'translateX(-50%)';
+    }
+    rateJog.setAttribute('aria-valuenow', String(currentRate));
+    rateJog.setAttribute('aria-valuetext', `${Number(currentRate).toFixed(2)}x`);
+  }
+}
+
+async function applyProjectPlayerSnapshot(player) {
+  volumeVal = clamp(Number(player && player.volume) || 0.5, 0, 1);
+  playlistRepeat = !!(player && player.playlistRepeat);
+  togglePreservePitch(!!(player && player.preservePitch));
+  setPlaybackRate(player && player.rate != null ? player.rate : 1.0, { smooth: false });
+  try {
+    if (audioCtx && master) {
+      const now = audioCtx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(volumeVal, now + 0.03);
+    }
+  } catch {}
+  syncPlayerTransportControls();
+
+  const mode = player && player.mode;
+  if (mode === 'playlist' && player && player.playlist && Array.isArray(player.playlist.items) && player.playlist.items.length) {
+    setPlayerPlaylist({
+      id: player.playlist.id || '',
+      name: player.playlist.name || 'Playlist',
+      createdAt: player.playlist.createdAt || Date.now(),
+      items: clonePlaylistItems(player.playlist.items)
+    });
+    currentBuffer = null;
+    currentSourceLabel = null;
+    currentPresetKey = null;
+    currentPresetId = null;
+    currentPresetRef = null;
+    drawWaveform();
+    updateNowPlayingNameUI();
+    return;
+  }
+
+  if (mode === 'loop' && player && player.loop && player.loop.presetKey) {
+    const loaded = await loadBufferFromPresetKey(player.loop.presetKey).catch(() => null);
+    if (loaded && loaded.buffer) {
+      clearPlayerPlaylistContext();
+      currentBuffer = loaded.buffer;
+      currentSourceLabel = player.loop.sourceLabel || player.loop.label || loaded.sourceLabel || 'Loop';
+      currentPresetKey = player.loop.presetKey;
+      currentPresetId = loaded.presetId || null;
+      currentPresetRef = loaded.presetRef || null;
+      drawWaveform();
+      updateNowPlayingNameUI();
+      return;
+    }
+  }
+
+  clearPlayerPlaylistContext();
+  currentBuffer = null;
+  currentSourceLabel = null;
+  currentPresetKey = null;
+  currentPresetId = null;
+  currentPresetRef = null;
+  drawWaveform();
+  updateNowPlayingNameUI();
+}
+
+function hasCurrentProjectState() {
+  return !!(
+    currentPresetKey
+    || (playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length)
+    || padAssignments.some(Boolean)
+    || drumAssignments.some(Boolean)
+  );
 }
 
 function formatPadDisplayText(label) {
@@ -7695,6 +8377,7 @@ function openPadAssignModal(padIndex) {
 
   const overlay = document.getElementById('padAssignOverlay');
   const title = document.getElementById('padAssignTitle');
+  const searchInput = document.getElementById('padPickerSearchInput');
    const displayNameInput = document.getElementById('padDisplayNameInput');
   const rateInput = document.getElementById('padRateInput');
   const volumeInput = document.getElementById('padAssignVolume');
@@ -7708,6 +8391,8 @@ function openPadAssignModal(padIndex) {
   if (title) title.textContent = `Assign Pad ${padIndex + 1}`;
 
   padAssignSelectedKey = (existing && existing.presetKey) || '';
+  padPickerSearchQuery = '';
+  if (searchInput) searchInput.value = '';
   initializePadPickerView(Object.keys(getPadLoopChoicesByCategory()).sort((a, b) => a.localeCompare(b)));
   renderPadLoopPicker();
 
@@ -7736,6 +8421,7 @@ function openPadAssignModal(padIndex) {
 function closePadAssignModal() {
   const overlay = document.getElementById('padAssignOverlay');
   if (overlay) overlay.classList.add('hidden');
+  stopPickerPreview(true);
   padAssignTarget = -1;
   try { updateScrollState(); } catch {}
 }
@@ -7892,6 +8578,194 @@ let pendingRecallSession = null;
 let pendingDeletePadSession = null;
 let pendingRecallDrumSession = null;
 let pendingDeleteDrumSession = null;
+let pendingRecallProject = null;
+let pendingDeleteProject = null;
+
+function openProjectSaveModal() {
+  const overlay = document.getElementById('projectSaveOverlay');
+  const input = document.getElementById('projectNameInput');
+  if (!overlay) return;
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const suggestion = `Project ${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  if (input) input.value = suggestion;
+  overlay.classList.remove('hidden');
+  if (input) { input.focus(); input.select(); }
+  try { updateScrollState(); } catch {}
+}
+
+function closeProjectSaveModal() {
+  const overlay = document.getElementById('projectSaveOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function confirmSaveProject() {
+  const input = document.getElementById('projectNameInput');
+  const name = (input && input.value || '').trim();
+  if (!name) { setStatus('Enter a project name.'); return; }
+  const projects = loadProjects();
+  projects.push(buildProjectSnapshot(name));
+  saveProjects(projects);
+  closeProjectSaveModal();
+  setStatus(tf('status_project_saved', { name }));
+  if (activeTab === 'playlists') renderProjectsList();
+}
+
+function getProjectModeLabel(project) {
+  const mode = project && project.player && project.player.mode;
+  if (mode === 'playlist') return t('project_player_mode_playlist');
+  if (mode === 'loop') return t('project_player_mode_loop');
+  return t('project_player_mode_none');
+}
+
+function renderProjectsList() {
+  const listEl = document.getElementById('projectsList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const projects = loadProjects();
+  if (!projects.length) {
+    const li = document.createElement('li');
+    li.className = 'playlist-empty';
+    const div = document.createElement('div');
+    div.className = 'hint';
+    div.textContent = t('projects_no_projects');
+    li.appendChild(div);
+    listEl.appendChild(li);
+    return;
+  }
+
+  projects.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  projects.forEach((project) => {
+    const li = document.createElement('li');
+    li.className = 'playlist-list-row';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'playlist-list-item';
+
+    const mainSpan = document.createElement('span');
+    mainSpan.className = 'pl-item-main';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pl-item-name';
+    nameSpan.textContent = project.name || 'Project';
+
+    const detailSpan = document.createElement('span');
+    detailSpan.className = 'pl-item-duration';
+    const padCount = (project.padAssignments || []).filter(Boolean).length;
+    const drumCount = (project.drumAssignments || []).filter(Boolean).length;
+    detailSpan.textContent = `${getProjectModeLabel(project)} · ${padCount}P · ${drumCount}D`;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'pl-item-chevron';
+    chevron.textContent = '›';
+
+    mainSpan.appendChild(nameSpan);
+    mainSpan.appendChild(detailSpan);
+    btn.appendChild(mainSpan);
+    btn.appendChild(chevron);
+    btn.addEventListener('click', () => confirmRecallProject(project));
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'playlist-list-play';
+    delBtn.setAttribute('aria-label', `Delete: ${project.name || 'Project'}`);
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmDeleteProject(project);
+    });
+
+    li.appendChild(btn);
+    li.appendChild(delBtn);
+    listEl.appendChild(li);
+  });
+}
+
+function confirmRecallProject(project) {
+  if (!project) return;
+  if (hasCurrentProjectState()) {
+    pendingRecallProject = project;
+    const overlay = document.getElementById('projectRecallOverlay');
+    const text = document.getElementById('projectRecallText');
+    if (text) text.textContent = `Replace the current working setup with "${project.name}"?`;
+    if (overlay) overlay.classList.remove('hidden');
+    try { updateScrollState(); } catch {}
+    return;
+  }
+  void recallProject(project);
+}
+
+function closeProjectRecallModal() {
+  const overlay = document.getElementById('projectRecallOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  pendingRecallProject = null;
+  try { updateScrollState(); } catch {}
+}
+
+function confirmDeleteProject(project) {
+  if (!project) return;
+  pendingDeleteProject = project;
+  const overlay = document.getElementById('projectDeleteOverlay');
+  const text = document.getElementById('projectDeleteText');
+  if (text) text.textContent = `Delete project "${project.name}"?`;
+  if (overlay) overlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+}
+
+function closeProjectDeleteModal() {
+  const overlay = document.getElementById('projectDeleteOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  pendingDeleteProject = null;
+  try { updateScrollState(); } catch {}
+}
+
+function confirmDeletePendingProject() {
+  const project = pendingDeleteProject;
+  closeProjectDeleteModal();
+  if (!project || !project.id) return;
+  const projects = loadProjects().filter(entry => entry && entry.id !== project.id);
+  saveProjects(projects);
+  renderProjectsList();
+  setStatus(tf('status_project_deleted', { name: project.name || 'Project' }));
+}
+
+async function applyProjectSnapshot(project) {
+  if (!project) return;
+  activePlaylist = null;
+  activePlaylistId = null;
+  detailPlaylistId = null;
+  detailEditMode = false;
+  for (let i = 0; i < PAD_COUNT; i++) {
+    padAssignments[i] = normalizePadAssignment(project.padAssignments[i]);
+    drumAssignments[i] = normalizeDrumAssignment(project.drumAssignments[i]);
+  }
+  savePadAssignments();
+  saveDrumAssignments();
+  try { warmAssignedPadBuffers(); } catch {}
+  try { warmAssignedDrumBuffers(); } catch {}
+  await applyProjectPlayerSnapshot(project.player);
+  renderPadGrid();
+  renderDrumGrid();
+  switchTab('player');
+  const missingCount = getProjectMissingReferenceCount(project);
+  setStatus(missingCount
+    ? tf('status_project_loaded_warning', { name: project.name || 'Project', count: missingCount })
+    : tf('status_project_loaded', { name: project.name || 'Project' }));
+}
+
+async function recallProject(project) {
+  if (!project) return;
+  try { stopPlaylistPlayback(); } catch {}
+  try { stopLoop(0.03); } catch {}
+  await stopPadPlaybackAndWait(0.02);
+  await stopDrumPlaybackAndWait(true);
+  await wait(80);
+  await applyProjectSnapshot(normalizeProjectRecord(project));
+}
 
 function confirmRecallPadSession(session) {
   const hasAssignments = padAssignments.some(Boolean);
@@ -7903,7 +8777,7 @@ function confirmRecallPadSession(session) {
     if (overlay) overlay.classList.remove('hidden');
     try { updateScrollState(); } catch {}
   } else {
-    applyPadSession(session);
+    void recallPadSession(session);
   }
 }
 
@@ -7950,6 +8824,12 @@ function applyPadSession(session) {
     : `Session "${session.name}" loaded.`);
   // Switch to player to see the pads
   switchTab('player');
+}
+
+async function recallPadSession(session) {
+  if (!session) return;
+  await stopPadPlaybackAndWait(0.02);
+  applyPadSession(session);
 }
 
 function openDrumSessionSaveModal() {
@@ -8066,7 +8946,7 @@ function confirmRecallDrumSession(session) {
     if (overlay) overlay.classList.remove('hidden');
     try { updateScrollState(); } catch {}
   } else {
-    applyDrumSession(session);
+    void recallDrumSession(session);
   }
 }
 
@@ -8112,6 +8992,12 @@ function applyDrumSession(session) {
     ? tf('status_session_loaded_missing_audio', { name: session.name, count: missingCount })
     : `Session "${session.name}" loaded.`);
   switchTab('player');
+}
+
+async function recallDrumSession(session) {
+  if (!session) return;
+  await stopDrumPlaybackAndWait(true);
+  applyDrumSession(session);
 }
 
 function bindPadsUI() {
@@ -8240,6 +9126,14 @@ function bindPadsUI() {
     });
   }
 
+  const padPickerSearchInput = document.getElementById('padPickerSearchInput');
+  if (padPickerSearchInput) {
+    padPickerSearchInput.addEventListener('input', () => {
+      padPickerSearchQuery = padPickerSearchInput.value || '';
+      renderPadLoopPicker();
+    });
+  }
+
   // Assign modal buttons
   const saveBtn = document.getElementById('padAssignSave');
   const trimBtn = document.getElementById('padAssignTrim');
@@ -8264,12 +9158,13 @@ function bindPadsUI() {
   // Recall confirmations
   const recallConfirm = document.getElementById('padSessionRecallConfirm');
   const recallCancel = document.getElementById('padSessionRecallCancel');
-  if (recallConfirm) recallConfirm.addEventListener('click', () => {
+  if (recallConfirm) recallConfirm.addEventListener('click', async () => {
     const overlay = document.getElementById('padSessionRecallOverlay');
     if (overlay) overlay.classList.add('hidden');
-    if (pendingRecallSession) applyPadSession(pendingRecallSession);
+    const session = pendingRecallSession;
     pendingRecallSession = null;
     try { updateScrollState(); } catch {}
+    if (session) await recallPadSession(session);
   });
   if (recallCancel) recallCancel.addEventListener('click', () => {
     const overlay = document.getElementById('padSessionRecallOverlay');
@@ -8332,6 +9227,14 @@ function bindDrumMachineUI() {
     });
   }
 
+  const drumPickerSearchInput = document.getElementById('drumPickerSearchInput');
+  if (drumPickerSearchInput) {
+    drumPickerSearchInput.addEventListener('input', () => {
+      drumPickerSearchQuery = drumPickerSearchInput.value || '';
+      renderDrumLoopPicker();
+    });
+  }
+
   const drumAssignSave = document.getElementById('drumAssignSave');
   const drumAssignTrim = document.getElementById('drumAssignTrim');
   const drumAssignClear = document.getElementById('drumAssignClear');
@@ -8352,12 +9255,13 @@ function bindDrumMachineUI() {
   if (drumEditModeBtn) drumEditModeBtn.addEventListener('click', () => setDrumEditMode(!drumEditMode));
   if (drumSessConfirm) drumSessConfirm.addEventListener('click', confirmSaveDrumSession);
   if (drumSessCancel) drumSessCancel.addEventListener('click', closeDrumSessionSaveModal);
-  if (drumRecallConfirm) drumRecallConfirm.addEventListener('click', () => {
+  if (drumRecallConfirm) drumRecallConfirm.addEventListener('click', async () => {
     const overlay = document.getElementById('drumSessionRecallOverlay');
     if (overlay) overlay.classList.add('hidden');
-    if (pendingRecallDrumSession) applyDrumSession(pendingRecallDrumSession);
+    const session = pendingRecallDrumSession;
     pendingRecallDrumSession = null;
     try { updateScrollState(); } catch {}
+    if (session) await recallDrumSession(session);
   });
   if (drumRecallCancel) drumRecallCancel.addEventListener('click', () => {
     const overlay = document.getElementById('drumSessionRecallOverlay');
@@ -8396,9 +9300,16 @@ function bindUI() {
   const playlistClose = document.getElementById('playlistClose');
 
   const newPlaylistFromPage = document.getElementById('newPlaylistFromPage');
+  const saveProjectBtn = document.getElementById('saveProjectBtn');
   const playlistDeleteOverlay = document.getElementById('playlistDeleteOverlay');
   const confirmDeletePlaylist = document.getElementById('confirmDeletePlaylist');
   const cancelDeletePlaylist = document.getElementById('cancelDeletePlaylist');
+  const projectSaveConfirm = document.getElementById('projectSaveConfirm');
+  const projectSaveCancel = document.getElementById('projectSaveCancel');
+  const projectRecallConfirm = document.getElementById('projectRecallConfirm');
+  const projectRecallCancel = document.getElementById('projectRecallCancel');
+  const projectDeleteConfirm = document.getElementById('projectDeleteConfirm');
+  const projectDeleteCancel = document.getElementById('projectDeleteCancel');
 
   // Detail page buttons
   const detailBack = document.getElementById('detailBack');
@@ -8848,6 +9759,15 @@ function bindUI() {
       case 'drumSessionDeleteOverlay':
         closeDrumSessionDeleteModal();
         break;
+      case 'projectSaveOverlay':
+        closeProjectSaveModal();
+        break;
+      case 'projectRecallOverlay':
+        closeProjectRecallModal();
+        break;
+      case 'projectDeleteOverlay':
+        closeProjectDeleteModal();
+        break;
       case 'trimSaveOverlay':
       case 'helpOverlay':
         el.classList.add('hidden');
@@ -9124,7 +10044,10 @@ function bindUI() {
     document.getElementById('padSessionDeleteOverlay'),
     document.getElementById('drumSessionSaveOverlay'),
     document.getElementById('drumSessionRecallOverlay'),
-    document.getElementById('drumSessionDeleteOverlay')
+    document.getElementById('drumSessionDeleteOverlay'),
+    document.getElementById('projectSaveOverlay'),
+    document.getElementById('projectRecallOverlay'),
+    document.getElementById('projectDeleteOverlay')
   ].forEach(bindOverlayDismiss);
 
   if (!document.body.dataset.overlayEscapeBound) {
@@ -9141,6 +10064,17 @@ function bindUI() {
   newPlaylistFromPage && newPlaylistFromPage.addEventListener('click', () => {
     if (openPlaylistCreateOverlay) openPlaylistCreateOverlay();
   });
+  saveProjectBtn && saveProjectBtn.addEventListener('click', openProjectSaveModal);
+  projectSaveConfirm && projectSaveConfirm.addEventListener('click', confirmSaveProject);
+  projectSaveCancel && projectSaveCancel.addEventListener('click', closeProjectSaveModal);
+  projectRecallConfirm && projectRecallConfirm.addEventListener('click', async () => {
+    const project = pendingRecallProject;
+    closeProjectRecallModal();
+    if (project) await recallProject(project);
+  });
+  projectRecallCancel && projectRecallCancel.addEventListener('click', closeProjectRecallModal);
+  projectDeleteConfirm && projectDeleteConfirm.addEventListener('click', confirmDeletePendingProject);
+  projectDeleteCancel && projectDeleteCancel.addEventListener('click', closeProjectDeleteModal);
 
   closePlaylistOverlay && closePlaylistOverlay.addEventListener('click', closePlaylist);
   playlistClose && playlistClose.addEventListener('click', closePlaylist);
@@ -9285,16 +10219,9 @@ function bindUI() {
       currentSourceLabel = f.name || 'File';
       currentPresetKey = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
-      try {
-        const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
-        addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
-        refreshLoopsPageSoon();
-      } catch {
-        try {
-          addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
-          refreshLoopsPageSoon();
-        } catch {}
-      }
+      const stored = await storeUserPresetBlob({ name: f.name || 'File', blob: f });
+      refreshLoopsPageSoon();
+      if (stored.warningText) setStatus(stored.warningText);
     } catch (err) {
       // Fallback for some iOS exports: decode via object URL -> fetch -> arrayBuffer
       try {
@@ -9308,16 +10235,9 @@ function bindUI() {
         currentSourceLabel = f.name || 'File';
         currentPresetKey = null;
         await startLoopFromBuffer(buf2, 0.5, 0.03);
-        try {
-          const saved = await savePersistedUpload({ name: f.name || 'File', blob: f });
-          addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved });
-          refreshLoopsPageSoon();
-        } catch {
-          try {
-            addUserPresetFromBlob({ name: f.name || 'File', blob: f, saved: null });
-            refreshLoopsPageSoon();
-          } catch {}
-        }
+        const stored = await storeUserPresetBlob({ name: f.name || 'File', blob: f });
+        refreshLoopsPageSoon();
+        if (stored.warningText) setStatus(stored.warningText);
       } catch {
         setStatus('Decode failed. Try a different file or open in Safari for import.');
       }
@@ -9341,16 +10261,9 @@ function bindUI() {
               currentSourceLabel = `Clipboard ${type}`;
               currentPresetKey = null;
               await startLoopFromBuffer(buf, 0.5, 0.03);
-              try {
-                const saved = await savePersistedUpload({ name: `Clipboard ${type}`, blob });
-                addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved });
-                refreshLoopsPageSoon();
-              } catch {
-                try {
-                  addUserPresetFromBlob({ name: `Clipboard ${type}`, blob, saved: null });
-                  refreshLoopsPageSoon();
-                } catch {}
-              }
+              const stored = await storeUserPresetBlob({ name: `Clipboard ${type}`, blob });
+              refreshLoopsPageSoon();
+              if (stored.warningText) setStatus(stored.warningText);
               return;
             }
           }
@@ -9394,16 +10307,9 @@ function bindUI() {
       currentSourceLabel = f.name || 'Pasted File';
       currentPresetKey = null;
       await startLoopFromBuffer(buf, 0.5, 0.03);
-      try {
-        const saved = await savePersistedUpload({ name: f.name || 'Pasted File', blob: f });
-        addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved });
-        refreshLoopsPageSoon();
-      } catch {
-        try {
-          addUserPresetFromBlob({ name: f.name || 'Pasted File', blob: f, saved: null });
-          refreshLoopsPageSoon();
-        } catch {}
-      }
+      const stored = await storeUserPresetBlob({ name: f.name || 'Pasted File', blob: f });
+      refreshLoopsPageSoon();
+      if (stored.warningText) setStatus(stored.warningText);
     } catch (err) {
       setStatus('Decode failed.');
     }
@@ -9469,16 +10375,9 @@ function bindUI() {
         currentSourceLabel = f.name || 'Dropped File';
         currentPresetKey = null;
         await startLoopFromBuffer(buf, 0.5, 0.03);
-        try {
-          const saved = await savePersistedUpload({ name: f.name || 'Dropped File', blob: f });
-          addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved });
-          refreshLoopsPageSoon();
-        } catch {
-          try {
-            addUserPresetFromBlob({ name: f.name || 'Dropped File', blob: f, saved: null });
-            refreshLoopsPageSoon();
-          } catch {}
-        }
+        const stored = await storeUserPresetBlob({ name: f.name || 'Dropped File', blob: f });
+        refreshLoopsPageSoon();
+        if (stored.warningText) setStatus(stored.warningText);
       } catch (err) {
         setStatus('Decode failed.');
       }

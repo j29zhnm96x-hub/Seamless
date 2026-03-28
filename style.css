@@ -1530,6 +1530,7 @@ html.theme-light .pad-loop-name{
 .pad-assign-card{max-height:min(88vh,680px);overflow:auto}
 .pad-assign-section{margin-bottom:12px}
 .pad-assign-label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.pad-picker-search-input{margin-bottom:10px}
 .pad-picker-list{display:grid;gap:10px;max-height:260px;overflow:auto;padding-right:2px}
 .pad-picker-category{border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.02);overflow:hidden}
 .pad-picker-category-header{
@@ -1557,7 +1558,9 @@ html.theme-light .pad-loop-name{
 }
 .pad-picker-item:hover{background:var(--surface)}
 .pad-picker-item.selected{background:var(--accent-soft);border-color:var(--accent-mid)}
+.pad-picker-item.previewing{background:var(--accent-soft);border-color:var(--accent-mid)}
 .pad-picker-item-meta{color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+.pad-picker-empty{padding:12px;border:1px dashed var(--border-2);border-radius:8px;color:var(--text-2);text-align:center}
 .pad-rate-row{display:flex;align-items:center;gap:12px}
 .pad-rate-input{width:100%;max-width:120px;text-align:center;font-size:14px;font-weight:700}
 .pad-volume-row{display:flex;align-items:center;gap:12px}

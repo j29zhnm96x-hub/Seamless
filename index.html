@@ -173,6 +173,12 @@
         <ul id="playlistsList" class="playlist-list" aria-label="Saved playlists"></ul>
 
         <div class="page-header pads-sessions-header">
+          <h2 id="projectsTitle">Projects</h2>
+          <button id="saveProjectBtn" class="btn-sm" aria-label="Save current project">Save</button>
+        </div>
+        <ul id="projectsList" class="playlist-list" aria-label="Saved projects"></ul>
+
+        <div class="page-header pads-sessions-header">
           <h2>Pads Sessions</h2>
         </div>
         <ul id="padsSessionsList" class="playlist-list" aria-label="Saved pads sessions"></ul>
@@ -457,15 +463,17 @@
     <div class="overlay-card pad-assign-card">
       <h2 id="padAssignTitle">Assign Pad</h2>
       <div class="pad-assign-section">
-        <label class="pad-assign-label">Loop</label>
+        <label id="padLoopLabel" class="pad-assign-label">Loop</label>
+        <label id="padPickerSearchLabel" class="pad-assign-label" for="padPickerSearchInput">Search</label>
+        <input id="padPickerSearchInput" class="text-input pad-picker-search-input" type="text" autocomplete="off" placeholder="Search samples and loops" />
         <div id="padLoopPickerList" class="pad-picker-list" aria-label="Available loops"></div>
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label" for="padDisplayNameInput">Display Name</label>
+        <label id="padDisplayNameLabel" class="pad-assign-label" for="padDisplayNameInput">Display Name</label>
         <input id="padDisplayNameInput" class="text-input" type="text" autocomplete="off" placeholder="Custom name (optional)" maxlength="50" />
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label" for="padRateInput">Rate</label>
+        <label id="padRateLabel" class="pad-assign-label" for="padRateInput">Rate</label>
         <div class="pad-rate-row">
           <input id="padRateInput" class="text-input pad-rate-input" type="text" inputmode="decimal" autocomplete="off" value="1.00" />
           <div class="pad-assign-toggles">
@@ -492,7 +500,7 @@
         </div>
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label">Color</label>
+        <label id="padColorLabel" class="pad-assign-label">Color</label>
         <div id="padColorPalette" class="pad-color-palette" aria-label="Color palette">
           <button type="button" class="pad-color-swatch pad-swatch-blue" data-color-key="blue" aria-label="Blue"></button>
           <button type="button" class="pad-color-swatch pad-swatch-red" data-color-key="red" aria-label="Red"></button>
@@ -518,11 +526,13 @@
     <div class="overlay-card pad-assign-card">
       <h2 id="drumAssignTitle">Assign Drum Pad</h2>
       <div class="pad-assign-section">
-        <label class="pad-assign-label">Loop</label>
+        <label id="drumLoopLabel" class="pad-assign-label">Loop</label>
+        <label id="drumPickerSearchLabel" class="pad-assign-label" for="drumPickerSearchInput">Search</label>
+        <input id="drumPickerSearchInput" class="text-input pad-picker-search-input" type="text" autocomplete="off" placeholder="Search samples and loops" />
         <div id="drumLoopPickerList" class="pad-picker-list" aria-label="Available loops"></div>
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label" for="drumDisplayNameInput">Display Name</label>
+        <label id="drumDisplayNameLabel" class="pad-assign-label" for="drumDisplayNameInput">Display Name</label>
         <input id="drumDisplayNameInput" class="text-input" type="text" autocomplete="off" placeholder="Custom name (optional)" maxlength="50" />
       </div>
       <div class="pad-assign-section">
@@ -533,7 +543,7 @@
         </div>
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label">Color</label>
+        <label id="drumColorLabel" class="pad-assign-label">Color</label>
         <div id="drumColorPalette" class="pad-color-palette" aria-label="Color palette">
           <button type="button" class="pad-color-swatch pad-swatch-blue" data-color-key="blue" aria-label="Blue"></button>
           <button type="button" class="pad-color-swatch pad-swatch-red" data-color-key="red" aria-label="Red"></button>
@@ -547,7 +557,7 @@
         </div>
       </div>
       <div class="pad-assign-section">
-        <label class="pad-assign-label" for="drumChokeSelect">Link / Choke</label>
+        <label id="drumChokeLabel" class="pad-assign-label" for="drumChokeSelect">Link / Choke</label>
         <select id="drumChokeSelect" class="text-input" aria-label="Linked drum pad"></select>
       </div>
       <div class="overlay-actions">
@@ -630,6 +640,42 @@
       <div class="overlay-actions">
         <button id="drumSessionDeleteConfirm" type="button" class="danger" aria-label="Confirm delete session">Delete</button>
         <button id="drumSessionDeleteCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="projectSaveOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Save project">
+    <div class="overlay-card">
+      <h2 id="projectSaveTitle">Save Project</h2>
+      <div class="row">
+        <label id="projectNameLabel" for="projectNameInput">Project name</label>
+        <input id="projectNameInput" class="text-input" type="text" autocomplete="off" placeholder="My project" />
+      </div>
+      <div class="overlay-actions">
+        <button id="projectSaveConfirm" type="button" aria-label="Save project">Save</button>
+        <button id="projectSaveCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="projectRecallOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Load project">
+    <div class="overlay-card">
+      <h2 id="projectRecallTitle">Load Project</h2>
+      <p class="hint" id="projectRecallText">Replace the current working setup with this project?</p>
+      <div class="overlay-actions">
+        <button id="projectRecallConfirm" type="button" aria-label="Confirm load project">Load</button>
+        <button id="projectRecallCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="projectDeleteOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Delete project">
+    <div class="overlay-card">
+      <h2 id="projectDeleteTitle">Delete Project</h2>
+      <p class="hint" id="projectDeleteText">Delete this project?</p>
+      <div class="overlay-actions">
+        <button id="projectDeleteConfirm" type="button" class="danger" aria-label="Confirm delete project">Delete</button>
+        <button id="projectDeleteCancel" type="button" class="secondary" aria-label="Cancel">Cancel</button>
       </div>
     </div>
   </div>
