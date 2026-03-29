@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   
   <title>SeamlessPlayer</title>
   <link rel="stylesheet" href="style.css" />
@@ -137,6 +137,10 @@
               <button type="button" class="pad" data-pad="8" aria-label="Pad 8 - Empty"><span class="pad-num">8</span></button>
               <button type="button" class="pad" data-pad="9" aria-label="Pad 9 - Empty"><span class="pad-num">9</span></button>
             </div>
+            <div class="pad-live-bar">
+              <p id="padLiveState" class="pad-live-text" aria-live="polite">No Loop Trigger pad is playing.</p>
+              <button id="padLiveAction" type="button" class="btn-ghost btn-sm pad-live-action hidden" aria-label="Finish Loop">Finish Loop</button>
+            </div>
           </div>
         </div>
 
@@ -161,6 +165,30 @@
               <button type="button" class="pad drum-pad" data-drum-pad="8" aria-label="Drum pad 8 - Empty"><span class="pad-num">8</span></button>
               <button type="button" class="pad drum-pad" data-drum-pad="9" aria-label="Drum pad 9 - Empty"><span class="pad-num">9</span></button>
             </div>
+            <div class="pad-live-bar drum-live-bar">
+              <p id="drumLiveState" class="pad-live-text" aria-live="polite">No Drum Machine pad is active.</p>
+              <button id="drumLiveAction" type="button" class="btn-ghost btn-sm pad-live-action hidden" aria-label="Stop Voices">Stop Voices</button>
+            </div>
+            <section class="drum-sequencer" aria-label="Pattern sequencer">
+              <div class="drum-sequencer-top">
+                <div>
+                  <p id="drumSequencerTitle" class="drum-sequencer-title">Pattern Sequencer</p>
+                  <p id="drumSequencerHint" class="drum-sequencer-hint">Build a 16-step pattern from the current Drum Machine pads.</p>
+                </div>
+                <div class="drum-sequencer-actions">
+                  <button id="drumSequencerToggle" type="button" class="btn-sm" aria-pressed="false" aria-label="Start Pattern">Start Pattern</button>
+                  <button id="drumSequencerClear" type="button" class="btn-ghost btn-sm" aria-label="Clear Pattern">Clear Pattern</button>
+                </div>
+              </div>
+              <div class="drum-sequencer-bpm-row">
+                <label id="drumSequencerBpmLabel" class="drum-sequencer-bpm-label" for="drumSequencerBpm">Tempo</label>
+                <div class="drum-sequencer-bpm-wrap">
+                  <input id="drumSequencerBpm" type="range" min="60" max="180" value="120" aria-label="Tempo" />
+                  <span id="drumSequencerBpmReadout" class="pad-volume-readout">120 BPM</span>
+                </div>
+              </div>
+              <div id="drumSequencerGrid" class="drum-sequencer-grid" aria-label="Drum sequencer grid"></div>
+            </section>
           </div>
         </div>
       </section>
@@ -442,8 +470,13 @@
 
   <div id="loopPickerOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Choose loop">
     <div class="overlay-card">
-      <h2>Choose Loop</h2>
+      <h2 id="loopPickerTitle">Choose Loop</h2>
+      <div class="loops-search-wrap">
+        <input id="loopPickerSearchInput" type="search" class="text-input loops-search" placeholder="Search loops for this playlist…" aria-label="Search loops for this playlist" />
+        <button id="loopPickerSearchClear" type="button" class="loops-search-clear hidden" aria-label="Clear search">X</button>
+      </div>
       <div id="loopPickerList" class="picker-list" aria-label="Available loops"></div>
+      <p id="loopPickerEmpty" class="picker-empty hidden">No loops match your search.</p>
       <div class="overlay-actions">
         <button id="closeLoopPicker" class="secondary">Close</button>
       </div>
@@ -452,10 +485,10 @@
 
   <div id="detailLoopRepsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Choose repetitions">
     <div class="overlay-card">
-      <h2>Add Loop</h2>
+      <h2 id="detailLoopRepsTitle">Add Loop</h2>
       <p class="hint" id="detailLoopRepsText">How many repetitions should this loop use?</p>
       <div class="row">
-        <label for="detailLoopRepsInput">Reps</label>
+        <label id="detailLoopRepsLabel" for="detailLoopRepsInput">Reps</label>
         <input id="detailLoopRepsInput" class="text-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="1" />
       </div>
       <div class="overlay-actions">
@@ -537,6 +570,7 @@
         <button id="padAssignTrim" type="button" class="secondary" aria-label="Trim selected loop">Trim</button>
         <button id="padAssignCopy" type="button" class="secondary" aria-label="Copy pad assignment">Copy</button>
         <button id="padAssignPaste" type="button" class="secondary" aria-label="Paste pad assignment">Paste</button>
+        <button id="padAssignSavePrev" type="button" class="secondary" aria-label="Save pad assignment and edit the previous pad">Save + Prev</button>
         <button id="padAssignSave" type="button" aria-label="Save pad assignment">Save</button>
         <button id="padAssignSaveNext" type="button" class="secondary" aria-label="Save pad assignment and edit the next pad">Save + Next</button>
         <button id="padAssignClear" type="button" class="btn-danger-text" aria-label="Clear pad assignment">Clear</button>
@@ -582,11 +616,13 @@
       <div class="pad-assign-section">
         <label id="drumChokeLabel" class="pad-assign-label" for="drumChokeSelect">Link / Choke</label>
         <select id="drumChokeSelect" class="text-input" aria-label="Linked drum pad"></select>
+        <p id="drumChokeSummary" class="pad-assign-note" aria-live="polite">This pad will not choke another pad.</p>
       </div>
       <div class="overlay-actions">
         <button id="drumAssignTrim" type="button" class="secondary" aria-label="Trim selected loop">Trim</button>
         <button id="drumAssignCopy" type="button" class="secondary" aria-label="Copy drum pad assignment">Copy</button>
         <button id="drumAssignPaste" type="button" class="secondary" aria-label="Paste drum pad assignment">Paste</button>
+        <button id="drumAssignSavePrev" type="button" class="secondary" aria-label="Save drum pad assignment and edit the previous pad">Save + Prev</button>
         <button id="drumAssignSave" type="button" aria-label="Save drum pad assignment">Save</button>
         <button id="drumAssignSaveNext" type="button" class="secondary" aria-label="Save drum pad assignment and edit the next pad">Save + Next</button>
         <button id="drumAssignClear" type="button" class="btn-danger-text" aria-label="Clear drum pad assignment">Clear</button>

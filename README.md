@@ -42,6 +42,15 @@ Open http://localhost:5173 in your browser.
 - Use the Playlists tab to save a Project when you want to reopen the current player, Loop Trigger, and Drum Machine setup together.
 - Use the share action on saved playlists, sessions, or projects to export just that item and its required audio for another device or user.
 - Use the import icon in each Playlists-page section header to import the matching shared package type without going through the full app restore flow.
+- In playlist detail view, use Play From Here on any row to start playback from that point in the sequence.
+- While editing a playlist, use Duplicate and Move Up/Move Down for touch-friendly sequence changes when drag reordering is not convenient.
+- The playlist loop picker now includes search, and going back from the repetitions prompt keeps your current search context.
+- Loop Trigger now shows a live status strip for the current pad state, including queued-next and final-cycle states, plus a quick finish or stop action.
+- Pad and Drum Machine assignment popups now support Save + Prev as well as Save + Next for faster two-way setup across all 9 pads.
+- Drum Machine now shows a live status strip for the latest hit and active voice count, with a quick stop-all action when layered voices are still playing.
+- Drum pad assignment now shows a choke summary under Link / Choke so it is clearer which other pad will be stopped when the selected drum is triggered.
+- Drum Machine pads now show choke badges on the grid itself, so you can see which pads stop another pad and which pads are targets of those choke links without opening the editor.
+- While editing Link / Choke, the drum grid now previews the currently selected choke source and target before you save the assignment.
 - In Loop Trigger and Drum Machine assignment popups, use Save + Next to move through pads faster while keeping your current library search context.
 - Use Copy and Paste inside Loop Trigger and Drum Machine assignment popups to duplicate assignment settings across pads without rebuilding them from scratch.
 - When you open the Trimmer from a pad or drum assignment popup, saving the trim now returns you to that same assignment flow with the trimmed sound selected.

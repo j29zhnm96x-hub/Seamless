@@ -11,7 +11,7 @@ let soundTouchNodeCtor = null;
 let soundTouchWorkletReady = false;
 let soundTouchWorkletFailed = false;
 let soundTouchWorkletRegistrationPromise = null;
-const BACKUP_VERSION = 4;
+const BACKUP_VERSION = 5;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -256,11 +256,25 @@ const I18N = {
     playlist_create_btn: 'Create',
     common_close: 'Close',
     common_cancel: 'Cancel',
+    common_done: 'Done',
     common_share: 'Share',
     common_export_package: 'Export Package',
     playlist_add: 'Add',
     playlist_play: 'Play',
     playlist_delete: 'Delete',
+    playlist_picker_title: 'Choose Loop',
+    playlist_picker_search_placeholder: 'Search loops for this playlist…',
+    playlist_picker_empty: 'No loops match your search.',
+    playlist_detail_add_title: 'Add Loop',
+    playlist_detail_reps_label: 'Reps',
+    playlist_detail_reps_prompt: 'How many repetitions should {name} use?',
+    playlist_detail_empty: 'No loops in this playlist.',
+    playlist_detail_empty_edit: 'Tap + Add Loop below to add loops.',
+    playlist_detail_play_from_here: 'Play From Here',
+    playlist_detail_duplicate: 'Duplicate',
+    playlist_detail_move_up: 'Move Up',
+    playlist_detail_move_down: 'Move Down',
+    status_playlist_item_duplicated: 'Duplicated "{name}".',
     item_export_title: 'Export Saved Item',
     item_export_text: 'Export "{name}" as a standalone package with the audio it uses?',
     item_export_hint_playlist: 'Playlist package',
@@ -294,10 +308,21 @@ const I18N = {
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Only imported or edited loops can be trimmed',
     pads_assign_save: 'Save',
+    pads_assign_save_prev: 'Save + Prev',
     pads_assign_save_next: 'Save + Next',
     pads_assign_clear: 'Clear',
+    pads_live_idle: 'No Loop Trigger pad is playing.',
+    pads_live_playing: 'Pad {index} is playing: {name}.',
+    pads_live_finishing: 'Pad {index} is finishing its last cycle: {name}.',
+    pads_live_queued: 'Pad {currentIndex} is finishing: {current}. Pad {nextIndex} is queued next: {next}.',
+    pads_live_queued_final: 'Pad {currentIndex} is finishing: {current}. Pad {nextIndex} is queued as a final one-shot: {next}.',
+    pads_live_finish_button: 'Finish Loop',
+    pads_live_stop_now: 'Stop Now',
+    pads_grid_preview_badge: 'DRAFT',
+    pads_grid_one_shot_badge: '1X',
     status_pad_assignment_copied: 'Pad {index} copied.',
     status_pad_assignment_pasted: 'Clipboard pasted into Pad {index}.',
+    status_pad_assignment_prev: 'Pad {from} saved. Editing Pad {to}.',
     status_pad_assignment_next: 'Pad {from} saved. Editing Pad {to}.',
     pads_session_save_title: 'Save Pads Session',
     pads_session_name_label: 'Session name',
@@ -317,11 +342,39 @@ const I18N = {
     drum_color_label: 'Color',
     drum_choke_label: 'Link / Choke',
     drum_choke_none: 'None',
+    drum_choke_summary_none: 'This pad will not choke another pad.',
+    drum_choke_summary_target: 'When triggered, this pad will immediately stop {target}.',
+    drum_grid_choke_source: 'Chokes {target}.',
+    drum_grid_choke_target: 'Choked by {sources}.',
+    drum_grid_choke_source_badge: 'CUT {index}',
+    drum_grid_choke_target_badge: 'BY {sources}',
+    drum_live_idle: 'No Drum Machine pad is active.',
+    drum_live_recent: 'Last hit: {name}.',
+    drum_live_recent_choke: 'Last hit: {name}. Choked: {target}.',
+    drum_live_active: 'Last hit: {name}. {count}.',
+    drum_live_active_choke: 'Last hit: {name}. Choked: {target}. {count}.',
+    drum_live_stop_all: 'Stop Voices',
+    drum_grid_preview_badge: 'DRAFT',
+    drum_seq_title: 'Pattern Sequencer',
+    drum_seq_hint: 'Build a 16-step pattern from the current Drum Machine pads.',
+    drum_seq_bpm: 'Tempo',
+    drum_seq_steps: 'Steps',
+    drum_seq_toggle_start: 'Start Pattern',
+    drum_seq_toggle_stop: 'Stop Pattern',
+    drum_seq_clear: 'Clear Pattern',
+    drum_seq_bpm_readout: '{bpm} BPM',
+    drum_seq_empty_row: 'Empty',
+    status_drum_seq_started: 'Pattern started at {bpm} BPM.',
+    status_drum_seq_stopped: 'Pattern stopped.',
+    status_drum_seq_cleared: 'Pattern cleared.',
+    status_drum_seq_empty: 'Add at least one active step before starting the pattern.',
     drum_assign_save: 'Save',
+    drum_assign_save_prev: 'Save + Prev',
     drum_assign_save_next: 'Save + Next',
     drum_assign_clear: 'Clear',
     status_drum_assignment_copied: 'Drum Pad {index} copied.',
     status_drum_assignment_pasted: 'Clipboard pasted into Drum Pad {index}.',
+    status_drum_assignment_prev: 'Drum Pad {from} saved. Editing Drum Pad {to}.',
     status_drum_assignment_next: 'Drum Pad {from} saved. Editing Drum Pad {to}.'
   },
   hr: {
@@ -533,11 +586,25 @@ const I18N = {
     playlist_create_btn: 'Stvori',
     common_close: 'Zatvori',
     common_cancel: 'Odustani',
+    common_done: 'Gotovo',
     common_share: 'Podijeli',
     common_export_package: 'Izvezi paket',
     playlist_add: 'Dodaj',
     playlist_play: 'Pokreni',
     playlist_delete: 'Obriši',
+    playlist_picker_title: 'Odaberi loop',
+    playlist_picker_search_placeholder: 'Pretraži loopove za ovu playlistu…',
+    playlist_picker_empty: 'Nijedan loop ne odgovara pretrazi.',
+    playlist_detail_add_title: 'Dodaj loop',
+    playlist_detail_reps_label: 'Ponavljanja',
+    playlist_detail_reps_prompt: 'Koliko ponavljanja treba koristiti {name}?',
+    playlist_detail_empty: 'U ovoj playlisti nema loopova.',
+    playlist_detail_empty_edit: 'Dodirnite + Dodaj loop ispod za dodavanje loopova.',
+    playlist_detail_play_from_here: 'Pokreni odavde',
+    playlist_detail_duplicate: 'Dupliciraj',
+    playlist_detail_move_up: 'Pomakni gore',
+    playlist_detail_move_down: 'Pomakni dolje',
+    status_playlist_item_duplicated: 'Duplicirano: "{name}".',
     item_export_title: 'Izvezi spremljenu stavku',
     item_export_text: 'Izvesti "{name}" kao zaseban paket zajedno s audiom koji koristi?',
     item_export_hint_playlist: 'Paket playliste',
@@ -571,10 +638,21 @@ const I18N = {
     pads_assign_trim: 'Trim',
     pads_assign_trim_unavailable: 'Samo uvezeni ili uređeni loopovi mogu se trimati',
     pads_assign_save: 'Spremi',
+    pads_assign_save_prev: 'Spremi i prethodni',
     pads_assign_save_next: 'Spremi i idući',
     pads_assign_clear: 'Obriši',
+    pads_live_idle: 'Nijedan Loop Trigger pad trenutačno ne svira.',
+    pads_live_playing: 'Pad {index} svira: {name}.',
+    pads_live_finishing: 'Pad {index} završava zadnji ciklus: {name}.',
+    pads_live_queued: 'Pad {currentIndex} završava: {current}. Pad {nextIndex} je sljedeći u redu: {next}.',
+    pads_live_queued_final: 'Pad {currentIndex} završava: {current}. Pad {nextIndex} je zakazan kao završni one-shot: {next}.',
+    pads_live_finish_button: 'Završi loop',
+    pads_live_stop_now: 'Zaustavi odmah',
+    pads_grid_preview_badge: 'SKICA',
+    pads_grid_one_shot_badge: '1X',
     status_pad_assignment_copied: 'Pad {index} je kopiran.',
     status_pad_assignment_pasted: 'Međuspremnik je zalijepljen u pad {index}.',
+    status_pad_assignment_prev: 'Pad {from} je spremljen. Uređuje se pad {to}.',
     status_pad_assignment_next: 'Pad {from} je spremljen. Uređuje se pad {to}.',
     pads_session_save_title: 'Spremi pad sesiju',
     pads_session_name_label: 'Naziv sesije',
@@ -594,11 +672,39 @@ const I18N = {
     drum_color_label: 'Boja',
     drum_choke_label: 'Link / Choke',
     drum_choke_none: 'Ništa',
+    drum_choke_summary_none: 'Ovaj pad neće zaustaviti drugi pad.',
+    drum_choke_summary_target: 'Kad se okine, ovaj pad odmah zaustavlja {target}.',
+    drum_grid_choke_source: 'Zaustavlja {target}.',
+    drum_grid_choke_target: 'Zaustavljaju ga {sources}.',
+    drum_grid_choke_source_badge: 'REZ {index}',
+    drum_grid_choke_target_badge: 'OD {sources}',
+    drum_live_idle: 'Nijedan Drum Machine pad trenutačno nije aktivan.',
+    drum_live_recent: 'Zadnji okinuti pad: {name}.',
+    drum_live_recent_choke: 'Zadnji okinuti pad: {name}. Zaustavio je: {target}.',
+    drum_live_active: 'Zadnji okinuti pad: {name}. {count}.',
+    drum_live_active_choke: 'Zadnji okinuti pad: {name}. Zaustavio je: {target}. {count}.',
+    drum_live_stop_all: 'Zaustavi glasove',
+    drum_grid_preview_badge: 'SKICA',
+    drum_seq_title: 'Pattern sekvencer',
+    drum_seq_hint: 'Složite uzorak od 16 koraka iz trenutnih Drum Machine padova.',
+    drum_seq_bpm: 'Tempo',
+    drum_seq_steps: 'Koraci',
+    drum_seq_toggle_start: 'Pokreni pattern',
+    drum_seq_toggle_stop: 'Zaustavi pattern',
+    drum_seq_clear: 'Očisti pattern',
+    drum_seq_bpm_readout: '{bpm} BPM',
+    drum_seq_empty_row: 'Prazno',
+    status_drum_seq_started: 'Pattern je pokrenut na {bpm} BPM.',
+    status_drum_seq_stopped: 'Pattern je zaustavljen.',
+    status_drum_seq_cleared: 'Pattern je očišćen.',
+    status_drum_seq_empty: 'Dodajte barem jedan aktivni korak prije pokretanja patterna.',
     drum_assign_save: 'Spremi',
+    drum_assign_save_prev: 'Spremi i prethodni',
     drum_assign_save_next: 'Spremi i idući',
     drum_assign_clear: 'Obriši',
     status_drum_assignment_copied: 'Drum pad {index} je kopiran.',
     status_drum_assignment_pasted: 'Međuspremnik je zalijepljen u drum pad {index}.',
+    status_drum_assignment_prev: 'Drum pad {from} je spremljen. Uređuje se drum pad {to}.',
     status_drum_assignment_next: 'Drum pad {from} je spremljen. Uređuje se drum pad {to}.'
   }
 };
@@ -926,6 +1032,8 @@ function applyLanguage(lang) {
   if (padAssignPasteBtn) padAssignPasteBtn.textContent = t('common_paste');
   const padAssignSaveBtn = document.getElementById('padAssignSave');
   if (padAssignSaveBtn) padAssignSaveBtn.textContent = t('pads_assign_save');
+  const padAssignSavePrevBtn = document.getElementById('padAssignSavePrev');
+  if (padAssignSavePrevBtn) padAssignSavePrevBtn.textContent = t('pads_assign_save_prev');
   const padAssignSaveNextBtn = document.getElementById('padAssignSaveNext');
   if (padAssignSaveNextBtn) padAssignSaveNextBtn.textContent = t('pads_assign_save_next');
   const padAssignClearBtn = document.getElementById('padAssignClear');
@@ -970,12 +1078,15 @@ function applyLanguage(lang) {
   if (drumAssignPaste) drumAssignPaste.textContent = t('common_paste');
   const drumAssignSave = document.getElementById('drumAssignSave');
   if (drumAssignSave) drumAssignSave.textContent = t('drum_assign_save');
+  const drumAssignSavePrev = document.getElementById('drumAssignSavePrev');
+  if (drumAssignSavePrev) drumAssignSavePrev.textContent = t('drum_assign_save_prev');
   const drumAssignSaveNext = document.getElementById('drumAssignSaveNext');
   if (drumAssignSaveNext) drumAssignSaveNext.textContent = t('drum_assign_save_next');
   const drumAssignClear = document.getElementById('drumAssignClear');
   if (drumAssignClear) drumAssignClear.textContent = t('drum_assign_clear');
   const drumAssignClose = document.getElementById('drumAssignClose');
   if (drumAssignClose) drumAssignClose.textContent = t('common_cancel');
+  try { updateDrumChokeSummary(); } catch {}
   setText('#projectSaveTitle', t('project_save_title'));
   setText('#projectNameLabel', t('project_name_label'));
   setText('#projectRecallTitle', t('project_recall_title'));
@@ -1022,6 +1133,28 @@ function applyLanguage(lang) {
     loopInfoCatLabel[1].textContent = t('loopinfo_category');
     loopInfoCatLabel[2].textContent = t('loopinfo_filesize');
     loopInfoCatLabel[3].textContent = t('loopinfo_type');
+  }
+
+  const detailBackBtn = document.getElementById('detailBack');
+  if (detailBackBtn) {
+    const textNode = detailBackBtn.lastChild;
+    if (textNode && textNode.nodeType === 3) textNode.textContent = ' ' + t('loopinfo_back');
+    detailBackBtn.setAttribute('aria-label', `${t('loopinfo_back')} ${t('tab_playlists')}`);
+  }
+  const detailPlayBtn = document.getElementById('detailPlay');
+  if (detailPlayBtn) {
+    setButtonTextAfterSvg(detailPlayBtn, t('playlist_play'));
+    detailPlayBtn.setAttribute('aria-label', t('playlist_play'));
+  }
+  const detailEditBtn = document.getElementById('detailEdit');
+  if (detailEditBtn) {
+    detailEditBtn.textContent = detailEditMode ? t('common_done') : t('common_edit');
+    detailEditBtn.setAttribute('aria-label', detailEditMode ? t('common_done') : t('common_edit'));
+  }
+  const detailDeleteBtn = document.getElementById('detailDelete');
+  if (detailDeleteBtn) {
+    detailDeleteBtn.textContent = t('playlist_delete');
+    detailDeleteBtn.setAttribute('aria-label', t('playlist_delete'));
   }
 
   // Trimmer
@@ -1125,6 +1258,30 @@ function applyLanguage(lang) {
   if (playBtn) playBtn.textContent = t('playlist_play');
   const closeBtn = document.getElementById('playlistClose');
   if (closeBtn) closeBtn.textContent = t('common_close');
+  const loopPickerTitle = document.getElementById('loopPickerTitle');
+  if (loopPickerTitle) loopPickerTitle.textContent = t('playlist_picker_title');
+  const loopPickerSearchInput = document.getElementById('loopPickerSearchInput');
+  if (loopPickerSearchInput) {
+    loopPickerSearchInput.placeholder = t('playlist_picker_search_placeholder');
+    loopPickerSearchInput.setAttribute('aria-label', t('playlist_picker_search_placeholder'));
+  }
+  const closeLoopPickerBtn = document.getElementById('closeLoopPicker');
+  if (closeLoopPickerBtn) closeLoopPickerBtn.textContent = t('common_close');
+  const loopPickerEmpty = document.getElementById('loopPickerEmpty');
+  if (loopPickerEmpty) loopPickerEmpty.textContent = t('playlist_picker_empty');
+  const detailLoopRepsTitle = document.getElementById('detailLoopRepsTitle');
+  if (detailLoopRepsTitle) detailLoopRepsTitle.textContent = t('playlist_detail_add_title');
+  const detailLoopRepsText = document.getElementById('detailLoopRepsText');
+  if (detailLoopRepsText) {
+    const choiceName = pendingDetailLoopChoice ? stripFileExt(pendingDetailLoopChoice.label || 'this loop') : (currentLang === 'hr' ? 'ovaj loop' : 'this loop');
+    detailLoopRepsText.textContent = tf('playlist_detail_reps_prompt', { name: choiceName });
+  }
+  const detailLoopRepsLabel = document.getElementById('detailLoopRepsLabel');
+  if (detailLoopRepsLabel) detailLoopRepsLabel.textContent = t('playlist_detail_reps_label');
+  const confirmDetailLoopRepsBtn = document.getElementById('confirmDetailLoopReps');
+  if (confirmDetailLoopRepsBtn) confirmDetailLoopRepsBtn.textContent = t('playlist_detail_add_title');
+  const cancelDetailLoopRepsBtn = document.getElementById('cancelDetailLoopReps');
+  if (cancelDetailLoopRepsBtn) cancelDetailLoopRepsBtn.textContent = t('loopinfo_back');
 
   // If help is open, re-render it in the new language.
   try {
@@ -1140,6 +1297,13 @@ function applyLanguage(lang) {
   try { updatePlayerPlaylistUI(); } catch {}
   try { refreshPadEditButton(); } catch {}
   try { refreshDrumEditButton(); } catch {}
+  try { renderPadGrid(); } catch {}
+  try { renderDrumGrid(); } catch {}
+  try { renderDrumSequencer(); } catch {}
+  try { updatePadPerformanceUI(); } catch {}
+  try { updateDrumPerformanceUI(); } catch {}
+  try { renderPlaylistLoopPickerChoices(); } catch {}
+  try { if (activePlaylist && activeTab === 'playlist-detail') renderPlaylistDetail(); } catch {}
 }
 
 function openPlaylistsDb() {
@@ -1767,7 +1931,7 @@ async function listPersistedUploads() {
   return items;
 }
 
-async function savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOut }) {
+async function savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOut }, { keepIds = [] } = {}) {
   if (!blob) return null;
   const record = {
     id: makeUploadId(),
@@ -1783,13 +1947,14 @@ async function savePersistedUpload({ name, blob, trimIn, trimOut, fadeIn, fadeOu
 
   await idbTx(db, 'readwrite', (store) => store.put(record));
 
-  const capResult = await enforcePersistedUploadCap(db, { keepIds: [record.id] }).catch(() => ({ evictedIds: [], overflow: 0 }));
+  const protectedIds = Array.from(new Set([record.id, ...(Array.isArray(keepIds) ? keepIds : [])].filter(Boolean)));
+  const capResult = await enforcePersistedUploadCap(db, { keepIds: protectedIds }).catch(() => ({ evictedIds: [], overflow: 0 }));
 
   try { db.close(); } catch {}
   return { ...record, ...capResult };
 }
 
-async function putPersistedUploadRecord(record) {
+async function putPersistedUploadRecord(record, { keepIds = [] } = {}) {
   if (!record || !record.id || !record.blob) return null;
   let createdAt = Number(record.createdAt);
   if (!Number.isFinite(createdAt)) createdAt = Date.now();
@@ -1807,7 +1972,8 @@ async function putPersistedUploadRecord(record) {
 
   await idbTx(db, 'readwrite', (store) => store.put(rec));
 
-  const capResult = await enforcePersistedUploadCap(db, { keepIds: [rec.id] }).catch(() => ({ evictedIds: [], overflow: 0 }));
+  const protectedIds = Array.from(new Set([rec.id, ...(Array.isArray(keepIds) ? keepIds : [])].filter(Boolean)));
+  const capResult = await enforcePersistedUploadCap(db, { keepIds: protectedIds }).catch(() => ({ evictedIds: [], overflow: 0 }));
 
   try { db.close(); } catch {}
   return { ...rec, ...capResult };
@@ -2102,9 +2268,16 @@ function updateNowPlayingNameUI() {
     nameSpan.textContent = label;
     el.appendChild(nameSpan);
 
-    if (playlistIsPlaying && playlistCurrentLoopRep > 0 && playlistCurrentLoopRepTotal > 0) {
+    if (playlistIsPlaying && (playlistCurrentItemIndex > 0 || playlistCurrentLoopRep > 0)) {
       const progressSpan = document.createElement('span');
-      progressSpan.textContent = `${playlistCurrentLoopRep}/${playlistCurrentLoopRepTotal}`;
+      const progressParts = [];
+      if (playlistCurrentItemIndex > 0 && playlistCurrentItemTotal > 0) {
+        progressParts.push(`${playlistCurrentItemIndex}/${playlistCurrentItemTotal}`);
+      }
+      if (playlistCurrentLoopRep > 0 && playlistCurrentLoopRepTotal > 0) {
+        progressParts.push(`${playlistCurrentLoopRep}/${playlistCurrentLoopRepTotal}`);
+      }
+      progressSpan.textContent = progressParts.join(' · ');
       progressSpan.style.display = 'block';
       progressSpan.style.marginTop = '3px';
       progressSpan.style.fontSize = '11px';
@@ -2142,11 +2315,15 @@ let playlistCountdownTimer = 0;
 let playlistCountdownEndAt = 0;
 let playlistCurrentLoopRep = 0;
 let playlistCurrentLoopRepTotal = 0;
+let playlistCurrentItemIndex = 0;
+let playlistCurrentItemTotal = 0;
 let pendingDeletePlaylistId = null;
 let detailPlaylistId = null;
 let detailEditMode = false;
 let pendingDetailLoopChoice = null;
 let pendingDetailNewItemId = null;
+let playlistLoopPickerSearchQuery = '';
+let playlistLoopPickerSelectHandler = null;
 let favoriteEntries = loadFavoriteEntries();
 
 function setPlayerPlaylist(record) {
@@ -2563,7 +2740,7 @@ let desktopVizBarSmooth = [];
 let desktopVizAutoPeak = 0;
 let lastTouchEndAt = 0;
 
-const VIEWPORT_LOCK_CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+const VIEWPORT_LOCK_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover';
 
 function lockViewportScale() {
   const meta = document.querySelector('meta[name="viewport"]');
@@ -2985,22 +3162,159 @@ function stopPlaylistPlayback() {
   playlistIsPlaying = false;
   playlistCurrentLoopRep = 0;
   playlistCurrentLoopRepTotal = 0;
+  playlistCurrentItemIndex = 0;
+  playlistCurrentItemTotal = 0;
   stopPlaylistCountdown();
   try { updateNowPlayingNameUI(); } catch {}
+}
+
+function formatPlaylistLoopCount(count) {
+  const total = Math.max(0, parseInt(count, 10) || 0);
+  if (currentLang === 'hr') return `${total} ${total === 1 ? 'loop' : 'loopova'}`;
+  return `${total} loop${total !== 1 ? 's' : ''}`;
+}
+
+function clonePlaylistItemRecord(item, fallbackLabel = 'Loop') {
+  return {
+    itemId: makePlaylistItemId(),
+    presetKey: item && item.presetKey ? item.presetKey : '',
+    label: item && item.label ? item.label : fallbackLabel,
+    reps: Math.max(1, parseInt(item && item.reps, 10) || 1),
+    volume: normalizeAssignmentVolume(item && item.volume, 1.0)
+  };
+}
+
+function syncPlayerPlaylistIfMatching(record) {
+  if (!record || !record.id || !playerPlaylistId) return;
+  if (String(playerPlaylistId) !== String(record.id)) return;
+  setPlayerPlaylist(record);
 }
 
 function getAllLoopChoices() {
   const choices = [];
   for (const p of builtinPresets) {
     if (!p || !p.path) continue;
-    choices.push({ presetKey: `builtin:${p.path}`, label: getBuiltinPresetDisplayName(p, { includeSubfolder: true }) });
+    choices.push({
+      presetKey: `builtin:${p.path}`,
+      label: getBuiltinPresetDisplayName(p, { includeSubfolder: true }),
+      category: p.category || 'Imported',
+      subfolder: getBuiltinPresetSubfolder(p)
+    });
   }
   for (const p of userPresets) {
     if (!p) continue;
-    if (p.blob && p.id) choices.push({ presetKey: `upload:${p.id}`, label: stripFileExt(p.name || 'Imported') });
-    else if (p.url) choices.push({ presetKey: `url:${p.url}`, label: stripFileExt(p.name || p.url) });
+    if (p.blob && p.id) {
+      choices.push({
+        presetKey: `upload:${p.id}`,
+        label: stripFileExt(p.name || 'Imported'),
+        category: getLoopCategory(p.id),
+        subfolder: ''
+      });
+    } else if (p.url) {
+      choices.push({
+        presetKey: `url:${p.url}`,
+        label: stripFileExt(p.name || p.url),
+        category: 'Imported',
+        subfolder: ''
+      });
+    }
   }
   return choices;
+}
+
+function updatePlaylistLoopPickerSearchClearButton() {
+  const clearBtn = document.getElementById('loopPickerSearchClear');
+  if (!clearBtn) return;
+  clearBtn.classList.toggle('hidden', !String(playlistLoopPickerSearchQuery || '').trim());
+}
+
+function renderPlaylistLoopPickerChoices() {
+  const loopPickerList = document.getElementById('loopPickerList');
+  const emptyEl = document.getElementById('loopPickerEmpty');
+  if (!loopPickerList) return;
+  loopPickerList.innerHTML = '';
+
+  const choices = getAllLoopChoices()
+    .filter((choice) => pickerItemMatchesQuery(choice, playlistLoopPickerSearchQuery))
+    .sort((a, b) => String(a && a.label || '').localeCompare(String(b && b.label || '')));
+
+  choices.forEach((choice) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = choice.label;
+    button.addEventListener('click', () => {
+      const handler = playlistLoopPickerSelectHandler;
+      if (typeof handler === 'function') handler(choice);
+    });
+    loopPickerList.appendChild(button);
+  });
+
+  if (emptyEl) {
+    emptyEl.textContent = t('playlist_picker_empty');
+    emptyEl.classList.toggle('hidden', choices.length > 0);
+  }
+  updatePlaylistLoopPickerSearchClearButton();
+}
+
+function focusPlaylistLoopPickerPrimaryControl() {
+  const input = document.getElementById('loopPickerSearchInput');
+  if (input && String(playlistLoopPickerSearchQuery || '').trim()) {
+    focusAndSelectTextInput(input);
+    return;
+  }
+  const firstButton = document.querySelector('#loopPickerList button');
+  if (firstButton) {
+    try { firstButton.focus(); } catch {}
+    return;
+  }
+  if (input) {
+    try { input.focus(); } catch {}
+  }
+}
+
+function openPlaylistLoopPicker(onSelect) {
+  playlistLoopPickerSelectHandler = typeof onSelect === 'function' ? onSelect : null;
+  const searchInput = document.getElementById('loopPickerSearchInput');
+  if (searchInput) searchInput.value = playlistLoopPickerSearchQuery;
+  renderPlaylistLoopPickerChoices();
+  const loopPickerOverlay = document.getElementById('loopPickerOverlay');
+  if (loopPickerOverlay) loopPickerOverlay.classList.remove('hidden');
+  try { updateScrollState(); } catch {}
+  try {
+    requestAnimationFrame(() => {
+      focusPlaylistLoopPickerPrimaryControl();
+    });
+  } catch {}
+}
+
+async function playPlaylistFromIndex(record, startIndex = 0) {
+  if (!record || !Array.isArray(record.items) || !record.items.length) return;
+  setPlayerPlaylist(record);
+  await playActivePlaylist({ startIndex });
+}
+
+function moveActivePlaylistItem(fromIndex, delta) {
+  if (!activePlaylist || !Array.isArray(activePlaylist.items)) return false;
+  if (fromIndex < 0 || fromIndex >= activePlaylist.items.length) return false;
+  const toIndex = clamp(fromIndex + delta, 0, activePlaylist.items.length - 1);
+  if (toIndex === fromIndex) return false;
+  const [item] = activePlaylist.items.splice(fromIndex, 1);
+  if (!item) return false;
+  activePlaylist.items.splice(toIndex, 0, item);
+  syncPlayerPlaylistIfMatching(activePlaylist);
+  return true;
+}
+
+function duplicateActivePlaylistItem(index) {
+  if (!activePlaylist || !Array.isArray(activePlaylist.items)) return null;
+  if (index < 0 || index >= activePlaylist.items.length) return null;
+  const source = activePlaylist.items[index];
+  if (!source) return null;
+  const duplicate = clonePlaylistItemRecord(source, source.label || 'Loop');
+  activePlaylist.items.splice(index + 1, 0, duplicate);
+  pendingDetailNewItemId = duplicate.itemId;
+  syncPlayerPlaylistIfMatching(activePlaylist);
+  return duplicate;
 }
 
 function isPresetKeyAvailable(presetKey) {
@@ -3091,7 +3405,7 @@ async function getPlaylistTotalDurationSec(record, rate = 1) {
   return total;
 }
 
-async function playActivePlaylist() {
+async function playActivePlaylist(options = {}) {
   const pl = playerPlaylist;
   if (!pl || !Array.isArray(pl.items) || !pl.items.length) {
     setStatus('Playlist is empty.');
@@ -3113,9 +3427,13 @@ async function playActivePlaylist() {
 
   try { updatePlayerPlaylistUI(); } catch {}
 
-  const items = Array.isArray(pl.items) ? pl.items.slice() : [];
+  const allItems = Array.isArray(pl.items) ? pl.items.slice() : [];
+  const normalizedStartIndex = clamp(parseInt(options && options.startIndex, 10) || 0, 0, Math.max(0, allItems.length - 1));
+  const items = allItems.slice(normalizedStartIndex);
   playlistCurrentLoopRep = 0;
   playlistCurrentLoopRepTotal = 0;
+  playlistCurrentItemIndex = 0;
+  playlistCurrentItemTotal = allItems.length;
   if (!items.length) {
     playlistIsPlaying = false;
     setStatus('Playlist is empty.');
@@ -3187,6 +3505,7 @@ async function playActivePlaylist() {
       currentPresetKey = it.presetKey || null;
       currentPresetId = loaded.presetId || null;
       currentPresetRef = loaded.presetRef || null;
+      playlistCurrentItemIndex = normalizedStartIndex + idx + 1;
       playlistCurrentLoopRep = 1;
       playlistCurrentLoopRepTotal = reps;
       try { updateNowPlayingNameUI(); } catch {}
@@ -3218,6 +3537,8 @@ async function playActivePlaylist() {
   playlistIsPlaying = false;
   playlistCurrentLoopRep = 0;
   playlistCurrentLoopRepTotal = 0;
+  playlistCurrentItemIndex = 0;
+  playlistCurrentItemTotal = 0;
   stopPlaylistCountdown();
   stopLoop(0, true);
   setStatus('Playlist finished');
@@ -3950,7 +4271,8 @@ function cloneSharedItemRecord(kind, record) {
       id: record.id || `drum-session-${Date.now().toString(36)}`,
       name: record.name || 'Session',
       createdAt: record.createdAt || Date.now(),
-      assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(record.assignments && record.assignments[index]))
+      assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(record.assignments && record.assignments[index])),
+      sequencer: serializeDrumSequencerState(record.sequencer)
     };
   }
   if (kind === 'project') {
@@ -3997,6 +4319,23 @@ async function collectUploadsForPresetKeys(presetKeys = []) {
   });
 
   return { uploadMeta, uploadFiles, missingCount };
+}
+
+function addUploadFilesToZip(folder, uploadFiles = []) {
+  let failedCount = 0;
+  if (!folder || !Array.isArray(uploadFiles)) return failedCount;
+  uploadFiles.forEach((file) => {
+    if (!file || !file.id || !file.blob) {
+      failedCount += 1;
+      return;
+    }
+    try {
+      folder.file(String(file.id), file.blob);
+    } catch {
+      failedCount += 1;
+    }
+  });
+  return failedCount;
 }
 
 function openItemExportOverlay(kind, record, name) {
@@ -4057,9 +4396,7 @@ async function exportPendingItemPackage() {
     const zip = new JSZipRef();
     zip.file('backup.json', JSON.stringify(data, null, 2));
     const folder = zip.folder('uploads');
-    uploads.uploadFiles.forEach((file) => {
-      try { folder.file(file.id, file.blob); } catch {}
-    });
+    const packagingFailures = addUploadFilesToZip(folder, uploads.uploadFiles);
     const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -4072,8 +4409,9 @@ async function exportPendingItemPackage() {
       try { URL.revokeObjectURL(url); } catch {}
     }, 200);
 
-    setStatus(uploads.missingCount
-      ? tf('status_item_export_warning', { name: pending.name, count: uploads.missingCount })
+    const warningCount = uploads.missingCount + packagingFailures;
+    setStatus(warningCount
+      ? tf('status_item_export_warning', { name: pending.name, count: warningCount })
       : tf('status_item_export_complete', { name: pending.name }));
   } catch {
     setStatus(tf('status_item_export_failed', { name: pending.name || 'Item' }));
@@ -4120,6 +4458,9 @@ function makeImportedSharedItemRecord(kind, record) {
 
 async function importUploadsFromPackage(data, zip = null) {
   const summary = createUploadImportSummary();
+  const keepIds = Array.isArray(data && data.uploads)
+    ? Array.from(new Set(data.uploads.map((meta) => String(meta && meta.id || '')).filter(Boolean)))
+    : [];
   if (Array.isArray(data.uploads)) {
     for (const meta of data.uploads) {
       if (!meta || !meta.id) continue;
@@ -4148,7 +4489,7 @@ async function importUploadsFromPackage(data, zip = null) {
           trimOut: meta.trimOut != null ? meta.trimOut : undefined,
           fadeIn: meta.fadeIn != null ? meta.fadeIn : undefined,
           fadeOut: meta.fadeOut != null ? meta.fadeOut : undefined,
-        });
+        }, { keepIds });
         recordUploadImportResult(summary, saved);
       } catch {
         summary.missingEntries += 1;
@@ -4297,7 +4638,7 @@ async function renderPlaylistsPage() {
     const countSpan = document.createElement('span');
     countSpan.className = 'pl-item-count';
     const n = (pl && Array.isArray(pl.items)) ? pl.items.length : 0;
-    countSpan.textContent = `${n} loop${n !== 1 ? 's' : ''}`;
+    countSpan.textContent = formatPlaylistLoopCount(n);
 
     const chevron = document.createElement('span');
     chevron.className = 'pl-item-chevron';
@@ -4398,8 +4739,11 @@ function renderPlaylistDetail() {
 
   if (titleEl) titleEl.textContent = rec.name || 'Playlist';
   const n = (rec.items && rec.items.length) || 0;
-  if (infoEl) infoEl.textContent = `${n} loop${n !== 1 ? 's' : ''}`;
-  if (editBtn) editBtn.textContent = detailEditMode ? 'Done' : 'Edit';
+  if (infoEl) infoEl.textContent = formatPlaylistLoopCount(n);
+  if (editBtn) {
+    editBtn.textContent = detailEditMode ? t('common_done') : t('common_edit');
+    editBtn.setAttribute('aria-label', `${detailEditMode ? t('common_done') : t('common_edit')} ${rec.name || 'Playlist'}`);
+  }
   if (rec && rec.id && rec.name) updateFavoriteEntryLabel('playlist', rec.id, rec.name);
 
   itemsEl.innerHTML = '';
@@ -4408,7 +4752,7 @@ function renderPlaylistDetail() {
     const empty = document.createElement('div');
     empty.className = 'hint';
     empty.style.padding = '16px 0';
-    empty.textContent = detailEditMode ? 'Tap + Add Loop below to add loops.' : 'No loops in this playlist.';
+    empty.textContent = detailEditMode ? t('playlist_detail_empty_edit') : t('playlist_detail_empty');
     itemsEl.appendChild(empty);
   }
 
@@ -4452,7 +4796,7 @@ function openDetailLoopRepsPrompt(choice) {
   const repsOverlay = document.getElementById('detailLoopRepsOverlay');
   const repsText = document.getElementById('detailLoopRepsText');
   const repsInput = document.getElementById('detailLoopRepsInput');
-  if (repsText) repsText.textContent = `How many repetitions should ${stripFileExt(choice.label || 'this loop')} use?`;
+  if (repsText) repsText.textContent = tf('playlist_detail_reps_prompt', { name: stripFileExt(choice.label || 'this loop') });
   if (loopPickerOverlay) loopPickerOverlay.classList.add('hidden');
   if (repsOverlay) repsOverlay.classList.remove('hidden');
   if (repsInput) {
@@ -4481,7 +4825,8 @@ function scrollPlaylistDetailEditorToBottom() {
 
 function renderPlaylistDetailReadonly(container, rec) {
   if (!rec.items) return;
-  for (const it of rec.items) {
+  for (let idx = 0; idx < rec.items.length; idx++) {
+    const it = rec.items[idx];
     if (!it) continue;
     const row = document.createElement('div');
     row.className = 'detail-loop';
@@ -4498,6 +4843,21 @@ function renderPlaylistDetailReadonly(container, rec) {
     header.appendChild(nameEl);
     header.appendChild(repsEl);
     row.appendChild(header);
+
+    const actions = document.createElement('div');
+    actions.className = 'detail-loop-actions';
+    const playFromHereBtn = document.createElement('button');
+    playFromHereBtn.type = 'button';
+    playFromHereBtn.className = 'detail-loop-action';
+    playFromHereBtn.textContent = t('playlist_detail_play_from_here');
+    playFromHereBtn.setAttribute('aria-label', `${t('playlist_detail_play_from_here')}: ${stripFileExt(it.label || 'Loop')}`);
+    playFromHereBtn.disabled = !it.presetKey;
+    playFromHereBtn.addEventListener('click', async () => {
+      await playPlaylistFromIndex(rec, idx);
+    });
+    actions.appendChild(playFromHereBtn);
+    row.appendChild(actions);
+
     container.appendChild(row);
   }
 }
@@ -4507,6 +4867,7 @@ function renderPlaylistDetailEdit(container, rec) {
 
   const saveDetailSoon = () => {
     if (!activePlaylist || !activePlaylist.id) return;
+    syncPlayerPlaylistIfMatching(activePlaylist);
     savePlaylistRecord(activePlaylist).catch(() => {});
   };
 
@@ -4545,7 +4906,7 @@ function renderPlaylistDetailEdit(container, rec) {
 
     const nameEl = document.createElement('div');
     nameEl.className = 'detail-edit-name';
-    nameEl.textContent = it.label || 'Loop';
+    nameEl.textContent = stripFileExt(it.label || 'Loop');
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -4571,7 +4932,7 @@ function renderPlaylistDetailEdit(container, rec) {
     volGroup.className = 'detail-ctrl-group';
     const volLabel = document.createElement('div');
     volLabel.className = 'detail-ctrl-label';
-    volLabel.textContent = 'Volume';
+    volLabel.textContent = t('common_volume');
     const volVal = document.createElement('div');
     volVal.className = 'detail-ctrl-val';
     volVal.textContent = `${Math.round((it.volume !== undefined ? it.volume : 1.0) * 100)}%`;
@@ -4598,11 +4959,11 @@ function renderPlaylistDetailEdit(container, rec) {
     repsHead.className = 'detail-ctrl-head';
     const repsLabel = document.createElement('div');
     repsLabel.className = 'detail-ctrl-label';
-    repsLabel.textContent = 'Reps';
+    repsLabel.textContent = t('playlist_detail_reps_label');
     const repsEditBtn = document.createElement('button');
     repsEditBtn.type = 'button';
     repsEditBtn.className = 'detail-ctrl-link';
-    repsEditBtn.textContent = 'Edit';
+    repsEditBtn.textContent = t('common_edit');
     const repsInput = document.createElement('input');
     repsInput.className = 'detail-reps-input';
     repsInput.type = 'text';
@@ -4610,7 +4971,7 @@ function renderPlaylistDetailEdit(container, rec) {
     repsInput.setAttribute('pattern', '[0-9]*');
     repsInput.setAttribute('enterkeyhint', 'done');
     repsInput.value = String(Math.max(1, parseInt(it.reps, 10) || 1));
-    repsInput.setAttribute('aria-label', 'Repetitions');
+    repsInput.setAttribute('aria-label', t('playlist_detail_reps_label'));
     const commitRepsInput = () => {
       const clean = String(repsInput.value || '').replace(/\D+/g, '');
       const nextVal = Math.max(1, parseInt(clean, 10) || 1);
@@ -4640,8 +5001,53 @@ function renderPlaylistDetailEdit(container, rec) {
     controls.appendChild(volGroup);
     controls.appendChild(repsGroup);
 
+    const actions = document.createElement('div');
+    actions.className = 'detail-edit-actions';
+
+    const duplicateBtn = document.createElement('button');
+    duplicateBtn.type = 'button';
+    duplicateBtn.className = 'detail-edit-action';
+    duplicateBtn.textContent = t('playlist_detail_duplicate');
+    duplicateBtn.setAttribute('aria-label', `${t('playlist_detail_duplicate')}: ${stripFileExt(it.label || 'Loop')}`);
+    duplicateBtn.addEventListener('click', () => {
+      const duplicate = duplicateActivePlaylistItem(idx);
+      if (!duplicate) return;
+      saveDetailSoon();
+      renderPlaylistDetail();
+      setStatus(tf('status_playlist_item_duplicated', { name: stripFileExt(duplicate.label || 'Loop') }));
+    });
+
+    const moveUpBtn = document.createElement('button');
+    moveUpBtn.type = 'button';
+    moveUpBtn.className = 'detail-edit-action';
+    moveUpBtn.textContent = t('playlist_detail_move_up');
+    moveUpBtn.disabled = idx === 0;
+    moveUpBtn.setAttribute('aria-label', `${t('playlist_detail_move_up')}: ${stripFileExt(it.label || 'Loop')}`);
+    moveUpBtn.addEventListener('click', () => {
+      if (!moveActivePlaylistItem(idx, -1)) return;
+      saveDetailSoon();
+      renderPlaylistDetail();
+    });
+
+    const moveDownBtn = document.createElement('button');
+    moveDownBtn.type = 'button';
+    moveDownBtn.className = 'detail-edit-action';
+    moveDownBtn.textContent = t('playlist_detail_move_down');
+    moveDownBtn.disabled = idx === rec.items.length - 1;
+    moveDownBtn.setAttribute('aria-label', `${t('playlist_detail_move_down')}: ${stripFileExt(it.label || 'Loop')}`);
+    moveDownBtn.addEventListener('click', () => {
+      if (!moveActivePlaylistItem(idx, 1)) return;
+      saveDetailSoon();
+      renderPlaylistDetail();
+    });
+
+    actions.appendChild(duplicateBtn);
+    actions.appendChild(moveUpBtn);
+    actions.appendChild(moveDownBtn);
+
     row.appendChild(top);
     row.appendChild(controls);
+    row.appendChild(actions);
     container.appendChild(row);
 
     // Drag-to-reorder (mouse only — touch scrolls the page)
@@ -4661,7 +5067,7 @@ function renderPlaylistDetailEdit(container, rec) {
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'detail-add-btn';
-  addBtn.textContent = '+ Add Loop';
+  addBtn.textContent = `+ ${t('playlist_detail_add_title')}`;
   addBtn.addEventListener('click', () => {
     openDetailLoopPicker();
   });
@@ -4710,22 +5116,9 @@ function renderPlaylistDetailEdit(container, rec) {
 }
 
 function openDetailLoopPicker() {
-  const loopPickerOverlay = document.getElementById('loopPickerOverlay');
-  const loopPickerList = document.getElementById('loopPickerList');
-  if (!loopPickerList) return;
-  loopPickerList.innerHTML = '';
-  const choices = getAllLoopChoices();
-  choices.forEach(ch => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = ch.label;
-    b.addEventListener('click', () => {
-      openDetailLoopRepsPrompt(ch);
-    });
-    loopPickerList.appendChild(b);
+  openPlaylistLoopPicker((choice) => {
+    openDetailLoopRepsPrompt(choice);
   });
-  if (loopPickerOverlay) loopPickerOverlay.classList.remove('hidden');
-  try { updateScrollState(); } catch {}
 }
 
 /* ================================================================
@@ -6567,7 +6960,8 @@ async function exportAppData() {
           createdAt: session && session.createdAt ? session.createdAt : Date.now(),
           assignments: Array.isArray(session && session.assignments)
             ? session.assignments.map(a => serializeDrumAssignment(a))
-            : []
+            : [],
+          sequencer: serializeDrumSequencerState(session && session.sequencer)
         }));
       } catch {
         return [];
@@ -6595,6 +6989,7 @@ async function exportAppData() {
       padSessions: exportedPadSessions,
       drumAssignments: exportedDrumAssignments,
       drumSessions: exportedDrumSessions,
+      drumSequencer: serializeDrumSequencerState(),
       projects: exportedProjects,
     };
 
@@ -6604,11 +6999,10 @@ async function exportAppData() {
       zip.file('backup.json', JSON.stringify(data, null, 2));
 
       const folder = zip.folder('uploads');
-      for (const u of (uploads || [])) {
-        if (!u || !u.id || !u.blob) continue;
-        // Store blobs with stable IDs so playlists keep working.
-        try { folder.file(String(u.id), u.blob); } catch {}
-      }
+      const packagingFailures = addUploadFilesToZip(folder, (uploads || []).map((u) => ({
+        id: u && u.id,
+        blob: u && u.blob
+      })));
 
       setStatus('Building ZIP…');
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
@@ -6619,7 +7013,8 @@ async function exportAppData() {
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-      setStatus(missingUploadCount ? tf('status_export_complete_warning', { count: missingUploadCount }) : 'Export complete');
+      const warningCount = missingUploadCount + packagingFailures;
+      setStatus(warningCount ? tf('status_export_complete_warning', { count: warningCount }) : 'Export complete');
       return;
     }
 
@@ -6647,6 +7042,7 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
   try { stopPlaylistPlayback(); } catch {}
   try { stopLoop(0.03); } catch {}
   try { stopDrumPlayback(true); } catch {}
+  stopDrumSequencer({ resetStep: true, silent: true });
 
   setStatus('Importing ZIP…');
   const ab = await file.arrayBuffer();
@@ -6720,10 +7116,14 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
         id: session && session.id ? session.id : `imported-drum-${Date.now().toString(36)}-${sessionIndex}`,
         name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
         createdAt: session && session.createdAt ? session.createdAt : Date.now(),
-        assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+        assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null)),
+        sequencer: serializeDrumSequencerState(session && session.sequencer)
       }));
       saveDrumSessions(sessions);
     }
+  } catch {}
+  try {
+    applyDrumSequencerState(data.drumSequencer, { save: true, stopPlayback: true });
   } catch {}
   try {
     if (Array.isArray(data.projects)) {
@@ -6742,6 +7142,7 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
   // Import uploads (blob + trim metadata) preserving IDs.
   const uploadImportSummary = createUploadImportSummary();
   if (Array.isArray(data.uploads)) {
+    const keepIds = Array.from(new Set(data.uploads.map((meta) => String(meta && meta.id || '')).filter(Boolean)));
     let imported = 0;
     for (const meta of data.uploads) {
       if (!meta || !meta.id) continue;
@@ -6769,7 +7170,7 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
           trimOut: meta.trimOut != null ? meta.trimOut : undefined,
           fadeIn: meta.fadeIn != null ? meta.fadeIn : undefined,
           fadeOut: meta.fadeOut != null ? meta.fadeOut : undefined,
-        });
+        }, { keepIds });
         recordUploadImportResult(uploadImportSummary, saved);
         imported++;
         if (imported % 3 === 0) setStatus(`Importing… (${imported})`);
@@ -6819,6 +7220,7 @@ async function importZipBackup(file, { expectedItemKind = '' } = {}) {
   if (activeTab === 'loops') renderLoopsPage();
   try { renderPadGrid(); } catch {}
   try { renderDrumGrid(); } catch {}
+  try { renderDrumSequencer(); } catch {}
   try { renderProjectsList(); } catch {}
   try { renderPadSessionsList(); } catch {}
   try { renderDrumSessionsList(); } catch {}
@@ -6841,6 +7243,8 @@ async function importAppData(file, { expectedItemKind = '' } = {}) {
       await importZipBackup(file, { expectedItemKind });
       return;
     }
+
+    stopDrumSequencer({ resetStep: true, silent: true });
 
     setStatus('Importing…');
     const text = await file.text();
@@ -6909,10 +7313,14 @@ async function importAppData(file, { expectedItemKind = '' } = {}) {
           id: session && session.id ? session.id : `imported-drum-${Date.now().toString(36)}-${sessionIndex}`,
           name: session && session.name ? session.name : `Session ${sessionIndex + 1}`,
           createdAt: session && session.createdAt ? session.createdAt : Date.now(),
-          assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null))
+          assignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(session && Array.isArray(session.assignments) ? session.assignments[index] : null)),
+          sequencer: serializeDrumSequencerState(session && session.sequencer)
         }));
         saveDrumSessions(sessions);
       }
+    } catch {}
+    try {
+      applyDrumSequencerState(data.drumSequencer, { save: true, stopPlayback: true });
     } catch {}
     try {
       if (Array.isArray(data.projects)) {
@@ -6967,6 +7375,7 @@ async function importAppData(file, { expectedItemKind = '' } = {}) {
     try { renderProjectsList(); } catch {}
     try { renderPadGrid(); } catch {}
     try { renderDrumGrid(); } catch {}
+    try { renderDrumSequencer(); } catch {}
     try { renderPadSessionsList(); } catch {}
     try { renderDrumSessionsList(); } catch {}
   } catch (e) {
@@ -7102,11 +7511,15 @@ const PADS_ASSIGNMENTS_KEY = 'seamlessplayer-pads-assignments';
 const PADS_SESSIONS_KEY = 'seamlessplayer-pads-sessions';
 const DRUM_ASSIGNMENTS_KEY = 'seamlessplayer-drum-assignments';
 const DRUM_SESSIONS_KEY = 'seamlessplayer-drum-sessions';
+const DRUM_SEQUENCER_KEY = 'seamlessplayer-drum-sequencer';
 const PROJECTS_KEY = 'seamlessplayer-projects';
 const LOOP_TRIGGER_COLLAPSED_KEY = 'seamlessplayer-loop-trigger-collapsed';
 const DRUM_MACHINE_COLLAPSED_KEY = 'seamlessplayer-drum-machine-collapsed';
 const PAD_COUNT = 9;
 const DRUM_VOICE_LIMIT = 32;
+const DRUM_SEQUENCER_STEPS = 16;
+const DRUM_SEQUENCER_MIN_BPM = 60;
+const DRUM_SEQUENCER_MAX_BPM = 180;
 const PAD_COLOR_KEYS = Object.freeze(['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink', 'silver']);
 const PAD_COLOR_DEFAULT_KEY = 'blue';
 const PAD_DARK_COLOR_PALETTE = Object.freeze({
@@ -7190,6 +7603,40 @@ function savePickerCollapsedSubfolders(storageKey, sourceSet) {
   try { localStorage.setItem(storageKey, JSON.stringify([...sourceSet])); } catch {}
 }
 
+function createEmptyDrumSequencerPattern() {
+  return Array.from({ length: PAD_COUNT }, () => Array(DRUM_SEQUENCER_STEPS).fill(false));
+}
+
+function normalizeDrumSequencerBpm(value, fallback = 120) {
+  const parsed = parseInt(value, 10);
+  return clamp(Number.isFinite(parsed) ? parsed : fallback, DRUM_SEQUENCER_MIN_BPM, DRUM_SEQUENCER_MAX_BPM);
+}
+
+function normalizeDrumSequencerPattern(pattern) {
+  return Array.from({ length: PAD_COUNT }, (_, rowIndex) => {
+    const sourceRow = Array.isArray(pattern && pattern[rowIndex]) ? pattern[rowIndex] : [];
+    return Array.from({ length: DRUM_SEQUENCER_STEPS }, (_, stepIndex) => !!sourceRow[stepIndex]);
+  });
+}
+
+function normalizeDrumSequencerState(state) {
+  const source = state && typeof state === 'object' ? state : {};
+  return {
+    bpm: normalizeDrumSequencerBpm(source && source.bpm, 120),
+    pattern: normalizeDrumSequencerPattern(source && source.pattern)
+  };
+}
+
+function serializeDrumSequencerState(state) {
+  if (arguments.length > 0) return normalizeDrumSequencerState(state);
+  return normalizeDrumSequencerState({ bpm: drumSequencerBpm, pattern: drumSequencerPattern });
+}
+
+function hasDrumSequencerContent(state) {
+  const normalized = arguments.length > 0 ? normalizeDrumSequencerState(state) : serializeDrumSequencerState();
+  return normalized.pattern.some((row) => row.some(Boolean));
+}
+
 let padAssignments = new Array(PAD_COUNT).fill(null);
 let drumAssignments = new Array(PAD_COUNT).fill(null);
 // Each assignment: { presetKey, label, rate, colorKey, color }
@@ -7216,11 +7663,333 @@ let drumEditMode = false;
 const drumBufferWarmPromises = new Map();
 const drumVoices = [];
 const drumPadHitUntil = new Array(PAD_COUNT).fill(0);
+let drumLastTriggeredIndex = -1;
+let drumLastChokedIndex = -1;
+let drumSequencerPattern = createEmptyDrumSequencerPattern();
+let drumSequencerBpm = 120;
+let drumSequencerPlaying = false;
+let drumSequencerCurrentStep = -1;
+let drumSequencerTimer = 0;
 let drumAssignTarget = -1;
 let drumAssignSelectedKey = '';
 let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
 let padAssignmentClipboard = null;
 let drumAssignmentClipboard = null;
+
+function getPadPerformanceLabel(index) {
+  if (index < 0 || index >= PAD_COUNT) return 'Loop Trigger';
+  const assignment = padAssignments[index];
+  const raw = String((assignment && (assignment.displayName || assignment.label)) || '').trim();
+  return raw ? stripFileExt(raw) : `Pad ${index + 1}`;
+}
+
+function updatePadPerformanceUI() {
+  const textEl = document.getElementById('padLiveState');
+  const actionBtn = document.getElementById('padLiveAction');
+  if (!textEl) return;
+
+  let statusText = t('pads_live_idle');
+  let actionText = '';
+  let showAction = false;
+
+  if (padPlaying && padActiveIndex >= 0) {
+    const activeName = getPadPerformanceLabel(padActiveIndex);
+    if (padQueuedIndex >= 0) {
+      statusText = tf(padQueuedOneShot ? 'pads_live_queued_final' : 'pads_live_queued', {
+        currentIndex: padActiveIndex + 1,
+        current: activeName,
+        nextIndex: padQueuedIndex + 1,
+        next: getPadPerformanceLabel(padQueuedIndex)
+      });
+      actionText = t('pads_live_stop_now');
+      showAction = true;
+    } else if (padFinishing) {
+      statusText = tf('pads_live_finishing', {
+        index: padActiveIndex + 1,
+        name: activeName
+      });
+      actionText = t('pads_live_stop_now');
+      showAction = true;
+    } else {
+      statusText = tf('pads_live_playing', {
+        index: padActiveIndex + 1,
+        name: activeName
+      });
+      actionText = t('pads_live_finish_button');
+      showAction = true;
+    }
+  }
+
+  textEl.textContent = statusText;
+
+  if (!actionBtn) return;
+  actionBtn.textContent = actionText;
+  actionBtn.classList.toggle('hidden', !showAction);
+  actionBtn.disabled = !showAction;
+  if (showAction) actionBtn.setAttribute('aria-label', actionText);
+}
+
+function formatDrumVoiceCount(count) {
+  const total = Math.max(0, parseInt(count, 10) || 0);
+  if (currentLang === 'hr') {
+    if (total === 1) return '1 aktivan glas';
+    if (total >= 2 && total <= 4) return `${total} aktivna glasa`;
+    return `${total} aktivnih glasova`;
+  }
+  return `${total} active voice${total === 1 ? '' : 's'}`;
+}
+
+function getDrumPerformanceLabel(index) {
+  if (index < 0 || index >= PAD_COUNT) return 'Drum Machine';
+  return formatDrumChokeOptionLabel(index, drumAssignments[index]);
+}
+
+function updateDrumPerformanceUI() {
+  const textEl = document.getElementById('drumLiveState');
+  const actionBtn = document.getElementById('drumLiveAction');
+  if (!textEl) return;
+
+  const voiceCount = drumVoices.length;
+  let statusText = t('drum_live_idle');
+
+  if (drumLastTriggeredIndex >= 0) {
+    const values = {
+      name: getDrumPerformanceLabel(drumLastTriggeredIndex),
+      target: drumLastChokedIndex >= 0 ? getDrumPerformanceLabel(drumLastChokedIndex) : '',
+      count: formatDrumVoiceCount(voiceCount)
+    };
+    if (voiceCount > 0) {
+      statusText = tf(drumLastChokedIndex >= 0 ? 'drum_live_active_choke' : 'drum_live_active', values);
+    } else {
+      statusText = tf(drumLastChokedIndex >= 0 ? 'drum_live_recent_choke' : 'drum_live_recent', values);
+    }
+  }
+
+  textEl.textContent = statusText;
+
+  if (!actionBtn) return;
+  const showAction = voiceCount > 0;
+  actionBtn.textContent = t('drum_live_stop_all');
+  actionBtn.classList.toggle('hidden', !showAction);
+  actionBtn.disabled = !showAction;
+  if (showAction) actionBtn.setAttribute('aria-label', t('drum_live_stop_all'));
+}
+
+function getDrumSequencerPadLabel(index) {
+  if (index < 0 || index >= PAD_COUNT) return `Pad ${index + 1}`;
+  const assignment = getEffectiveDrumAssignment(index, getDrumAssignmentPreviewSelection());
+  const name = String(assignment && (assignment.displayName || assignment.label) || '').trim();
+  return name ? `${index + 1}. ${stripFileExt(name)}` : `${index + 1}. ${t('drum_seq_empty_row')}`;
+}
+
+function getDrumSequencerStepDurationMs() {
+  return Math.max(40, Math.round((60 / normalizeDrumSequencerBpm(drumSequencerBpm, 120) / 4) * 1000));
+}
+
+function saveDrumSequencerState() {
+  try { localStorage.setItem(DRUM_SEQUENCER_KEY, JSON.stringify(serializeDrumSequencerState())); } catch {}
+}
+
+function clearDrumSequencerTimer() {
+  if (!drumSequencerTimer) return;
+  clearTimeout(drumSequencerTimer);
+  drumSequencerTimer = 0;
+}
+
+function updateDrumSequencerPlayheadUI() {
+  document.querySelectorAll('#drumSequencerGrid [data-drum-seq-step]').forEach((el) => {
+    const stepIndex = parseInt(el.getAttribute('data-drum-seq-step'), 10);
+    el.classList.toggle('is-current', drumSequencerPlaying && stepIndex === drumSequencerCurrentStep);
+  });
+  document.querySelectorAll('#drumSequencerGrid .drum-sequencer-step').forEach((el) => {
+    const stepIndex = parseInt(el.getAttribute('data-drum-seq-step'), 10);
+    el.classList.toggle('is-current', drumSequencerPlaying && stepIndex === drumSequencerCurrentStep);
+  });
+}
+
+function updateDrumSequencerControls() {
+  const toggleBtn = document.getElementById('drumSequencerToggle');
+  const clearBtn = document.getElementById('drumSequencerClear');
+  const bpmInput = document.getElementById('drumSequencerBpm');
+  const bpmReadout = document.getElementById('drumSequencerBpmReadout');
+  if (toggleBtn) {
+    const label = t(drumSequencerPlaying ? 'drum_seq_toggle_stop' : 'drum_seq_toggle_start');
+    toggleBtn.textContent = label;
+    toggleBtn.setAttribute('aria-label', label);
+    toggleBtn.setAttribute('aria-pressed', drumSequencerPlaying ? 'true' : 'false');
+  }
+  if (clearBtn) {
+    clearBtn.textContent = t('drum_seq_clear');
+    clearBtn.setAttribute('aria-label', t('drum_seq_clear'));
+    clearBtn.disabled = !hasDrumSequencerContent();
+  }
+  if (bpmInput) {
+    bpmInput.min = String(DRUM_SEQUENCER_MIN_BPM);
+    bpmInput.max = String(DRUM_SEQUENCER_MAX_BPM);
+    bpmInput.value = String(normalizeDrumSequencerBpm(drumSequencerBpm, 120));
+    bpmInput.setAttribute('aria-label', t('drum_seq_bpm'));
+  }
+  if (bpmReadout) bpmReadout.textContent = tf('drum_seq_bpm_readout', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) });
+}
+
+function renderDrumSequencer() {
+  const titleEl = document.getElementById('drumSequencerTitle');
+  const hintEl = document.getElementById('drumSequencerHint');
+  const bpmLabel = document.getElementById('drumSequencerBpmLabel');
+  const grid = document.getElementById('drumSequencerGrid');
+  if (titleEl) titleEl.textContent = t('drum_seq_title');
+  if (hintEl) hintEl.textContent = t('drum_seq_hint');
+  if (bpmLabel) bpmLabel.textContent = t('drum_seq_bpm');
+  if (!grid) {
+    updateDrumSequencerControls();
+    return;
+  }
+
+  grid.innerHTML = '';
+
+  const headRow = document.createElement('div');
+  headRow.className = 'drum-sequencer-row drum-sequencer-row-head';
+  const headLabel = document.createElement('span');
+  headLabel.className = 'drum-sequencer-row-label drum-sequencer-row-corner';
+  headLabel.textContent = t('drum_seq_steps');
+  const headSteps = document.createElement('div');
+  headSteps.className = 'drum-sequencer-step-strip';
+  for (let stepIndex = 0; stepIndex < DRUM_SEQUENCER_STEPS; stepIndex += 1) {
+    const stepLabel = document.createElement('span');
+    stepLabel.className = 'drum-sequencer-step-label';
+    stepLabel.setAttribute('data-drum-seq-step', String(stepIndex));
+    stepLabel.textContent = String(stepIndex + 1);
+    headSteps.appendChild(stepLabel);
+  }
+  headRow.appendChild(headLabel);
+  headRow.appendChild(headSteps);
+  grid.appendChild(headRow);
+
+  for (let rowIndex = 0; rowIndex < PAD_COUNT; rowIndex += 1) {
+    const row = document.createElement('div');
+    row.className = 'drum-sequencer-row';
+    const rowAssignment = getEffectiveDrumAssignment(rowIndex, getDrumAssignmentPreviewSelection());
+
+    const rowLabel = document.createElement('span');
+    rowLabel.className = 'drum-sequencer-row-label';
+    rowLabel.textContent = getDrumSequencerPadLabel(rowIndex);
+    rowLabel.classList.toggle('is-empty', !rowAssignment);
+
+    const steps = document.createElement('div');
+    steps.className = 'drum-sequencer-step-strip';
+    for (let stepIndex = 0; stepIndex < DRUM_SEQUENCER_STEPS; stepIndex += 1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'drum-sequencer-step';
+      button.setAttribute('data-drum-seq-row', String(rowIndex));
+      button.setAttribute('data-drum-seq-step', String(stepIndex));
+      button.setAttribute('aria-pressed', drumSequencerPattern[rowIndex][stepIndex] ? 'true' : 'false');
+      button.setAttribute('aria-label', `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`);
+      button.classList.toggle('is-active', !!drumSequencerPattern[rowIndex][stepIndex]);
+      steps.appendChild(button);
+    }
+
+    row.appendChild(rowLabel);
+    row.appendChild(steps);
+    grid.appendChild(row);
+  }
+
+  updateDrumSequencerControls();
+  updateDrumSequencerPlayheadUI();
+}
+
+function toggleDrumSequencerStep(rowIndex, stepIndex) {
+  if (rowIndex < 0 || rowIndex >= PAD_COUNT || stepIndex < 0 || stepIndex >= DRUM_SEQUENCER_STEPS) return;
+  drumSequencerPattern[rowIndex][stepIndex] = !drumSequencerPattern[rowIndex][stepIndex];
+  saveDrumSequencerState();
+  renderDrumSequencer();
+}
+
+function fireDrumSequencerStep(stepIndex) {
+  drumSequencerCurrentStep = stepIndex;
+  updateDrumSequencerPlayheadUI();
+  for (let rowIndex = 0; rowIndex < PAD_COUNT; rowIndex += 1) {
+    if (!drumSequencerPattern[rowIndex][stepIndex]) continue;
+    if (!drumAssignments[rowIndex]) continue;
+    void triggerDrumPad(rowIndex);
+  }
+}
+
+function queueNextDrumSequencerTick() {
+  clearDrumSequencerTimer();
+  if (!drumSequencerPlaying) return;
+  drumSequencerTimer = setTimeout(() => {
+    const nextStep = (drumSequencerCurrentStep + 1) % DRUM_SEQUENCER_STEPS;
+    fireDrumSequencerStep(nextStep);
+    queueNextDrumSequencerTick();
+  }, getDrumSequencerStepDurationMs());
+}
+
+async function startDrumSequencer() {
+  if (drumSequencerPlaying) return;
+  if (!hasDrumSequencerContent()) {
+    setStatus(t('status_drum_seq_empty'));
+    updateDrumSequencerControls();
+    return;
+  }
+  try { warmAssignedDrumBuffers(); } catch {}
+  drumSequencerPlaying = true;
+  drumSequencerCurrentStep = -1;
+  updateDrumSequencerControls();
+  fireDrumSequencerStep(0);
+  queueNextDrumSequencerTick();
+  saveDrumSequencerState();
+  setStatus(tf('status_drum_seq_started', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) }));
+}
+
+function stopDrumSequencer({ resetStep = true, stopVoices = false, silent = false } = {}) {
+  const wasPlaying = drumSequencerPlaying;
+  clearDrumSequencerTimer();
+  drumSequencerPlaying = false;
+  if (resetStep) drumSequencerCurrentStep = -1;
+  if (stopVoices) stopDrumPlayback(true);
+  updateDrumSequencerControls();
+  updateDrumSequencerPlayheadUI();
+  if (!silent && wasPlaying) setStatus(t('status_drum_seq_stopped'));
+}
+
+function clearDrumSequencerPattern() {
+  stopDrumSequencer({ resetStep: true, silent: true });
+  drumSequencerPattern = createEmptyDrumSequencerPattern();
+  saveDrumSequencerState();
+  renderDrumSequencer();
+  setStatus(t('status_drum_seq_cleared'));
+}
+
+function applyDrumSequencerState(state, { save = false, stopPlayback = false } = {}) {
+  if (stopPlayback) stopDrumSequencer({ resetStep: true, silent: true });
+  const normalized = serializeDrumSequencerState(state);
+  drumSequencerBpm = normalized.bpm;
+  drumSequencerPattern = normalized.pattern;
+  if (save) saveDrumSequencerState();
+  renderDrumSequencer();
+}
+
+function loadDrumSequencerState() {
+  let parsed = null;
+  try { parsed = JSON.parse(localStorage.getItem(DRUM_SEQUENCER_KEY) || 'null'); } catch {}
+  applyDrumSequencerState(parsed, { save: false, stopPlayback: true });
+}
+
+function updateDrumChokeSummary() {
+  const summaryEl = document.getElementById('drumChokeSummary');
+  const select = document.getElementById('drumChokeSelect');
+  if (!summaryEl) return;
+  const selectedIndex = select ? clamp(parseInt(select.value, 10) || -1, -1, PAD_COUNT - 1) : -1;
+  if (selectedIndex < 0 || selectedIndex === drumAssignTarget) {
+    summaryEl.textContent = t('drum_choke_summary_none');
+    return;
+  }
+  summaryEl.textContent = tf('drum_choke_summary_target', {
+    target: formatDrumChokeOptionLabel(selectedIndex, drumAssignments[selectedIndex])
+  });
+  try { renderDrumGrid(); } catch {}
+}
 
 function refreshPadEditButton() {
   const btn = document.getElementById('padsEditMode');
@@ -7565,6 +8334,7 @@ function applyPadAssignmentToModalDraft(assignment) {
   updatePadAssignTrimButton();
   updatePadAssignClipboardButtons();
   updatePadAssignNextButton();
+  try { renderPadGrid(); } catch {}
   return true;
 }
 
@@ -7592,6 +8362,9 @@ function applyDrumAssignmentToModalDraft(assignment) {
   updateDrumAssignTrimButton();
   updateDrumAssignClipboardButtons();
   updateDrumAssignNextButton();
+  updateDrumChokeSummary();
+  try { renderDrumGrid(); } catch {}
+  try { renderDrumSequencer(); } catch {}
   return true;
 }
 
@@ -7652,7 +8425,13 @@ function updatePadAssignTrimButton() {
 }
 
 function updatePadAssignNextButton() {
+  const prevBtn = document.getElementById('padAssignSavePrev');
   const nextBtn = document.getElementById('padAssignSaveNext');
+  if (prevBtn) {
+    prevBtn.textContent = t('pads_assign_save_prev');
+    prevBtn.setAttribute('aria-label', t('pads_assign_save_prev'));
+    prevBtn.disabled = !(padAssignTarget > 0 && padAssignTarget < PAD_COUNT);
+  }
   if (!nextBtn) return;
   nextBtn.textContent = t('pads_assign_save_next');
   nextBtn.setAttribute('aria-label', t('pads_assign_save_next'));
@@ -7685,7 +8464,13 @@ function updateDrumAssignTrimButton() {
 }
 
 function updateDrumAssignNextButton() {
+  const prevBtn = document.getElementById('drumAssignSavePrev');
   const nextBtn = document.getElementById('drumAssignSaveNext');
+  if (prevBtn) {
+    prevBtn.textContent = t('drum_assign_save_prev');
+    prevBtn.setAttribute('aria-label', t('drum_assign_save_prev'));
+    prevBtn.disabled = !(drumAssignTarget > 0 && drumAssignTarget < PAD_COUNT);
+  }
   if (!nextBtn) return;
   nextBtn.textContent = t('drum_assign_save_next');
   nextBtn.setAttribute('aria-label', t('drum_assign_save_next'));
@@ -8086,6 +8871,7 @@ function renderPadLoopPicker() {
           updatePadAssignTrimButton();
           updatePadAssignClipboardButtons();
           renderPadLoopPicker();
+          try { renderPadGrid(); } catch {}
         });
         target.appendChild(button);
       });
@@ -8212,6 +8998,8 @@ function renderDrumLoopPicker() {
           updateDrumAssignTrimButton();
           updateDrumAssignClipboardButtons();
           renderDrumLoopPicker();
+          try { renderDrumGrid(); } catch {}
+          try { renderDrumSequencer(); } catch {}
         });
         target.appendChild(button);
       });
@@ -8363,6 +9151,90 @@ function formatDrumChokeOptionLabel(index, assignment = drumAssignments[index]) 
   return name ? `${index + 1} - ${name}` : fallback;
 }
 
+function getPadAssignmentPreviewSelection() {
+  const overlay = document.getElementById('padAssignOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) {
+    return { active: false, padIndex: -1, assignment: null };
+  }
+  const padIndex = (padAssignTarget >= 0 && padAssignTarget < PAD_COUNT) ? padAssignTarget : -1;
+  if (padIndex < 0) {
+    return { active: false, padIndex: -1, assignment: null };
+  }
+  return {
+    active: true,
+    padIndex,
+    assignment: buildPadAssignmentFromModalState()
+  };
+}
+
+function getDrumAssignmentPreviewSelection() {
+  const overlay = document.getElementById('drumAssignOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) {
+    return { active: false, padIndex: -1, assignment: null };
+  }
+  const padIndex = (drumAssignTarget >= 0 && drumAssignTarget < PAD_COUNT) ? drumAssignTarget : -1;
+  if (padIndex < 0) {
+    return { active: false, padIndex: -1, assignment: null };
+  }
+  return {
+    active: true,
+    padIndex,
+    assignment: buildDrumAssignmentFromModalState()
+  };
+}
+
+function getEffectivePadAssignment(index, preview = getPadAssignmentPreviewSelection()) {
+  if (preview && preview.active && preview.padIndex === index) return preview.assignment;
+  return padAssignments[index];
+}
+
+function getEffectiveDrumAssignment(index, preview = getDrumAssignmentPreviewSelection()) {
+  if (preview && preview.active && preview.padIndex === index) return preview.assignment;
+  return drumAssignments[index];
+}
+
+function getDrumChokePreviewSelection(preview = getDrumAssignmentPreviewSelection()) {
+  if (!preview || !preview.active) {
+    return { active: false, sourceIndex: -1, targetIndex: -1 };
+  }
+  const sourceIndex = (preview.padIndex >= 0 && preview.padIndex < PAD_COUNT) ? preview.padIndex : -1;
+  if (sourceIndex < 0) {
+    return { active: false, sourceIndex: -1, targetIndex: -1 };
+  }
+  const targetIndex = preview.assignment && Number.isInteger(preview.assignment.chokeTargetIndex)
+    ? clamp(preview.assignment.chokeTargetIndex, -1, PAD_COUNT - 1)
+    : -1;
+  return { active: true, sourceIndex, targetIndex: targetIndex === sourceIndex ? -1 : targetIndex };
+}
+
+function getEffectiveDrumChokeTargetIndex(index, preview = getDrumChokePreviewSelection(), assignmentPreview = getDrumAssignmentPreviewSelection()) {
+  const assignment = getEffectiveDrumAssignment(index, assignmentPreview);
+  return assignment && Number.isInteger(assignment.chokeTargetIndex)
+    ? clamp(assignment.chokeTargetIndex, -1, PAD_COUNT - 1)
+    : -1;
+}
+
+function getDrumIncomingChokeSources(targetIndex, preview = getDrumChokePreviewSelection(), assignmentPreview = getDrumAssignmentPreviewSelection()) {
+  const sources = [];
+  if (targetIndex < 0 || targetIndex >= PAD_COUNT) return sources;
+  drumAssignments.forEach((assignment, index) => {
+    const effectiveAssignment = getEffectiveDrumAssignment(index, assignmentPreview);
+    if (!effectiveAssignment || index === targetIndex) return;
+    if (getEffectiveDrumChokeTargetIndex(index, preview, assignmentPreview) !== targetIndex) return;
+    sources.push(index);
+  });
+  return sources;
+}
+
+function formatDrumPadIndexList(indices, limit = 3) {
+  const values = (Array.isArray(indices) ? indices : [])
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < PAD_COUNT)
+    .map((index) => String(index + 1));
+  if (!values.length) return '';
+  if (values.length <= limit) return values.join(',');
+  return `${values.slice(0, limit).join(',')}+${values.length - limit}`;
+}
+
 function renderDrumChokeOptions() {
   const select = document.getElementById('drumChokeSelect');
   if (!select) return;
@@ -8387,6 +9259,7 @@ function renderDrumChokeOptions() {
     ? String(currentAssignment.chokeTargetIndex)
     : (previousValue || '-1');
   select.value = Array.from(select.options).some(option => option.value === desired) ? desired : '-1';
+  updateDrumChokeSummary();
 }
 
 function renderDrumGrid() {
@@ -8395,22 +9268,67 @@ function renderDrumGrid() {
   const theme = getCurrentTheme();
   const pads = grid.querySelectorAll('.drum-pad');
   const now = Date.now();
+  const assignmentPreview = getDrumAssignmentPreviewSelection();
+  const preview = getDrumChokePreviewSelection(assignmentPreview);
   pads.forEach((el, i) => {
-    const assignment = drumAssignments[i];
+    const assignment = getEffectiveDrumAssignment(i, assignmentPreview);
+    const chokeTargetIndex = getEffectiveDrumChokeTargetIndex(i, preview, assignmentPreview);
+    const incomingSources = getDrumIncomingChokeSources(i, preview, assignmentPreview);
+    const isPreviewed = assignmentPreview.active && assignmentPreview.padIndex === i && !!assignment;
     const oldName = el.querySelector('.pad-loop-name');
     if (oldName) oldName.remove();
+    el.querySelectorAll('.pad-preview-badge').forEach((badge) => badge.remove());
+    el.querySelectorAll('.drum-choke-badge').forEach((badge) => badge.remove());
 
     if (assignment) {
       const isAvailable = isPresetKeyAvailable(assignment.presetKey);
       const colorKey = normalizePadColorKey(assignment.colorKey, assignment.color);
       const displayText = assignment.displayName || assignment.label || '';
+      const chokeDescriptions = [];
+      if (chokeTargetIndex >= 0 && chokeTargetIndex !== i) {
+        chokeDescriptions.push(tf('drum_grid_choke_source', {
+          target: formatDrumChokeOptionLabel(chokeTargetIndex, drumAssignments[chokeTargetIndex])
+        }));
+      }
+      if (incomingSources.length) {
+        chokeDescriptions.push(tf('drum_grid_choke_target', {
+          sources: incomingSources.map((sourceIndex) => formatDrumChokeOptionLabel(sourceIndex, drumAssignments[sourceIndex])).join(', ')
+        }));
+      }
       el.style.background = resolvePadDisplayColor(colorKey, theme);
-      el.setAttribute('aria-label', `Drum pad ${i + 1} - ${displayText || 'Assigned'}${isAvailable ? '' : ` - ${t('pad_missing_audio')}`}`);
-      el.title = isAvailable ? displayText : `${displayText || t('pad_missing_audio')} (${t('pad_missing_audio')})`;
+      el.setAttribute('aria-label', [
+        `Drum pad ${i + 1} - ${displayText || 'Assigned'}${isAvailable ? '' : ` - ${t('pad_missing_audio')}`}`,
+        ...chokeDescriptions
+      ].join(' - '));
+      el.title = [
+        isAvailable ? (displayText || `Pad ${i + 1}`) : `${displayText || t('pad_missing_audio')} (${t('pad_missing_audio')})`,
+        ...chokeDescriptions
+      ].filter(Boolean).join(' • ');
       const nameEl = document.createElement('span');
       nameEl.className = 'pad-loop-name';
       nameEl.textContent = formatPadDisplayText(isAvailable ? displayText : `${displayText || ''}\n${t('pad_missing_audio')}`.trim());
       el.appendChild(nameEl);
+      if (isPreviewed) {
+        const previewBadge = document.createElement('span');
+        previewBadge.className = 'pad-preview-badge';
+        previewBadge.textContent = t('drum_grid_preview_badge');
+        previewBadge.setAttribute('aria-hidden', 'true');
+        el.appendChild(previewBadge);
+      }
+      if (chokeTargetIndex >= 0 && chokeTargetIndex !== i) {
+        const sourceBadge = document.createElement('span');
+        sourceBadge.className = 'drum-choke-badge drum-choke-source-badge';
+        sourceBadge.textContent = tf('drum_grid_choke_source_badge', { index: chokeTargetIndex + 1 });
+        sourceBadge.setAttribute('aria-hidden', 'true');
+        el.appendChild(sourceBadge);
+      }
+      if (incomingSources.length) {
+        const targetBadge = document.createElement('span');
+        targetBadge.className = 'drum-choke-badge drum-choke-target-badge';
+        targetBadge.textContent = tf('drum_grid_choke_target_badge', { sources: formatDrumPadIndexList(incomingSources) });
+        targetBadge.setAttribute('aria-hidden', 'true');
+        el.appendChild(targetBadge);
+      }
       el.classList.toggle('pad-missing', !isAvailable);
     } else {
       el.style.background = '';
@@ -8421,7 +9339,15 @@ function renderDrumGrid() {
 
     el.classList.toggle('pad-hit', drumPadHitUntil[i] > now);
     el.classList.toggle('pad-edit-selecting', drumEditMode);
+  el.classList.toggle('drum-pad-assignment-preview', isPreviewed);
+    el.classList.toggle('drum-pad-choke-source', chokeTargetIndex >= 0 && chokeTargetIndex !== i);
+    el.classList.toggle('drum-pad-choke-target', incomingSources.length > 0);
+    el.classList.toggle('drum-pad-choke-preview-source', preview.active && preview.sourceIndex === i && preview.targetIndex >= 0);
+    el.classList.toggle('drum-pad-choke-preview-target', preview.active && preview.targetIndex === i && preview.sourceIndex >= 0);
+    el.classList.toggle('drum-pad-last-choke-source', drumLastTriggeredIndex === i && drumLastChokedIndex >= 0);
+    el.classList.toggle('drum-pad-last-choke-target', drumLastChokedIndex === i);
   });
+  updateDrumPerformanceUI();
 }
 
 function flashDrumPad(index) {
@@ -8436,6 +9362,7 @@ function flashDrumPad(index) {
 function unregisterDrumVoice(voice) {
   const idx = drumVoices.indexOf(voice);
   if (idx >= 0) drumVoices.splice(idx, 1);
+  updateDrumPerformanceUI();
 }
 
 function destroyDrumVoice(voice) {
@@ -8496,6 +9423,9 @@ async function triggerDrumPad(index) {
   startOutputIfNeeded();
 
   const chokeTargetIndex = Number.isInteger(assignment.chokeTargetIndex) ? assignment.chokeTargetIndex : -1;
+  const didChoke = chokeTargetIndex >= 0 && chokeTargetIndex !== index
+    ? drumVoices.some((voice) => voice && voice.padIndex === chokeTargetIndex)
+    : false;
   if (chokeTargetIndex >= 0 && chokeTargetIndex !== index) {
     stopDrumVoicesByPad(chokeTargetIndex, true);
   }
@@ -8547,9 +9477,12 @@ async function triggerDrumPad(index) {
   voice.endedHandler = () => destroyDrumVoice(voice);
   source.addEventListener('ended', voice.endedHandler);
   drumVoices.push(voice);
+  drumLastTriggeredIndex = index;
+  drumLastChokedIndex = didChoke ? chokeTargetIndex : -1;
 
   source.start(audioCtx.currentTime, startOffset, duration);
   flashDrumPad(index);
+  updateDrumPerformanceUI();
   setStatus(`Drum ${index + 1}: ${assignment.displayName || assignment.label || 'Playing'}`);
 }
 
@@ -8587,10 +9520,13 @@ function openDrumAssignModal(padIndex, { preservePickerState = false, draft = nu
     const desired = String(chokeTargetIndex === drumAssignTarget ? -1 : chokeTargetIndex);
     chokeSelect.value = Array.from(chokeSelect.options).some((option) => option.value === desired) ? desired : '-1';
   }
+  updateDrumChokeSummary();
   updateDrumAssignTrimButton();
   updateDrumAssignClipboardButtons();
   updateDrumAssignNextButton();
   overlay.classList.remove('hidden');
+  try { renderDrumGrid(); } catch {}
+  try { renderDrumSequencer(); } catch {}
   try { updateScrollState(); } catch {}
 }
 
@@ -8599,6 +9535,8 @@ function closeDrumAssignModal() {
   if (overlay) overlay.classList.add('hidden');
   stopPickerPreview(true);
   drumAssignTarget = -1;
+  try { renderDrumGrid(); } catch {}
+  try { renderDrumSequencer(); } catch {}
   try { updateScrollState(); } catch {}
 }
 
@@ -8626,6 +9564,7 @@ function persistDrumAssignmentFromModal() {
   saveDrumAssignments();
   void warmDrumAssignmentBuffer(drumAssignments[drumAssignTarget]);
   renderDrumGrid();
+  renderDrumSequencer();
   return true;
 }
 
@@ -8644,6 +9583,15 @@ function saveDrumAssignmentAndOpenNext() {
   if (saved) setStatus(tf('status_drum_assignment_next', { from: currentIndex + 1, to: currentIndex + 2 }));
 }
 
+function saveDrumAssignmentAndOpenPrevious() {
+  if (drumAssignTarget <= 0 || drumAssignTarget >= PAD_COUNT) return;
+  const currentIndex = drumAssignTarget;
+  const saved = persistDrumAssignmentFromModal();
+  closeDrumAssignModal();
+  openDrumAssignModal(currentIndex - 1, { preservePickerState: true });
+  if (saved) setStatus(tf('status_drum_assignment_prev', { from: currentIndex + 1, to: currentIndex }));
+}
+
 function clearDrumAssignment() {
   if (drumAssignTarget < 0 || drumAssignTarget >= PAD_COUNT) return;
   stopDrumVoicesByPad(drumAssignTarget, true);
@@ -8655,6 +9603,7 @@ function clearDrumAssignment() {
   });
   saveDrumAssignments();
   renderDrumGrid();
+  renderDrumSequencer();
   closeDrumAssignModal();
 }
 
@@ -8768,7 +9717,8 @@ function normalizeProjectRecord(project, projectIndex = 0) {
       playlistRepeat: !!(player && player.playlistRepeat)
     },
     padAssignments: Array.from({ length: PAD_COUNT }, (_, index) => serializePadAssignment(project && Array.isArray(project.padAssignments) ? project.padAssignments[index] : null)),
-    drumAssignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(project && Array.isArray(project.drumAssignments) ? project.drumAssignments[index] : null))
+    drumAssignments: Array.from({ length: PAD_COUNT }, (_, index) => serializeDrumAssignment(project && Array.isArray(project.drumAssignments) ? project.drumAssignments[index] : null)),
+    drumSequencer: serializeDrumSequencerState(project && project.drumSequencer)
   };
 }
 
@@ -8824,7 +9774,8 @@ function buildProjectSnapshot(name) {
     createdAt: Date.now(),
     player: buildPlayerProjectSnapshot(),
     padAssignments: padAssignments.map(a => serializePadAssignment(a)),
-    drumAssignments: drumAssignments.map(a => serializeDrumAssignment(a))
+    drumAssignments: drumAssignments.map(a => serializeDrumAssignment(a)),
+    drumSequencer: serializeDrumSequencerState()
   });
 }
 
@@ -8947,6 +9898,7 @@ function hasCurrentProjectState() {
     || (playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length)
     || padAssignments.some(Boolean)
     || drumAssignments.some(Boolean)
+    || hasDrumSequencerContent()
   );
 }
 
@@ -8969,11 +9921,14 @@ function renderPadGrid() {
   if (!grid) return;
   const theme = getCurrentTheme();
   const pads = grid.querySelectorAll('.pad');
+  const preview = getPadAssignmentPreviewSelection();
   pads.forEach((el, i) => {
-    const a = padAssignments[i];
+    const a = getEffectivePadAssignment(i, preview);
+    const isPreviewed = preview.active && preview.padIndex === i && !!a;
     // Remove old dynamic children
     const oldName = el.querySelector('.pad-loop-name');
     if (oldName) oldName.remove();
+    el.querySelectorAll('.pad-preview-badge, .pad-mode-badge').forEach((badge) => badge.remove());
 
     if (a) {
       const isAvailable = isPresetKeyAvailable(a.presetKey);
@@ -8986,6 +9941,20 @@ function renderPadGrid() {
       nameEl.className = 'pad-loop-name';
       nameEl.textContent = formatPadDisplayText(isAvailable ? displayText : `${displayText || ''}\n${t('pad_missing_audio')}`.trim());
       el.appendChild(nameEl);
+      if (isPreviewed) {
+        const previewBadge = document.createElement('span');
+        previewBadge.className = 'pad-preview-badge';
+        previewBadge.textContent = t('pads_grid_preview_badge');
+        previewBadge.setAttribute('aria-hidden', 'true');
+        el.appendChild(previewBadge);
+      }
+      if (a.loop === false) {
+        const modeBadge = document.createElement('span');
+        modeBadge.className = 'pad-mode-badge';
+        modeBadge.textContent = t('pads_grid_one_shot_badge');
+        modeBadge.setAttribute('aria-hidden', 'true');
+        el.appendChild(modeBadge);
+      }
       el.classList.toggle('pad-missing', !isAvailable);
     } else {
       el.style.background = '';
@@ -8998,7 +9967,9 @@ function renderPadGrid() {
     el.classList.toggle('pad-queued', i === padQueuedIndex);
     el.classList.toggle('pad-finishing', i === padActiveIndex && padFinishing);
     el.classList.toggle('pad-edit-selecting', padEditMode);
+    el.classList.toggle('pad-assignment-preview', isPreviewed);
   });
+  updatePadPerformanceUI();
 }
 
 function stopPadPlayback(ramp = 0.05) {
@@ -9296,6 +10267,7 @@ function openPadAssignModal(padIndex, { preservePickerState = false, draft = nul
   updatePadAssignNextButton();
 
   overlay.classList.remove('hidden');
+  try { renderPadGrid(); } catch {}
   try { updateScrollState(); } catch {}
 }
 
@@ -9304,6 +10276,7 @@ function closePadAssignModal() {
   if (overlay) overlay.classList.add('hidden');
   stopPickerPreview(true);
   padAssignTarget = -1;
+  try { renderPadGrid(); } catch {}
   try { updateScrollState(); } catch {}
 }
 
@@ -9353,6 +10326,15 @@ function savePadAssignmentAndOpenNext() {
   closePadAssignModal();
   openPadAssignModal(currentIndex + 1, { preservePickerState: true });
   if (saved) setStatus(tf('status_pad_assignment_next', { from: currentIndex + 1, to: currentIndex + 2 }));
+}
+
+function savePadAssignmentAndOpenPrevious() {
+  if (padAssignTarget <= 0 || padAssignTarget >= PAD_COUNT) return;
+  const currentIndex = padAssignTarget;
+  const saved = persistPadAssignmentFromModal();
+  closePadAssignModal();
+  openPadAssignModal(currentIndex - 1, { preservePickerState: true });
+  if (saved) setStatus(tf('status_pad_assignment_prev', { from: currentIndex + 1, to: currentIndex }));
 }
 
 function clearPadAssignment() {
@@ -9659,9 +10641,11 @@ async function applyProjectSnapshot(project) {
   saveDrumAssignments();
   try { warmAssignedPadBuffers(); } catch {}
   try { warmAssignedDrumBuffers(); } catch {}
+  applyDrumSequencerState(project.drumSequencer, { save: true, stopPlayback: true });
   await applyProjectPlayerSnapshot(project.player);
   renderPadGrid();
   renderDrumGrid();
+  renderDrumSequencer();
   switchTab('player');
   const missingCount = getProjectMissingReferenceCount(project);
   setStatus(missingCount
@@ -9673,6 +10657,7 @@ async function recallProject(project) {
   if (!project) return;
   try { stopPlaylistPlayback(); } catch {}
   try { stopLoop(0.03); } catch {}
+  stopDrumSequencer({ resetStep: true, silent: true });
   await stopPadPlaybackAndWait(0.02);
   await stopDrumPlaybackAndWait(true);
   await wait(80);
@@ -9773,7 +10758,8 @@ function confirmSaveDrumSession() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name,
     createdAt: Date.now(),
-    assignments: drumAssignments.map(a => serializeDrumAssignment(a))
+    assignments: drumAssignments.map(a => serializeDrumAssignment(a)),
+    sequencer: serializeDrumSequencerState()
   });
   saveDrumSessions(sessions);
   closeDrumSessionSaveModal();
@@ -9905,8 +10891,10 @@ function applyDrumSession(session) {
   }
   saveDrumAssignments();
   try { warmAssignedDrumBuffers(); } catch {}
+  applyDrumSequencerState(session.sequencer, { save: true, stopPlayback: true });
   stopDrumPlayback(true);
   renderDrumGrid();
+  renderDrumSequencer();
   const missingCount = countMissingAssignmentAudio(drumAssignments);
   setStatus(missingCount
     ? tf('status_session_loaded_missing_audio', { name: session.name, count: missingCount })
@@ -9916,6 +10904,7 @@ function applyDrumSession(session) {
 
 async function recallDrumSession(session) {
   if (!session) return;
+  stopDrumSequencer({ resetStep: true, silent: true });
   await stopDrumPlaybackAndWait(true);
   applyDrumSession(session);
 }
@@ -9991,6 +10980,7 @@ function bindPadsUI() {
         swatch.getAttribute('data-color') || ''
       );
       refreshPadColorPalette();
+      try { renderPadGrid(); } catch {}
     });
     refreshPadColorPalette();
   }
@@ -10008,6 +10998,14 @@ function bindPadsUI() {
     padRepeatBtn.addEventListener('click', () => {
       padAssignLoop = !padAssignLoop;
       padRepeatBtn.setAttribute('aria-pressed', padAssignLoop ? 'true' : 'false');
+      try { renderPadGrid(); } catch {}
+    });
+  }
+
+  const padDisplayNameInput = document.getElementById('padDisplayNameInput');
+  if (padDisplayNameInput) {
+    padDisplayNameInput.addEventListener('input', () => {
+      try { renderPadGrid(); } catch {}
     });
   }
 
@@ -10058,17 +11056,30 @@ function bindPadsUI() {
   const copyBtn = document.getElementById('padAssignCopy');
   const pasteBtn = document.getElementById('padAssignPaste');
   const saveBtn = document.getElementById('padAssignSave');
+  const savePrevBtn = document.getElementById('padAssignSavePrev');
   const saveNextBtn = document.getElementById('padAssignSaveNext');
   const trimBtn = document.getElementById('padAssignTrim');
   const clearBtn = document.getElementById('padAssignClear');
   const closeBtn = document.getElementById('padAssignClose');
+  const padLiveAction = document.getElementById('padLiveAction');
   if (trimBtn) trimBtn.addEventListener('click', () => { void openSelectedPadLoopInTrimmer(); });
   if (copyBtn) copyBtn.addEventListener('click', copyPadAssignmentToClipboard);
   if (pasteBtn) pasteBtn.addEventListener('click', pastePadAssignmentFromClipboard);
   if (saveBtn) saveBtn.addEventListener('click', savePadAssignment);
+  if (savePrevBtn) savePrevBtn.addEventListener('click', savePadAssignmentAndOpenPrevious);
   if (saveNextBtn) saveNextBtn.addEventListener('click', savePadAssignmentAndOpenNext);
   if (clearBtn) clearBtn.addEventListener('click', clearPadAssignment);
   if (closeBtn) closeBtn.addEventListener('click', closePadAssignModal);
+  if (padLiveAction) {
+    padLiveAction.addEventListener('click', () => {
+      if (!padPlaying) return;
+      if (padFinishing || padQueuedIndex >= 0) {
+        stopPadPlayback(0.02);
+      } else {
+        schedulePadFinish();
+      }
+    });
+  }
 
   // Save Session
   const saveSessBtn = document.getElementById('padsSaveSession');
@@ -10134,6 +11145,8 @@ function bindDrumMachineUI() {
   const drumPalette = document.getElementById('drumColorPalette');
   const drumVolumeInput = document.getElementById('drumAssignVolume');
   const drumVolumeReadout = document.getElementById('drumAssignVolumeReadout');
+  const drumChokeSelect = document.getElementById('drumChokeSelect');
+  const drumLiveAction = document.getElementById('drumLiveAction');
   if (drumPalette) {
     drumPalette.addEventListener('click', (e) => {
       const swatch = e.target.closest('.pad-color-swatch');
@@ -10143,8 +11156,18 @@ function bindDrumMachineUI() {
         swatch.getAttribute('data-color') || ''
       );
       refreshDrumColorPalette();
+      try { renderDrumGrid(); } catch {}
+      try { renderDrumSequencer(); } catch {}
     });
     refreshDrumColorPalette();
+  }
+
+  const drumDisplayNameInput = document.getElementById('drumDisplayNameInput');
+  if (drumDisplayNameInput) {
+    drumDisplayNameInput.addEventListener('input', () => {
+      try { renderDrumGrid(); } catch {}
+      try { renderDrumSequencer(); } catch {}
+    });
   }
 
   if (drumVolumeInput) {
@@ -10161,9 +11184,51 @@ function bindDrumMachineUI() {
     });
   }
 
+  if (drumChokeSelect) {
+    drumChokeSelect.addEventListener('change', () => {
+      updateDrumChokeSummary();
+    });
+  }
+
+  const drumSequencerGrid = document.getElementById('drumSequencerGrid');
+  const drumSequencerToggle = document.getElementById('drumSequencerToggle');
+  const drumSequencerClear = document.getElementById('drumSequencerClear');
+  const drumSequencerBpmInput = document.getElementById('drumSequencerBpm');
+  if (drumSequencerGrid) {
+    drumSequencerGrid.addEventListener('click', (e) => {
+      const button = e.target.closest('.drum-sequencer-step');
+      if (!button) return;
+      const rowIndex = parseInt(button.getAttribute('data-drum-seq-row'), 10);
+      const stepIndex = parseInt(button.getAttribute('data-drum-seq-step'), 10);
+      toggleDrumSequencerStep(rowIndex, stepIndex);
+    });
+  }
+  if (drumSequencerToggle) {
+    drumSequencerToggle.addEventListener('click', async () => {
+      if (drumSequencerPlaying) {
+        stopDrumSequencer();
+        return;
+      }
+      await startDrumSequencer();
+    });
+  }
+  if (drumSequencerClear) {
+    drumSequencerClear.addEventListener('click', () => {
+      clearDrumSequencerPattern();
+    });
+  }
+  if (drumSequencerBpmInput) {
+    drumSequencerBpmInput.addEventListener('input', () => {
+      drumSequencerBpm = normalizeDrumSequencerBpm(drumSequencerBpmInput.value, drumSequencerBpm);
+      saveDrumSequencerState();
+      updateDrumSequencerControls();
+    });
+  }
+
   const drumAssignCopy = document.getElementById('drumAssignCopy');
   const drumAssignPaste = document.getElementById('drumAssignPaste');
   const drumAssignSave = document.getElementById('drumAssignSave');
+  const drumAssignSavePrev = document.getElementById('drumAssignSavePrev');
   const drumAssignSaveNext = document.getElementById('drumAssignSaveNext');
   const drumAssignTrim = document.getElementById('drumAssignTrim');
   const drumAssignClear = document.getElementById('drumAssignClear');
@@ -10180,9 +11245,11 @@ function bindDrumMachineUI() {
   if (drumAssignCopy) drumAssignCopy.addEventListener('click', copyDrumAssignmentToClipboard);
   if (drumAssignPaste) drumAssignPaste.addEventListener('click', pasteDrumAssignmentFromClipboard);
   if (drumAssignSave) drumAssignSave.addEventListener('click', saveDrumAssignment);
+  if (drumAssignSavePrev) drumAssignSavePrev.addEventListener('click', saveDrumAssignmentAndOpenPrevious);
   if (drumAssignSaveNext) drumAssignSaveNext.addEventListener('click', saveDrumAssignmentAndOpenNext);
   if (drumAssignClear) drumAssignClear.addEventListener('click', clearDrumAssignment);
   if (drumAssignClose) drumAssignClose.addEventListener('click', closeDrumAssignModal);
+  if (drumLiveAction) drumLiveAction.addEventListener('click', () => stopDrumPlayback(true));
   if (drumSaveSessBtn) drumSaveSessBtn.addEventListener('click', openDrumSessionSaveModal);
   if (drumEditModeBtn) drumEditModeBtn.addEventListener('click', () => setDrumEditMode(!drumEditMode));
   if (drumSessConfirm) drumSessConfirm.addEventListener('click', confirmSaveDrumSession);
@@ -10258,6 +11325,8 @@ function bindUI() {
 
   const loopPickerOverlay = document.getElementById('loopPickerOverlay');
   const loopPickerList = document.getElementById('loopPickerList');
+  const loopPickerSearchInput = document.getElementById('loopPickerSearchInput');
+  const loopPickerSearchClear = document.getElementById('loopPickerSearchClear');
   const closeLoopPicker = document.getElementById('closeLoopPicker');
   const loopInfoFavoriteBtn = document.getElementById('loopInfoFavoriteBtn');
   const playerLoopFavBtn = document.getElementById('playerLoopFavBtn');
@@ -10393,6 +11462,7 @@ function bindUI() {
   stopBtn && stopBtn.addEventListener('click', () => stopLoop(0));
   stopBtn && stopBtn.addEventListener('click', () => stopPadPlayback(0));
   stopBtn && stopBtn.addEventListener('click', () => stopDrumPlayback(true));
+  stopBtn && stopBtn.addEventListener('click', () => stopDrumSequencer({ resetStep: true, silent: true }));
 
   // Stop should also stop playlist sequencing.
   stopBtn && stopBtn.addEventListener('click', () => {
@@ -10733,6 +11803,7 @@ function bindUI() {
   const saveActivePlaylistSoon = () => {
     if (!activePlaylist || !activePlaylist.id) return;
     if (savePlaylistTimer) clearTimeout(savePlaylistTimer);
+    syncPlayerPlaylistIfMatching(activePlaylist);
     savePlaylistTimer = setTimeout(() => {
       savePlaylistTimer = 0;
       savePlaylistRecord(activePlaylist).catch(() => {});
@@ -10946,31 +12017,28 @@ function bindUI() {
 
   const closeDetailLoopRepsPrompt = (reopenPicker = false) => {
     if (detailLoopRepsOverlay) hideOverlay(detailLoopRepsOverlay);
-    if (reopenPicker && loopPickerOverlay) showOverlay(loopPickerOverlay);
+    if (reopenPicker && loopPickerOverlay) {
+      showOverlay(loopPickerOverlay);
+      try {
+        requestAnimationFrame(() => {
+          focusPlaylistLoopPickerPrimaryControl();
+        });
+      } catch {}
+    }
   };
 
   const openLoopPicker = () => {
-    if (!loopPickerList) return;
-    loopPickerList.innerHTML = '';
-    const choices = getAllLoopChoices();
-    choices.forEach(ch => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = ch.label;
-      b.addEventListener('click', () => {
-        if (!activePlaylist) return;
-        if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
-        const idx = Math.max(0, playlistPickIndex);
-        const item = { itemId: makePlaylistItemId(), presetKey: ch.presetKey, label: ch.label, reps: 1 };
-        if (idx >= activePlaylist.items.length) activePlaylist.items.push(item);
-        else activePlaylist.items[idx] = item;
-        saveActivePlaylistSoon();
-        closePicker();
-        renderPlaylistRows();
-      });
-      loopPickerList.appendChild(b);
+    openPlaylistLoopPicker((choice) => {
+      if (!activePlaylist) return;
+      if (!Array.isArray(activePlaylist.items)) activePlaylist.items = [];
+      const idx = Math.max(0, playlistPickIndex);
+      const item = { itemId: makePlaylistItemId(), presetKey: choice.presetKey, label: choice.label, reps: 1, volume: 1.0 };
+      if (idx >= activePlaylist.items.length) activePlaylist.items.push(item);
+      else activePlaylist.items[idx] = item;
+      saveActivePlaylistSoon();
+      closePicker();
+      renderPlaylistRows();
     });
-    showOverlay(loopPickerOverlay);
   };
 
   [
@@ -11044,6 +12112,20 @@ function bindUI() {
 
   closeLoopPicker && closeLoopPicker.addEventListener('click', closePicker);
 
+  loopPickerSearchInput && loopPickerSearchInput.addEventListener('input', () => {
+    playlistLoopPickerSearchQuery = String(loopPickerSearchInput.value || '');
+    renderPlaylistLoopPickerChoices();
+  });
+
+  loopPickerSearchClear && loopPickerSearchClear.addEventListener('click', () => {
+    playlistLoopPickerSearchQuery = '';
+    if (loopPickerSearchInput) {
+      loopPickerSearchInput.value = '';
+      try { loopPickerSearchInput.focus(); } catch {}
+    }
+    renderPlaylistLoopPickerChoices();
+  });
+
   loopInfoFavoriteBtn && loopInfoFavoriteBtn.addEventListener('click', () => {
     if (!loopInfoPreset) return;
     const key = getLoopFavoriteKeyForPreset(loopInfoPreset, loopInfoIsBuiltin);
@@ -11082,8 +12164,7 @@ function bindUI() {
     closeDetailLoopRepsPrompt(true);
     try {
       requestAnimationFrame(() => {
-        const firstLoopBtn = loopPickerList && loopPickerList.querySelector('button');
-        if (firstLoopBtn) firstLoopBtn.focus();
+        focusPlaylistLoopPickerPrimaryControl();
       });
     } catch {}
   });
@@ -11522,8 +12603,10 @@ window.addEventListener('load', () => {
   loadDrumAssignments();
   bindPadsUI();
   bindDrumMachineUI();
+  loadDrumSequencerState();
   renderPadGrid();
   renderDrumGrid();
+  renderDrumSequencer();
   setStatus(t('status_ready'));
   drawWaveform();
   switchTab('player');
