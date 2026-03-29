@@ -1517,6 +1517,20 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
 }
 .drum-sequencer-actions{display:flex;gap:8px;flex-wrap:wrap}
 .drum-sequencer-bpm-row{display:grid;gap:8px}
+.drum-sequencer-bank-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+}
+.drum-sequencer-banks{display:flex;gap:8px;flex-wrap:wrap}
+.drum-sequencer-bank{min-width:40px}
+.drum-sequencer-bank.is-active{
+  background:var(--accent-soft);
+  border-color:var(--accent-mid);
+  color:var(--text);
+}
+.drum-sequencer-bank-actions{display:flex;gap:8px;flex-wrap:wrap}
 .drum-sequencer-bpm-label{
   font-size:12px;
   font-weight:600;
@@ -1559,6 +1573,7 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
   gap:10px;
   align-items:end;
 }
+.drum-sequencer-step-editor-ranges{display:grid;gap:10px;min-width:0}
 .drum-sequencer-velocity-row{display:grid;gap:8px;min-width:0}
 .drum-sequencer-grid{display:grid;gap:8px;overflow-x:auto;padding-bottom:2px;overscroll-behavior-x:contain}
 .drum-sequencer-row{
@@ -1883,6 +1898,9 @@ html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
   .drum-sequencer-top{flex-direction:column}
   .drum-sequencer-actions{width:100%}
   .drum-sequencer-actions button{flex:1 1 0}
+  .drum-sequencer-bank-row{grid-template-columns:1fr}
+  .drum-sequencer-bank-actions{width:100%}
+  .drum-sequencer-bank-actions button{flex:1 1 0}
   .drum-sequencer-bpm-wrap{flex-direction:column;align-items:stretch}
   .drum-sequencer-row{grid-template-columns:74px minmax(0,1fr)}
   .drum-sequencer-step-editor-controls{grid-template-columns:1fr}

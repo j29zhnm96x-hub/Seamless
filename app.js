@@ -356,9 +356,12 @@ const I18N = {
     drum_live_stop_all: 'Stop Voices',
     drum_grid_preview_badge: 'DRAFT',
     drum_seq_title: 'Pattern Sequencer',
-    drum_seq_hint: 'Build a 16-step pattern from the current Drum Machine pads.',
+    drum_seq_hint: 'Build a 16-step pattern from the current Drum Machine pads. The loop is pre-rendered for steadier iOS background playback.',
     drum_seq_bpm: 'Tempo',
     drum_seq_steps: 'Steps',
+    drum_seq_bank: 'Bank',
+    drum_seq_copy_bank: 'Copy Bank',
+    drum_seq_paste_bank: 'Paste Bank',
     drum_seq_toggle_start: 'Start Pattern',
     drum_seq_toggle_stop: 'Stop Pattern',
     drum_seq_clear: 'Clear Pattern',
@@ -367,18 +370,22 @@ const I18N = {
     drum_seq_swing_readout: '{amount}%',
     drum_seq_empty_row: 'Empty',
     drum_seq_step_editor_title: 'Step Editor',
-    drum_seq_step_editor_hint: 'Use Accent and Velocity to shape the selected hit.',
+    drum_seq_step_editor_hint: 'Use Accent, Chance, and Velocity to shape the selected hit.',
     drum_seq_step_editor_empty: 'Select a step in the grid.',
     drum_seq_step_editor_inactive: 'Activate this step to edit accent and velocity.',
     drum_seq_step_selected: '{pad} • Step {step}',
     drum_seq_velocity: 'Velocity',
     drum_seq_velocity_readout: '{percent}%',
+    drum_seq_chance: 'Chance',
+    drum_seq_chance_readout: '{percent}%',
     drum_seq_accent_on: 'Accent On',
     drum_seq_accent_off: 'Accent Off',
-    status_drum_seq_started: 'Pattern started at {bpm} BPM.',
+    status_drum_seq_started: 'Pattern bank {bank} started at {bpm} BPM.',
     status_drum_seq_stopped: 'Pattern stopped.',
     status_drum_seq_cleared: 'Pattern cleared.',
     status_drum_seq_empty: 'Add at least one active step before starting the pattern.',
+    status_drum_seq_bank_copied: 'Pattern bank {bank} copied.',
+    status_drum_seq_bank_pasted: 'Pattern bank pasted into {bank}.',
     drum_assign_save: 'Save',
     drum_assign_save_prev: 'Save + Prev',
     drum_assign_save_next: 'Save + Next',
@@ -697,9 +704,12 @@ const I18N = {
     drum_live_stop_all: 'Zaustavi glasove',
     drum_grid_preview_badge: 'SKICA',
     drum_seq_title: 'Pattern sekvencer',
-    drum_seq_hint: 'Složite uzorak od 16 koraka iz trenutnih Drum Machine padova.',
+    drum_seq_hint: 'Složite uzorak od 16 koraka iz trenutnih Drum Machine padova. Loop se unaprijed renderira radi stabilnije iOS reprodukcije u pozadini.',
     drum_seq_bpm: 'Tempo',
     drum_seq_steps: 'Koraci',
+    drum_seq_bank: 'Banka',
+    drum_seq_copy_bank: 'Kopiraj banku',
+    drum_seq_paste_bank: 'Zalijepi banku',
     drum_seq_toggle_start: 'Pokreni pattern',
     drum_seq_toggle_stop: 'Zaustavi pattern',
     drum_seq_clear: 'Očisti pattern',
@@ -708,18 +718,22 @@ const I18N = {
     drum_seq_swing_readout: '{amount}%',
     drum_seq_empty_row: 'Prazno',
     drum_seq_step_editor_title: 'Uređivanje koraka',
-    drum_seq_step_editor_hint: 'Naglaskom i glasnoćom oblikujte odabrani udarac.',
+    drum_seq_step_editor_hint: 'Naglaskom, vjerojatnošću i glasnoćom oblikujte odabrani udarac.',
     drum_seq_step_editor_empty: 'Odaberite korak u mreži.',
     drum_seq_step_editor_inactive: 'Aktivirajte ovaj korak da biste uredili naglasak i glasnoću.',
     drum_seq_step_selected: '{pad} • Korak {step}',
     drum_seq_velocity: 'Glasnoća',
     drum_seq_velocity_readout: '{percent}%',
+    drum_seq_chance: 'Vjerojatnost',
+    drum_seq_chance_readout: '{percent}%',
     drum_seq_accent_on: 'Naglasak uključen',
     drum_seq_accent_off: 'Naglasak isključen',
-    status_drum_seq_started: 'Pattern je pokrenut na {bpm} BPM.',
+    status_drum_seq_started: 'Pattern banka {bank} je pokrenuta na {bpm} BPM.',
     status_drum_seq_stopped: 'Pattern je zaustavljen.',
     status_drum_seq_cleared: 'Pattern je očišćen.',
     status_drum_seq_empty: 'Dodajte barem jedan aktivni korak prije pokretanja patterna.',
+    status_drum_seq_bank_copied: 'Pattern banka {bank} je kopirana.',
+    status_drum_seq_bank_pasted: 'Pattern banka je zalijepljena u {bank}.',
     drum_assign_save: 'Spremi',
     drum_assign_save_prev: 'Spremi i prethodni',
     drum_assign_save_next: 'Spremi i idući',
@@ -7540,6 +7554,8 @@ const DRUM_MACHINE_COLLAPSED_KEY = 'seamlessplayer-drum-machine-collapsed';
 const PAD_COUNT = 9;
 const DRUM_VOICE_LIMIT = 32;
 const DRUM_SEQUENCER_STEPS = 16;
+const DRUM_SEQUENCER_BANK_COUNT = 4;
+const DRUM_SEQUENCER_RENDER_BARS = 8;
 const DRUM_SEQUENCER_MIN_BPM = 60;
 const DRUM_SEQUENCER_MAX_BPM = 180;
 const DRUM_SEQUENCER_MIN_SWING = 0;
@@ -7547,6 +7563,8 @@ const DRUM_SEQUENCER_MAX_SWING = 45;
 const DRUM_SEQUENCER_MIN_VELOCITY = 0.25;
 const DRUM_SEQUENCER_MAX_VELOCITY = 1.5;
 const DRUM_SEQUENCER_DEFAULT_VELOCITY = 1.0;
+const DRUM_SEQUENCER_MIN_CHANCE = 0;
+const DRUM_SEQUENCER_MAX_CHANCE = 100;
 const DRUM_SEQUENCER_ACCENT_GAIN = 1.2;
 const PAD_COLOR_KEYS = Object.freeze(['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink', 'silver']);
 const PAD_COLOR_DEFAULT_KEY = 'blue';
@@ -7635,8 +7653,25 @@ function createEmptyDrumSequencerStep() {
   return {
     active: false,
     accent: false,
-    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY
+    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY,
+    chance: DRUM_SEQUENCER_MAX_CHANCE
   };
+}
+
+function getDefaultDrumSequencerBankLabel(index) {
+  return String.fromCharCode(65 + clamp(index, 0, DRUM_SEQUENCER_BANK_COUNT - 1));
+}
+
+function createEmptyDrumSequencerBank(index) {
+  return {
+    label: getDefaultDrumSequencerBankLabel(index),
+    swing: 0,
+    pattern: createEmptyDrumSequencerPattern()
+  };
+}
+
+function createEmptyDrumSequencerBanks() {
+  return Array.from({ length: DRUM_SEQUENCER_BANK_COUNT }, (_, index) => createEmptyDrumSequencerBank(index));
 }
 
 function createEmptyDrumSequencerPattern() {
@@ -7659,18 +7694,25 @@ function normalizeDrumSequencerVelocity(value, fallback = DRUM_SEQUENCER_DEFAULT
   return Math.round(normalized * 100) / 100;
 }
 
+function normalizeDrumSequencerChance(value, fallback = DRUM_SEQUENCER_MAX_CHANCE) {
+  const parsed = Number(value);
+  return clamp(Number.isFinite(parsed) ? Math.round(parsed) : fallback, DRUM_SEQUENCER_MIN_CHANCE, DRUM_SEQUENCER_MAX_CHANCE);
+}
+
 function normalizeDrumSequencerStep(step) {
   if (step && typeof step === 'object' && !Array.isArray(step)) {
     return {
       active: !!step.active,
       accent: !!step.accent,
-      velocity: normalizeDrumSequencerVelocity(step.velocity, DRUM_SEQUENCER_DEFAULT_VELOCITY)
+      velocity: normalizeDrumSequencerVelocity(step.velocity, DRUM_SEQUENCER_DEFAULT_VELOCITY),
+      chance: normalizeDrumSequencerChance(step.chance, DRUM_SEQUENCER_MAX_CHANCE)
     };
   }
   return {
     active: !!step,
     accent: false,
-    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY
+    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY,
+    chance: DRUM_SEQUENCER_MAX_CHANCE
   };
 }
 
@@ -7681,23 +7723,49 @@ function normalizeDrumSequencerPattern(pattern) {
   });
 }
 
+function normalizeDrumSequencerBank(bank, index = 0) {
+  const source = bank && typeof bank === 'object' ? bank : {};
+  return {
+    label: String(source.label || getDefaultDrumSequencerBankLabel(index)).trim() || getDefaultDrumSequencerBankLabel(index),
+    swing: normalizeDrumSequencerSwing(source.swing, 0),
+    pattern: normalizeDrumSequencerPattern(source.pattern)
+  };
+}
+
 function normalizeDrumSequencerState(state) {
   const source = state && typeof state === 'object' ? state : {};
+  const banks = Array.isArray(source.banks)
+    ? Array.from({ length: DRUM_SEQUENCER_BANK_COUNT }, (_, index) => normalizeDrumSequencerBank(source.banks[index], index))
+    : Array.from({ length: DRUM_SEQUENCER_BANK_COUNT }, (_, index) => {
+        if (index === 0) {
+          return normalizeDrumSequencerBank({
+            label: getDefaultDrumSequencerBankLabel(index),
+            swing: source.swing,
+            pattern: source.pattern
+          }, index);
+        }
+        return createEmptyDrumSequencerBank(index);
+      });
   return {
     bpm: normalizeDrumSequencerBpm(source && source.bpm, 120),
-    swing: normalizeDrumSequencerSwing(source && source.swing, 0),
-    pattern: normalizeDrumSequencerPattern(source && source.pattern)
+    activeBank: clamp(parseInt(source.activeBank, 10) || 0, 0, DRUM_SEQUENCER_BANK_COUNT - 1),
+    banks
   };
 }
 
 function serializeDrumSequencerState(state) {
   if (arguments.length > 0) return normalizeDrumSequencerState(state);
-  return normalizeDrumSequencerState({ bpm: drumSequencerBpm, swing: drumSequencerSwing, pattern: drumSequencerPattern });
+  syncActiveDrumSequencerBankFromWorkingState();
+  return normalizeDrumSequencerState({
+    bpm: drumSequencerBpm,
+    activeBank: drumSequencerActiveBankIndex,
+    banks: drumSequencerBanks
+  });
 }
 
 function hasDrumSequencerContent(state) {
   const normalized = arguments.length > 0 ? normalizeDrumSequencerState(state) : serializeDrumSequencerState();
-  return normalized.pattern.some((row) => row.some((step) => step && step.active));
+  return normalized.banks.some((bank) => bank.pattern.some((row) => row.some((step) => step && step.active)));
 }
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
@@ -7728,6 +7796,8 @@ const drumVoices = [];
 const drumPadHitUntil = new Array(PAD_COUNT).fill(0);
 let drumLastTriggeredIndex = -1;
 let drumLastChokedIndex = -1;
+let drumSequencerBanks = createEmptyDrumSequencerBanks();
+let drumSequencerActiveBankIndex = 0;
 let drumSequencerPattern = createEmptyDrumSequencerPattern();
 let drumSequencerBpm = 120;
 let drumSequencerSwing = 0;
@@ -7736,6 +7806,14 @@ let drumSequencerCurrentStep = -1;
 let drumSequencerTimer = 0;
 let drumSequencerSelectedRow = -1;
 let drumSequencerSelectedStep = -1;
+let drumSequencerBankClipboard = null;
+let drumSequencerPlaybackMode = 'idle';
+let drumSequencerLoopSource = null;
+let drumSequencerLoopGain = null;
+let drumSequencerLoopStartTime = 0;
+let drumSequencerLoopDuration = 0;
+let drumSequencerPlayheadRaf = 0;
+let drumSequencerRestartTimer = 0;
 let drumAssignTarget = -1;
 let drumAssignSelectedKey = '';
 let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
@@ -7745,6 +7823,33 @@ let drumAssignmentClipboard = null;
 function getDrumSequencerStep(rowIndex, stepIndex) {
   if (rowIndex < 0 || rowIndex >= PAD_COUNT || stepIndex < 0 || stepIndex >= DRUM_SEQUENCER_STEPS) return null;
   return drumSequencerPattern[rowIndex][stepIndex] || null;
+}
+
+function getCurrentDrumSequencerBankLabel() {
+  return getDefaultDrumSequencerBankLabel(drumSequencerActiveBankIndex);
+}
+
+function syncActiveDrumSequencerBankFromWorkingState() {
+  if (!drumSequencerBanks[drumSequencerActiveBankIndex]) {
+    drumSequencerBanks[drumSequencerActiveBankIndex] = createEmptyDrumSequencerBank(drumSequencerActiveBankIndex);
+  }
+  drumSequencerBanks[drumSequencerActiveBankIndex] = normalizeDrumSequencerBank({
+    ...drumSequencerBanks[drumSequencerActiveBankIndex],
+    label: drumSequencerBanks[drumSequencerActiveBankIndex].label || getDefaultDrumSequencerBankLabel(drumSequencerActiveBankIndex),
+    swing: drumSequencerSwing,
+    pattern: drumSequencerPattern
+  }, drumSequencerActiveBankIndex);
+}
+
+function loadActiveDrumSequencerBankIntoWorkingState() {
+  const bank = normalizeDrumSequencerBank(drumSequencerBanks[drumSequencerActiveBankIndex], drumSequencerActiveBankIndex);
+  drumSequencerBanks[drumSequencerActiveBankIndex] = bank;
+  drumSequencerSwing = bank.swing;
+  drumSequencerPattern = bank.pattern;
+}
+
+function hasCurrentDrumSequencerBankContent() {
+  return drumSequencerPattern.some((row) => row.some((step) => step && step.active));
 }
 
 function getSelectedDrumSequencerStep() {
@@ -7763,6 +7868,10 @@ function selectDrumSequencerStep(rowIndex, stepIndex) {
 
 function formatDrumSequencerVelocityPercent(value) {
   return Math.round(normalizeDrumSequencerVelocity(value, DRUM_SEQUENCER_DEFAULT_VELOCITY) * 100);
+}
+
+function formatDrumSequencerChancePercent(value) {
+  return normalizeDrumSequencerChance(value, DRUM_SEQUENCER_MAX_CHANCE);
 }
 
 function getPadPerformanceLabel(index) {
@@ -7875,12 +7984,32 @@ function getDrumSequencerStepDurationMs() {
   return Math.max(40, Math.round((60 / normalizeDrumSequencerBpm(drumSequencerBpm, 120) / 4) * 1000));
 }
 
+function getDrumSequencerStepTimeline(bpm = drumSequencerBpm, swing = drumSequencerSwing) {
+  const baseMs = Math.max(40, (60 / normalizeDrumSequencerBpm(bpm, 120) / 4) * 1000);
+  const swingRatio = normalizeDrumSequencerSwing(swing, 0) / 100;
+  const offsetsMs = [];
+  let cursorMs = 0;
+  for (let stepIndex = 0; stepIndex < DRUM_SEQUENCER_STEPS; stepIndex += 1) {
+    offsetsMs.push(cursorMs);
+    cursorMs += baseMs * (stepIndex % 2 === 0 ? (1 + swingRatio) : (1 - swingRatio));
+  }
+  return {
+    baseMs,
+    barMs: cursorMs,
+    offsetsMs,
+    baseSec: baseMs / 1000,
+    barSec: cursorMs / 1000,
+    offsetsSec: offsetsMs.map((value) => value / 1000)
+  };
+}
+
 function getDrumSequencerNextDelayMs() {
-  const baseDuration = getDrumSequencerStepDurationMs();
-  const swingRatio = normalizeDrumSequencerSwing(drumSequencerSwing, 0) / 100;
-  if (!swingRatio || drumSequencerCurrentStep < 0) return baseDuration;
-  const factor = drumSequencerCurrentStep % 2 === 0 ? (1 + swingRatio) : (1 - swingRatio);
-  return Math.max(24, Math.round(baseDuration * factor));
+  const timeline = getDrumSequencerStepTimeline();
+  if (drumSequencerCurrentStep < 0) return Math.max(24, Math.round(timeline.baseMs));
+  const nextIndex = (drumSequencerCurrentStep + 1) % DRUM_SEQUENCER_STEPS;
+  const currentOffset = timeline.offsetsMs[drumSequencerCurrentStep] || 0;
+  const nextOffset = nextIndex === 0 ? timeline.barMs : (timeline.offsetsMs[nextIndex] || timeline.barMs);
+  return Math.max(24, Math.round(nextOffset - currentOffset));
 }
 
 function saveDrumSequencerState() {
@@ -7891,6 +8020,222 @@ function clearDrumSequencerTimer() {
   if (!drumSequencerTimer) return;
   clearTimeout(drumSequencerTimer);
   drumSequencerTimer = 0;
+}
+
+function clearDrumSequencerRestartTimer() {
+  if (!drumSequencerRestartTimer) return;
+  clearTimeout(drumSequencerRestartTimer);
+  drumSequencerRestartTimer = 0;
+}
+
+function clearDrumSequencerPlayheadRaf() {
+  if (!drumSequencerPlayheadRaf) return;
+  try { cancelAnimationFrame(drumSequencerPlayheadRaf); } catch {}
+  drumSequencerPlayheadRaf = 0;
+}
+
+function clearDrumSequencerLoopSource() {
+  if (drumSequencerLoopSource) {
+    try { drumSequencerLoopSource.stop(); } catch {}
+    try { drumSequencerLoopSource.disconnect(); } catch {}
+    drumSequencerLoopSource = null;
+  }
+  if (drumSequencerLoopGain) {
+    try { drumSequencerLoopGain.disconnect(); } catch {}
+    drumSequencerLoopGain = null;
+  }
+  drumSequencerLoopStartTime = 0;
+  drumSequencerLoopDuration = 0;
+}
+
+function getDrumSequencerCurrentPlaybackStepIndex() {
+  if (!drumSequencerLoopDuration || !audioCtx || drumSequencerLoopStartTime <= 0) return -1;
+  const timeline = getDrumSequencerStepTimeline();
+  const elapsed = Math.max(0, audioCtx.currentTime - drumSequencerLoopStartTime);
+  const barPosition = (elapsed % timeline.barSec + timeline.barSec) % timeline.barSec;
+  for (let stepIndex = DRUM_SEQUENCER_STEPS - 1; stepIndex >= 0; stepIndex -= 1) {
+    if (barPosition >= timeline.offsetsSec[stepIndex]) return stepIndex;
+  }
+  return 0;
+}
+
+function startDrumSequencerPlayheadLoop() {
+  clearDrumSequencerPlayheadRaf();
+  const tick = () => {
+    if (!drumSequencerPlaying) return;
+    if (drumSequencerPlaybackMode === 'buffer') {
+      const nextStep = getDrumSequencerCurrentPlaybackStepIndex();
+      if (nextStep !== drumSequencerCurrentStep) {
+        drumSequencerCurrentStep = nextStep;
+        updateDrumSequencerPlayheadUI();
+      }
+    }
+    drumSequencerPlayheadRaf = requestAnimationFrame(tick);
+  };
+  drumSequencerPlayheadRaf = requestAnimationFrame(tick);
+}
+
+async function renderDrumSequencerLoopBuffer() {
+  const OfflineCtor = typeof OfflineAudioContext !== 'undefined'
+    ? OfflineAudioContext
+    : (typeof webkitOfflineAudioContext !== 'undefined' ? webkitOfflineAudioContext : null);
+  if (!OfflineCtor) return null;
+
+  const rowIndices = Array.from({ length: PAD_COUNT }, (_, index) => index)
+    .filter((index) => drumAssignments[index] && drumSequencerPattern[index].some((step) => step && step.active && formatDrumSequencerChancePercent(step.chance) > 0));
+  if (!rowIndices.length) return null;
+
+  const loadedRows = [];
+  for (const rowIndex of rowIndices) {
+    const assignment = drumAssignments[rowIndex];
+    if (!assignment || !assignment.presetKey) continue;
+    try {
+      const loaded = await loadBufferFromPresetKey(assignment.presetKey);
+      if (!loaded || !loaded.buffer) continue;
+      loadedRows.push({
+        rowIndex,
+        assignment,
+        buffer: loaded.buffer,
+        presetRef: loaded.presetRef || null
+      });
+    } catch {}
+  }
+  if (!loadedRows.length) return null;
+
+  const timeline = getDrumSequencerStepTimeline();
+  const loopDurationSec = timeline.barSec * DRUM_SEQUENCER_RENDER_BARS;
+  const sampleRate = (audioCtx && audioCtx.sampleRate) || loadedRows[0].buffer.sampleRate || 44100;
+  const frameCount = Math.max(1, Math.ceil(loopDurationSec * sampleRate));
+  const channelCount = Math.max(1, ...loadedRows.map((entry) => clamp(entry.buffer.numberOfChannels || 1, 1, 2)));
+  const offlineCtx = new OfflineCtor(channelCount, frameCount, sampleRate);
+  const masterNode = offlineCtx.createGain();
+  masterNode.connect(offlineCtx.destination);
+
+  const voicesByPad = Array.from({ length: PAD_COUNT }, () => []);
+  const rowsByIndex = new Map(loadedRows.map((entry) => [entry.rowIndex, entry]));
+
+  const stopRenderedVoicesAtTime = (padIndex, whenSec) => {
+    if (padIndex < 0 || padIndex >= PAD_COUNT) return;
+    voicesByPad[padIndex] = voicesByPad[padIndex].filter((voice) => {
+      if (!voice || voice.endTime <= whenSec) return false;
+      const fadeEnd = Math.min(voice.endTime, whenSec + 0.008);
+      try {
+        voice.gainNode.gain.cancelScheduledValues(whenSec);
+        voice.gainNode.gain.setValueAtTime(voice.gainValue, whenSec);
+        voice.gainNode.gain.linearRampToValueAtTime(0, fadeEnd);
+      } catch {}
+      try { voice.source.stop(fadeEnd); } catch {}
+      voice.endTime = fadeEnd;
+      return false;
+    });
+  };
+
+  for (let barIndex = 0; barIndex < DRUM_SEQUENCER_RENDER_BARS; barIndex += 1) {
+    for (let stepIndex = 0; stepIndex < DRUM_SEQUENCER_STEPS; stepIndex += 1) {
+      const eventTimeSec = barIndex * timeline.barSec + timeline.offsetsSec[stepIndex];
+      for (const entry of loadedRows) {
+        const step = getDrumSequencerStep(entry.rowIndex, stepIndex);
+        if (!step || !step.active) continue;
+        const chance = formatDrumSequencerChancePercent(step.chance);
+        if (chance <= 0) continue;
+        if (chance < 100 && Math.random() * 100 >= chance) continue;
+
+        const chokeTargetIndex = Number.isInteger(entry.assignment.chokeTargetIndex)
+          ? clamp(entry.assignment.chokeTargetIndex, -1, PAD_COUNT - 1)
+          : -1;
+        if (chokeTargetIndex >= 0 && chokeTargetIndex !== entry.rowIndex) {
+          stopRenderedVoicesAtTime(chokeTargetIndex, eventTimeSec);
+        }
+
+        const startOffset = entry.presetRef && entry.presetRef.trimIn != null
+          ? clamp(Number(entry.presetRef.trimIn) || 0, 0, Math.max(0, entry.buffer.duration - 0.001))
+          : 0;
+        const endOffset = entry.presetRef && entry.presetRef.trimOut != null
+          ? clamp(Number(entry.presetRef.trimOut) || entry.buffer.duration, startOffset + 0.001, entry.buffer.duration)
+          : entry.buffer.duration;
+        const durationSec = Math.max(0.01, endOffset - startOffset);
+        const source = offlineCtx.createBufferSource();
+        source.buffer = entry.buffer;
+        source.loop = false;
+
+        const gainNode = offlineCtx.createGain();
+        const gainValue = clamp(
+          normalizeAssignmentVolume(entry.assignment.volume, 1.0)
+            * normalizeDrumSequencerVelocity(step.velocity, DRUM_SEQUENCER_DEFAULT_VELOCITY)
+            * (step.accent ? DRUM_SEQUENCER_ACCENT_GAIN : 1),
+          0,
+          DRUM_SEQUENCER_MAX_VELOCITY
+        );
+        try { gainNode.gain.setValueAtTime(gainValue, eventTimeSec); } catch {}
+        source.connect(gainNode);
+        gainNode.connect(masterNode);
+        source.start(eventTimeSec, startOffset, durationSec);
+        voicesByPad[entry.rowIndex].push({
+          source,
+          gainNode,
+          gainValue,
+          endTime: eventTimeSec + durationSec
+        });
+      }
+    }
+  }
+
+  try {
+    const buffer = await offlineCtx.startRendering();
+    return buffer ? { buffer, timeline } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function startDrumSequencerBufferedPlayback() {
+  ensureAudio();
+  if (!audioCtx || !master) return false;
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch {}
+  }
+  startOutputIfNeeded();
+
+  const rendered = await renderDrumSequencerLoopBuffer();
+  if (!rendered || !rendered.buffer) return false;
+
+  clearDrumSequencerLoopSource();
+  const source = audioCtx.createBufferSource();
+  const gainNode = audioCtx.createGain();
+  source.buffer = rendered.buffer;
+  source.loop = true;
+  source.loopStart = 0;
+  source.loopEnd = rendered.buffer.duration;
+  source.connect(gainNode);
+  gainNode.connect(master);
+  try { gainNode.gain.setValueAtTime(1, audioCtx.currentTime); } catch {}
+
+  const startTime = audioCtx.currentTime + 0.02;
+  source.start(startTime, 0);
+
+  drumSequencerLoopSource = source;
+  drumSequencerLoopGain = gainNode;
+  drumSequencerLoopStartTime = startTime;
+  drumSequencerLoopDuration = rendered.buffer.duration;
+  drumSequencerPlaybackMode = 'buffer';
+  drumSequencerCurrentStep = -1;
+  startDrumSequencerPlayheadLoop();
+  return true;
+}
+
+async function restartDrumSequencerPlayback() {
+  if (!drumSequencerPlaying) return;
+  stopDrumSequencer({ resetStep: false, silent: true });
+  await startDrumSequencer({ silent: true });
+}
+
+function scheduleDrumSequencerPlaybackRestart(delayMs = 90) {
+  if (!drumSequencerPlaying) return;
+  clearDrumSequencerRestartTimer();
+  drumSequencerRestartTimer = setTimeout(() => {
+    drumSequencerRestartTimer = 0;
+    void restartDrumSequencerPlayback();
+  }, Math.max(0, delayMs));
 }
 
 function updateDrumSequencerPlayheadUI() {
@@ -7905,12 +8250,38 @@ function updateDrumSequencerPlayheadUI() {
 }
 
 function updateDrumSequencerControls() {
+  const bankBar = document.getElementById('drumSequencerBanks');
+  const bankLabel = document.getElementById('drumSequencerBankLabel');
+  const copyBankBtn = document.getElementById('drumSequencerCopyBank');
+  const pasteBankBtn = document.getElementById('drumSequencerPasteBank');
   const toggleBtn = document.getElementById('drumSequencerToggle');
   const clearBtn = document.getElementById('drumSequencerClear');
   const bpmInput = document.getElementById('drumSequencerBpm');
   const bpmReadout = document.getElementById('drumSequencerBpmReadout');
   const swingInput = document.getElementById('drumSequencerSwing');
   const swingReadout = document.getElementById('drumSequencerSwingReadout');
+  if (bankLabel) bankLabel.textContent = t('drum_seq_bank');
+  if (bankBar) {
+    bankBar.querySelectorAll('[data-drum-seq-bank]').forEach((button) => {
+      const bankIndex = clamp(parseInt(button.getAttribute('data-drum-seq-bank'), 10) || 0, 0, DRUM_SEQUENCER_BANK_COUNT - 1);
+      const label = drumSequencerBanks[bankIndex] && drumSequencerBanks[bankIndex].label
+        ? drumSequencerBanks[bankIndex].label
+        : getDefaultDrumSequencerBankLabel(bankIndex);
+      button.textContent = label;
+      button.setAttribute('aria-label', `${t('drum_seq_bank')} ${label}`);
+      button.setAttribute('aria-pressed', bankIndex === drumSequencerActiveBankIndex ? 'true' : 'false');
+      button.classList.toggle('is-active', bankIndex === drumSequencerActiveBankIndex);
+    });
+  }
+  if (copyBankBtn) {
+    copyBankBtn.textContent = t('drum_seq_copy_bank');
+    copyBankBtn.setAttribute('aria-label', t('drum_seq_copy_bank'));
+  }
+  if (pasteBankBtn) {
+    pasteBankBtn.textContent = t('drum_seq_paste_bank');
+    pasteBankBtn.setAttribute('aria-label', t('drum_seq_paste_bank'));
+    pasteBankBtn.disabled = !drumSequencerBankClipboard;
+  }
   if (toggleBtn) {
     const label = t(drumSequencerPlaying ? 'drum_seq_toggle_stop' : 'drum_seq_toggle_start');
     toggleBtn.textContent = label;
@@ -7920,7 +8291,7 @@ function updateDrumSequencerControls() {
   if (clearBtn) {
     clearBtn.textContent = t('drum_seq_clear');
     clearBtn.setAttribute('aria-label', t('drum_seq_clear'));
-    clearBtn.disabled = !hasDrumSequencerContent();
+    clearBtn.disabled = !hasCurrentDrumSequencerBankContent();
   }
   if (bpmInput) {
     bpmInput.min = String(DRUM_SEQUENCER_MIN_BPM);
@@ -7943,6 +8314,9 @@ function updateDrumSequencerStepEditor() {
   const hintEl = document.getElementById('drumSequencerStepEditorHint');
   const selectionEl = document.getElementById('drumSequencerStepSelection');
   const accentBtn = document.getElementById('drumSequencerAccentToggle');
+  const chanceLabel = document.getElementById('drumSequencerChanceLabel');
+  const chanceInput = document.getElementById('drumSequencerChance');
+  const chanceReadout = document.getElementById('drumSequencerChanceReadout');
   const velocityLabel = document.getElementById('drumSequencerVelocityLabel');
   const velocityInput = document.getElementById('drumSequencerVelocity');
   const velocityReadout = document.getElementById('drumSequencerVelocityReadout');
@@ -7952,8 +8326,12 @@ function updateDrumSequencerStepEditor() {
   const velocityPercent = hasSelection
     ? formatDrumSequencerVelocityPercent(selectedStep.velocity)
     : formatDrumSequencerVelocityPercent(DRUM_SEQUENCER_DEFAULT_VELOCITY);
+  const chancePercent = hasSelection
+    ? formatDrumSequencerChancePercent(selectedStep.chance)
+    : DRUM_SEQUENCER_MAX_CHANCE;
 
   if (titleEl) titleEl.textContent = t('drum_seq_step_editor_title');
+  if (chanceLabel) chanceLabel.textContent = t('drum_seq_chance');
   if (velocityLabel) velocityLabel.textContent = t('drum_seq_velocity');
   if (selectionEl) {
     selectionEl.textContent = hasSelection
@@ -7972,6 +8350,14 @@ function updateDrumSequencerStepEditor() {
     accentBtn.setAttribute('aria-label', label);
     accentBtn.setAttribute('aria-pressed', isEditable && selectedStep.accent ? 'true' : 'false');
   }
+  if (chanceInput) {
+    chanceInput.min = String(DRUM_SEQUENCER_MIN_CHANCE);
+    chanceInput.max = String(DRUM_SEQUENCER_MAX_CHANCE);
+    chanceInput.value = String(chancePercent);
+    chanceInput.disabled = !isEditable;
+    chanceInput.setAttribute('aria-label', t('drum_seq_chance'));
+  }
+  if (chanceReadout) chanceReadout.textContent = tf('drum_seq_chance_readout', { percent: chancePercent });
   if (velocityInput) {
     velocityInput.min = String(Math.round(DRUM_SEQUENCER_MIN_VELOCITY * 100));
     velocityInput.max = String(Math.round(DRUM_SEQUENCER_MAX_VELOCITY * 100));
@@ -7984,8 +8370,52 @@ function updateDrumSequencerStepEditor() {
 
 function refreshDrumSequencerTimerFromTempoChange() {
   if (!drumSequencerPlaying) return;
+  if (drumSequencerPlaybackMode === 'buffer') {
+    scheduleDrumSequencerPlaybackRestart(40);
+    return;
+  }
   clearDrumSequencerTimer();
   queueNextDrumSequencerTick();
+}
+
+function handleDrumSequencerStateChange({ rerenderPlayback = true } = {}) {
+  syncActiveDrumSequencerBankFromWorkingState();
+  saveDrumSequencerState();
+  renderDrumSequencer();
+  if (rerenderPlayback && drumSequencerPlaying) scheduleDrumSequencerPlaybackRestart();
+}
+
+function selectDrumSequencerBank(index) {
+  const nextIndex = clamp(parseInt(index, 10) || 0, 0, DRUM_SEQUENCER_BANK_COUNT - 1);
+  if (nextIndex === drumSequencerActiveBankIndex) return;
+  syncActiveDrumSequencerBankFromWorkingState();
+  drumSequencerActiveBankIndex = nextIndex;
+  loadActiveDrumSequencerBankIntoWorkingState();
+  selectDrumSequencerStep(-1, -1);
+  saveDrumSequencerState();
+  renderDrumSequencer();
+  if (drumSequencerPlaying) void restartDrumSequencerPlayback();
+}
+
+function copyCurrentDrumSequencerBank() {
+  syncActiveDrumSequencerBankFromWorkingState();
+  drumSequencerBankClipboard = normalizeDrumSequencerBank(drumSequencerBanks[drumSequencerActiveBankIndex], drumSequencerActiveBankIndex);
+  updateDrumSequencerControls();
+  setStatus(tf('status_drum_seq_bank_copied', { bank: getCurrentDrumSequencerBankLabel() }));
+}
+
+function pasteCurrentDrumSequencerBank() {
+  if (!drumSequencerBankClipboard) return;
+  drumSequencerBanks[drumSequencerActiveBankIndex] = normalizeDrumSequencerBank({
+    ...drumSequencerBankClipboard,
+    label: drumSequencerBanks[drumSequencerActiveBankIndex] && drumSequencerBanks[drumSequencerActiveBankIndex].label
+      ? drumSequencerBanks[drumSequencerActiveBankIndex].label
+      : getDefaultDrumSequencerBankLabel(drumSequencerActiveBankIndex)
+  }, drumSequencerActiveBankIndex);
+  loadActiveDrumSequencerBankIntoWorkingState();
+  selectDrumSequencerStep(-1, -1);
+  handleDrumSequencerStateChange();
+  setStatus(tf('status_drum_seq_bank_pasted', { bank: getCurrentDrumSequencerBankLabel() }));
 }
 
 function renderDrumSequencer() {
@@ -7993,11 +8423,21 @@ function renderDrumSequencer() {
   const hintEl = document.getElementById('drumSequencerHint');
   const bpmLabel = document.getElementById('drumSequencerBpmLabel');
   const swingLabel = document.getElementById('drumSequencerSwingLabel');
+  const bankBar = document.getElementById('drumSequencerBanks');
   const grid = document.getElementById('drumSequencerGrid');
   if (titleEl) titleEl.textContent = t('drum_seq_title');
   if (hintEl) hintEl.textContent = t('drum_seq_hint');
   if (bpmLabel) bpmLabel.textContent = t('drum_seq_bpm');
   if (swingLabel) swingLabel.textContent = t('drum_seq_swing');
+  if (bankBar && !bankBar.childElementCount) {
+    for (let bankIndex = 0; bankIndex < DRUM_SEQUENCER_BANK_COUNT; bankIndex += 1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-ghost btn-sm drum-sequencer-bank';
+      button.setAttribute('data-drum-seq-bank', String(bankIndex));
+      bankBar.appendChild(button);
+    }
+  }
   if (!grid) {
     updateDrumSequencerControls();
     updateDrumSequencerStepEditor();
@@ -8050,11 +8490,13 @@ function renderDrumSequencer() {
       button.setAttribute('aria-label', [
         `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`,
         `${t('drum_seq_velocity')} ${formatDrumSequencerVelocityPercent(step.velocity)}%`,
+        `${t('drum_seq_chance')} ${formatDrumSequencerChancePercent(step.chance)}%`,
         t(step.accent ? 'drum_seq_accent_on' : 'drum_seq_accent_off')
       ].join(' • '));
       button.title = [
         `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`,
         `${t('drum_seq_velocity')} ${formatDrumSequencerVelocityPercent(step.velocity)}%`,
+        `${t('drum_seq_chance')} ${formatDrumSequencerChancePercent(step.chance)}%`,
         t(step.accent ? 'drum_seq_accent_on' : 'drum_seq_accent_off')
       ].join(' • ');
       button.classList.toggle('is-active', !!step.active);
@@ -8084,24 +8526,28 @@ function handleDrumSequencerStepClick(rowIndex, stepIndex) {
   } else if (!step.active) {
     step.active = true;
   }
-  saveDrumSequencerState();
-  renderDrumSequencer();
+  handleDrumSequencerStateChange();
 }
 
 function setSelectedDrumSequencerAccent(enabled) {
   const step = getSelectedDrumSequencerStep();
   if (!step || !step.active) return;
   step.accent = !!enabled;
-  saveDrumSequencerState();
-  renderDrumSequencer();
+  handleDrumSequencerStateChange();
 }
 
 function setSelectedDrumSequencerVelocity(value) {
   const step = getSelectedDrumSequencerStep();
   if (!step || !step.active) return;
   step.velocity = normalizeDrumSequencerVelocity(value, step.velocity);
-  saveDrumSequencerState();
-  renderDrumSequencer();
+  handleDrumSequencerStateChange();
+}
+
+function setSelectedDrumSequencerChance(value) {
+  const step = getSelectedDrumSequencerStep();
+  if (!step || !step.active) return;
+  step.chance = normalizeDrumSequencerChance(value, step.chance);
+  handleDrumSequencerStateChange();
 }
 
 function fireDrumSequencerStep(stepIndex) {
@@ -8110,6 +8556,8 @@ function fireDrumSequencerStep(stepIndex) {
   for (let rowIndex = 0; rowIndex < PAD_COUNT; rowIndex += 1) {
     const step = getDrumSequencerStep(rowIndex, stepIndex);
     if (!step || !step.active) continue;
+    if (formatDrumSequencerChancePercent(step.chance) <= 0) continue;
+    if (formatDrumSequencerChancePercent(step.chance) < 100 && Math.random() * 100 >= formatDrumSequencerChancePercent(step.chance)) continue;
     if (!drumAssignments[rowIndex]) continue;
     void triggerDrumPad(rowIndex, {
       velocityMultiplier: step.velocity,
@@ -8129,9 +8577,9 @@ function queueNextDrumSequencerTick() {
   }, getDrumSequencerNextDelayMs());
 }
 
-async function startDrumSequencer() {
+async function startDrumSequencer({ silent = false } = {}) {
   if (drumSequencerPlaying) return;
-  if (!hasDrumSequencerContent()) {
+  if (!hasCurrentDrumSequencerBankContent()) {
     setStatus(t('status_drum_seq_empty'));
     updateDrumSequencerControls();
     return;
@@ -8140,16 +8588,24 @@ async function startDrumSequencer() {
   drumSequencerPlaying = true;
   drumSequencerCurrentStep = -1;
   updateDrumSequencerControls();
-  fireDrumSequencerStep(0);
-  queueNextDrumSequencerTick();
+  const startedBuffered = await startDrumSequencerBufferedPlayback();
+  if (!startedBuffered) {
+    drumSequencerPlaybackMode = 'timer';
+    fireDrumSequencerStep(0);
+    queueNextDrumSequencerTick();
+  }
   saveDrumSequencerState();
-  setStatus(tf('status_drum_seq_started', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) }));
+  if (!silent) setStatus(tf('status_drum_seq_started', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120), bank: getCurrentDrumSequencerBankLabel() }));
 }
 
 function stopDrumSequencer({ resetStep = true, stopVoices = false, silent = false } = {}) {
   const wasPlaying = drumSequencerPlaying;
   clearDrumSequencerTimer();
+  clearDrumSequencerRestartTimer();
+  clearDrumSequencerPlayheadRaf();
+  clearDrumSequencerLoopSource();
   drumSequencerPlaying = false;
+  drumSequencerPlaybackMode = 'idle';
   if (resetStep) drumSequencerCurrentStep = -1;
   if (stopVoices) stopDrumPlayback(true);
   updateDrumSequencerControls();
@@ -8160,8 +8616,7 @@ function stopDrumSequencer({ resetStep = true, stopVoices = false, silent = fals
 function clearDrumSequencerPattern() {
   stopDrumSequencer({ resetStep: true, silent: true });
   drumSequencerPattern = createEmptyDrumSequencerPattern();
-  saveDrumSequencerState();
-  renderDrumSequencer();
+  handleDrumSequencerStateChange({ rerenderPlayback: false });
   setStatus(t('status_drum_seq_cleared'));
 }
 
@@ -8169,8 +8624,10 @@ function applyDrumSequencerState(state, { save = false, stopPlayback = false } =
   if (stopPlayback) stopDrumSequencer({ resetStep: true, silent: true });
   const normalized = serializeDrumSequencerState(state);
   drumSequencerBpm = normalized.bpm;
-  drumSequencerSwing = normalized.swing;
-  drumSequencerPattern = normalized.pattern;
+  drumSequencerActiveBankIndex = normalized.activeBank;
+  drumSequencerBanks = normalized.banks;
+  loadActiveDrumSequencerBankIntoWorkingState();
+  selectDrumSequencerStep(-1, -1);
   if (save) saveDrumSequencerState();
   renderDrumSequencer();
 }
@@ -11403,12 +11860,33 @@ function bindDrumMachineUI() {
   }
 
   const drumSequencerGrid = document.getElementById('drumSequencerGrid');
+  const drumSequencerBanks = document.getElementById('drumSequencerBanks');
+  const drumSequencerCopyBank = document.getElementById('drumSequencerCopyBank');
+  const drumSequencerPasteBank = document.getElementById('drumSequencerPasteBank');
   const drumSequencerToggle = document.getElementById('drumSequencerToggle');
   const drumSequencerClear = document.getElementById('drumSequencerClear');
   const drumSequencerBpmInput = document.getElementById('drumSequencerBpm');
   const drumSequencerSwingInput = document.getElementById('drumSequencerSwing');
   const drumSequencerAccentToggle = document.getElementById('drumSequencerAccentToggle');
+  const drumSequencerChanceInput = document.getElementById('drumSequencerChance');
   const drumSequencerVelocityInput = document.getElementById('drumSequencerVelocity');
+  if (drumSequencerBanks) {
+    drumSequencerBanks.addEventListener('click', (e) => {
+      const button = e.target.closest('[data-drum-seq-bank]');
+      if (!button) return;
+      selectDrumSequencerBank(button.getAttribute('data-drum-seq-bank'));
+    });
+  }
+  if (drumSequencerCopyBank) {
+    drumSequencerCopyBank.addEventListener('click', () => {
+      copyCurrentDrumSequencerBank();
+    });
+  }
+  if (drumSequencerPasteBank) {
+    drumSequencerPasteBank.addEventListener('click', () => {
+      pasteCurrentDrumSequencerBank();
+    });
+  }
   if (drumSequencerGrid) {
     drumSequencerGrid.addEventListener('click', (e) => {
       const button = e.target.closest('.drum-sequencer-step');
@@ -11453,6 +11931,11 @@ function bindDrumMachineUI() {
       const selectedStep = getSelectedDrumSequencerStep();
       if (!selectedStep || !selectedStep.active) return;
       setSelectedDrumSequencerAccent(!selectedStep.accent);
+    });
+  }
+  if (drumSequencerChanceInput) {
+    drumSequencerChanceInput.addEventListener('input', () => {
+      setSelectedDrumSequencerChance(parseInt(drumSequencerChanceInput.value, 10) || DRUM_SEQUENCER_MAX_CHANCE);
     });
   }
   if (drumSequencerVelocityInput) {

@@ -181,6 +181,16 @@
                 </div>
               </div>
               <div class="drum-sequencer-bpm-row">
+                <label id="drumSequencerBankLabel" class="drum-sequencer-bpm-label">Bank</label>
+                <div class="drum-sequencer-bank-row">
+                  <div id="drumSequencerBanks" class="drum-sequencer-banks" aria-label="Pattern banks"></div>
+                  <div class="drum-sequencer-bank-actions">
+                    <button id="drumSequencerCopyBank" type="button" class="btn-ghost btn-sm" aria-label="Copy Bank">Copy Bank</button>
+                    <button id="drumSequencerPasteBank" type="button" class="btn-ghost btn-sm" aria-label="Paste Bank">Paste Bank</button>
+                  </div>
+                </div>
+              </div>
+              <div class="drum-sequencer-bpm-row">
                 <label id="drumSequencerBpmLabel" class="drum-sequencer-bpm-label" for="drumSequencerBpm">Tempo</label>
                 <div class="drum-sequencer-bpm-wrap">
                   <input id="drumSequencerBpm" type="range" min="60" max="180" value="120" aria-label="Tempo" />
@@ -203,11 +213,20 @@
                 </div>
                 <div class="drum-sequencer-step-editor-controls">
                   <button id="drumSequencerAccentToggle" type="button" class="btn-ghost btn-sm" aria-pressed="false" aria-label="Accent Off">Accent Off</button>
-                  <div class="drum-sequencer-velocity-row">
-                    <label id="drumSequencerVelocityLabel" class="drum-sequencer-bpm-label" for="drumSequencerVelocity">Velocity</label>
-                    <div class="drum-sequencer-bpm-wrap">
-                      <input id="drumSequencerVelocity" type="range" min="25" max="150" value="100" aria-label="Velocity" />
-                      <span id="drumSequencerVelocityReadout" class="pad-volume-readout">100%</span>
+                  <div class="drum-sequencer-step-editor-ranges">
+                    <div class="drum-sequencer-velocity-row">
+                      <label id="drumSequencerChanceLabel" class="drum-sequencer-bpm-label" for="drumSequencerChance">Chance</label>
+                      <div class="drum-sequencer-bpm-wrap">
+                        <input id="drumSequencerChance" type="range" min="0" max="100" value="100" aria-label="Chance" />
+                        <span id="drumSequencerChanceReadout" class="pad-volume-readout">100%</span>
+                      </div>
+                    </div>
+                    <div class="drum-sequencer-velocity-row">
+                      <label id="drumSequencerVelocityLabel" class="drum-sequencer-bpm-label" for="drumSequencerVelocity">Velocity</label>
+                      <div class="drum-sequencer-bpm-wrap">
+                        <input id="drumSequencerVelocity" type="range" min="25" max="150" value="100" aria-label="Velocity" />
+                        <span id="drumSequencerVelocityReadout" class="pad-volume-readout">100%</span>
+                      </div>
                     </div>
                   </div>
                 </div>
