@@ -1488,6 +1488,156 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
   margin-top:10px;
 }
 
+.drum-sequencer{
+  display:grid;
+  gap:12px;
+  margin-top:12px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+}
+.drum-sequencer-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.drum-sequencer-title{
+  margin:0;
+  font-size:13px;
+  font-weight:700;
+  color:var(--text);
+}
+.drum-sequencer-hint{
+  margin:4px 0 0;
+  font-size:12px;
+  line-height:1.45;
+  color:var(--text-2);
+}
+.drum-sequencer-actions{display:flex;gap:8px;flex-wrap:wrap}
+.drum-sequencer-bpm-row{display:grid;gap:8px}
+.drum-sequencer-bpm-label{
+  font-size:12px;
+  font-weight:600;
+  color:var(--text-2);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+.drum-sequencer-bpm-wrap{display:flex;align-items:center;gap:12px}
+.drum-sequencer-bpm-wrap input[type=range]{flex:1 1 auto;min-width:0}
+.drum-sequencer-step-editor{
+  display:grid;
+  gap:10px;
+  padding:10px;
+  border:1px solid var(--border-2);
+  border-radius:10px;
+  background:rgba(255,255,255,0.02);
+}
+.drum-sequencer-step-editor-head{display:grid;gap:4px}
+.drum-sequencer-step-editor-title{
+  margin:0;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text);
+}
+.drum-sequencer-step-selection{
+  margin:0;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text);
+}
+.drum-sequencer-step-editor-hint{
+  margin:0;
+  font-size:12px;
+  line-height:1.45;
+  color:var(--text-2);
+}
+.drum-sequencer-step-editor-controls{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:10px;
+  align-items:end;
+}
+.drum-sequencer-velocity-row{display:grid;gap:8px;min-width:0}
+.drum-sequencer-grid{display:grid;gap:8px;overflow-x:auto;padding-bottom:2px;overscroll-behavior-x:contain}
+.drum-sequencer-row{
+  display:grid;
+  grid-template-columns:92px minmax(0,1fr);
+  gap:8px;
+  align-items:center;
+}
+.drum-sequencer-row-label{
+  font-size:11px;
+  font-weight:700;
+  line-height:1.2;
+  color:var(--text-2);
+}
+.drum-sequencer-row-label.is-empty{color:var(--text-3)}
+.drum-sequencer-row-corner{text-transform:uppercase;letter-spacing:.08em}
+.drum-sequencer-step-strip{
+  display:grid;
+  grid-template-columns:repeat(16, minmax(28px, 1fr));
+  gap:6px;
+  min-width:592px;
+}
+.drum-sequencer-step-label,
+.drum-sequencer-step{
+  min-height:32px;
+  border-radius:8px;
+  display:grid;
+  place-items:center;
+}
+.drum-sequencer-step-label{
+  border:1px solid transparent;
+  background:rgba(255,255,255,0.03);
+  color:var(--text-3);
+  font-size:10px;
+  font-weight:700;
+}
+.drum-sequencer-step{
+  position:relative;
+  padding:0;
+  border:1px solid var(--border-2);
+  background:var(--surface-2);
+  box-shadow:none;
+  overflow:hidden;
+}
+.drum-sequencer-step::after{
+  content:'';
+  position:absolute;
+  inset:4px;
+  border-radius:6px;
+  background:rgba(91,141,239,calc(0.18 + (var(--drum-seq-velocity, 0.6) * 0.42)));
+  opacity:0;
+  transition:opacity 120ms ease, background 120ms ease;
+}
+.drum-sequencer-step:hover{background:var(--surface)}
+.drum-sequencer-step.is-active{
+  border-color:var(--accent-mid);
+}
+.drum-sequencer-step.is-active::after{opacity:1}
+.drum-sequencer-step.is-accent::before{
+  content:'';
+  position:absolute;
+  top:5px;
+  right:5px;
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background:#f5c542;
+  box-shadow:0 0 0 2px rgba(17,17,20,0.35);
+  z-index:1;
+}
+.drum-sequencer-step.is-selected{
+  border-color:rgba(245,197,66,0.88);
+  box-shadow:inset 0 0 0 1px rgba(245,197,66,0.34);
+}
+.drum-sequencer-step.is-current,
+.drum-sequencer-step-label.is-current{box-shadow:inset 0 0 0 2px rgba(255,255,255,0.18)}
+.drum-sequencer-step.is-active.is-current{box-shadow:inset 0 0 0 2px var(--accent)}
+.drum-sequencer-step.is-selected.is-current{box-shadow:inset 0 0 0 2px rgba(245,197,66,0.88), 0 0 0 1px rgba(255,255,255,0.08)}
+
 .pad{
   position:relative;
   aspect-ratio:1;
@@ -1585,9 +1735,34 @@ html.theme-light .pad-loop-name{
   color:rgba(18,24,33,0.9);
   text-shadow:0 1px 2px rgba(255,255,255,0.55);
 }
+.pad-preview-badge,
+.pad-mode-badge{
+  position:absolute;
+  z-index:2;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.16);
+  background:rgba(17,17,20,0.74);
+  color:rgba(255,255,255,0.92);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.08em;
+  line-height:1;
+  text-transform:uppercase;
+  pointer-events:none;
+}
+.pad-preview-badge{top:8px;left:8px}
+.pad-mode-badge{left:8px;bottom:8px}
+.pad.pad-assignment-preview{box-shadow:inset 0 0 0 2px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
+.pad.pad-assignment-preview.pad-missing{box-shadow:inset 0 0 0 1px rgba(217,79,79,0.55), inset 0 0 0 3px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
 .drum-grid .pad-loop-name{
   inset:28px 8px 24px;
 }
+.drum-grid .pad-preview-badge{left:auto;right:8px}
 .drum-choke-badge{
   position:absolute;
   left:8px;
@@ -1613,6 +1788,11 @@ html.theme-light .pad-loop-name{
 .drum-grid .pad.drum-pad-choke-source{box-shadow:inset 0 0 0 1px rgba(91,141,239,0.38), var(--pad-tile-shadow)}
 .drum-grid .pad.drum-pad-choke-target{box-shadow:inset 0 0 0 1px rgba(217,79,79,0.34), var(--pad-tile-shadow)}
 .drum-grid .pad.drum-pad-choke-source.drum-pad-choke-target{box-shadow:inset 0 0 0 1px rgba(91,141,239,0.34), inset 0 0 0 3px rgba(217,79,79,0.2), var(--pad-tile-shadow)}
+.drum-grid .pad.drum-pad-assignment-preview{box-shadow:inset 0 0 0 2px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
+.drum-grid .pad.drum-pad-assignment-preview.pad-missing{box-shadow:inset 0 0 0 1px rgba(217,79,79,0.55), inset 0 0 0 3px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
+.drum-grid .pad.drum-pad-assignment-preview.drum-pad-choke-source{box-shadow:inset 0 0 0 1px rgba(91,141,239,0.38), inset 0 0 0 3px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
+.drum-grid .pad.drum-pad-assignment-preview.drum-pad-choke-target{box-shadow:inset 0 0 0 1px rgba(217,79,79,0.34), inset 0 0 0 3px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
+.drum-grid .pad.drum-pad-assignment-preview.drum-pad-choke-source.drum-pad-choke-target{box-shadow:inset 0 0 0 1px rgba(91,141,239,0.34), inset 0 0 0 3px rgba(217,79,79,0.2), inset 0 0 0 5px rgba(245,197,66,0.88), var(--pad-tile-shadow)}
 .drum-grid .pad.drum-pad-choke-preview-source{outline:2px dashed rgba(91,141,239,0.92);outline-offset:3px}
 .drum-grid .pad.drum-pad-choke-preview-target{outline:2px dashed rgba(217,79,79,0.92);outline-offset:3px}
 .drum-grid .pad.drum-pad-choke-preview-source .drum-choke-source-badge,
@@ -1700,6 +1880,12 @@ html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
   .controls button,.imports button{flex:1 1 auto}
   .pad-live-bar{flex-direction:column;align-items:stretch}
   .pad-live-action{width:100%}
+  .drum-sequencer-top{flex-direction:column}
+  .drum-sequencer-actions{width:100%}
+  .drum-sequencer-actions button{flex:1 1 0}
+  .drum-sequencer-bpm-wrap{flex-direction:column;align-items:stretch}
+  .drum-sequencer-row{grid-template-columns:74px minmax(0,1fr)}
+  .drum-sequencer-step-editor-controls{grid-template-columns:1fr}
   .detail-edit-controls{padding-left:0;grid-template-columns:1fr}
   .detail-edit-actions{padding-left:0}
   .trim-readouts{grid-template-columns:repeat(3, minmax(0, 1fr))}

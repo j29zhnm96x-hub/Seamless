@@ -9,6 +9,8 @@ A minimal web-based loop player that produces gapless background loops with smoo
 - Load audio from file picker, drag-and-drop, or clipboard (when supported).
 - Imported audio is saved locally (IndexedDB) when supported.
 - Project snapshots save the full working setup: player context, pads, drum machine, and transport state.
+- Loop Trigger and Drum Machine grids preview unsaved assignment changes live while their assignment popups are open.
+- Drum Machine includes a 16-step pattern sequencer with tempo, swing, and per-step accent/velocity editing that persists in drum sessions, projects, and full backups.
 - Individual playlists, sessions, and projects can be exported as standalone share packages with only the audio they use.
 - The Playlists page also provides section-level import buttons so shared playlist, session, or project packages can be imported directly into the matching section.
 - Simple volume control.
@@ -51,6 +53,9 @@ Open http://localhost:5173 in your browser.
 - Drum pad assignment now shows a choke summary under Link / Choke so it is clearer which other pad will be stopped when the selected drum is triggered.
 - Drum Machine pads now show choke badges on the grid itself, so you can see which pads stop another pad and which pads are targets of those choke links without opening the editor.
 - While editing Link / Choke, the drum grid now previews the currently selected choke source and target before you save the assignment.
+- While editing Loop Trigger or Drum Machine assignments, the live grids now preview unsaved draft sound, color, naming, and one-shot changes before you save.
+- Drum Machine includes a 16-step sequencer with start/stop, clear, tempo, swing, and step-shaping controls directly below the live status strip.
+- In the Drum Machine sequencer, click a step to select it, click an empty step to arm it, and use the Step Editor to shape accent and velocity for the selected hit.
 - In Loop Trigger and Drum Machine assignment popups, use Save + Next to move through pads faster while keeping your current library search context.
 - Use Copy and Paste inside Loop Trigger and Drum Machine assignment popups to duplicate assignment settings across pads without rebuilding them from scratch.
 - When you open the Trimmer from a pad or drum assignment popup, saving the trim now returns you to that same assignment flow with the trimmed sound selected.
@@ -58,6 +63,7 @@ Open http://localhost:5173 in your browser.
 ### Backup / Restore
 - Settings → Export creates a `.zip` backup that includes playlists, imported audio files, saved projects, current pad assignments, and saved pad sessions.
 - Settings → Import accepts `.zip` backups (full restore) and `.json` backups (metadata-only / backward compatible).
+- Drum Machine sequencer patterns, swing, and per-step accent/velocity values are included in drum sessions, project snapshots, and full backup export/import.
 - ZIP backups and standalone shared item packages preserve imported loop trim ranges and fade-in/fade-out metadata.
 - If a ZIP or shared-package import has to clean up older unreferenced uploads to stay within the local browser storage cap, the app now reports that in the status message after import.
 

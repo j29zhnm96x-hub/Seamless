@@ -187,7 +187,31 @@
                   <span id="drumSequencerBpmReadout" class="pad-volume-readout">120 BPM</span>
                 </div>
               </div>
+              <div class="drum-sequencer-bpm-row">
+                <label id="drumSequencerSwingLabel" class="drum-sequencer-bpm-label" for="drumSequencerSwing">Swing</label>
+                <div class="drum-sequencer-bpm-wrap">
+                  <input id="drumSequencerSwing" type="range" min="0" max="45" value="0" aria-label="Swing" />
+                  <span id="drumSequencerSwingReadout" class="pad-volume-readout">0%</span>
+                </div>
+              </div>
               <div id="drumSequencerGrid" class="drum-sequencer-grid" aria-label="Drum sequencer grid"></div>
+              <section class="drum-sequencer-step-editor" aria-label="Step editor">
+                <div class="drum-sequencer-step-editor-head">
+                  <p id="drumSequencerStepEditorTitle" class="drum-sequencer-step-editor-title">Step Editor</p>
+                  <p id="drumSequencerStepSelection" class="drum-sequencer-step-selection">Select a step in the grid.</p>
+                  <p id="drumSequencerStepEditorHint" class="drum-sequencer-step-editor-hint">Use Accent and Velocity to shape the selected hit.</p>
+                </div>
+                <div class="drum-sequencer-step-editor-controls">
+                  <button id="drumSequencerAccentToggle" type="button" class="btn-ghost btn-sm" aria-pressed="false" aria-label="Accent Off">Accent Off</button>
+                  <div class="drum-sequencer-velocity-row">
+                    <label id="drumSequencerVelocityLabel" class="drum-sequencer-bpm-label" for="drumSequencerVelocity">Velocity</label>
+                    <div class="drum-sequencer-bpm-wrap">
+                      <input id="drumSequencerVelocity" type="range" min="25" max="150" value="100" aria-label="Velocity" />
+                      <span id="drumSequencerVelocityReadout" class="pad-volume-readout">100%</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </section>
           </div>
         </div>

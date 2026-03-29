@@ -11,7 +11,7 @@ let soundTouchNodeCtor = null;
 let soundTouchWorkletReady = false;
 let soundTouchWorkletFailed = false;
 let soundTouchWorkletRegistrationPromise = null;
-const BACKUP_VERSION = 5;
+const BACKUP_VERSION = 6;
 // User-imported presets (persisted when possible)
 const userPresets = [];
 let trimPadTargetIndex = -1;
@@ -363,7 +363,18 @@ const I18N = {
     drum_seq_toggle_stop: 'Stop Pattern',
     drum_seq_clear: 'Clear Pattern',
     drum_seq_bpm_readout: '{bpm} BPM',
+    drum_seq_swing: 'Swing',
+    drum_seq_swing_readout: '{amount}%',
     drum_seq_empty_row: 'Empty',
+    drum_seq_step_editor_title: 'Step Editor',
+    drum_seq_step_editor_hint: 'Use Accent and Velocity to shape the selected hit.',
+    drum_seq_step_editor_empty: 'Select a step in the grid.',
+    drum_seq_step_editor_inactive: 'Activate this step to edit accent and velocity.',
+    drum_seq_step_selected: '{pad} • Step {step}',
+    drum_seq_velocity: 'Velocity',
+    drum_seq_velocity_readout: '{percent}%',
+    drum_seq_accent_on: 'Accent On',
+    drum_seq_accent_off: 'Accent Off',
     status_drum_seq_started: 'Pattern started at {bpm} BPM.',
     status_drum_seq_stopped: 'Pattern stopped.',
     status_drum_seq_cleared: 'Pattern cleared.',
@@ -693,7 +704,18 @@ const I18N = {
     drum_seq_toggle_stop: 'Zaustavi pattern',
     drum_seq_clear: 'Očisti pattern',
     drum_seq_bpm_readout: '{bpm} BPM',
+    drum_seq_swing: 'Swing',
+    drum_seq_swing_readout: '{amount}%',
     drum_seq_empty_row: 'Prazno',
+    drum_seq_step_editor_title: 'Uređivanje koraka',
+    drum_seq_step_editor_hint: 'Naglaskom i glasnoćom oblikujte odabrani udarac.',
+    drum_seq_step_editor_empty: 'Odaberite korak u mreži.',
+    drum_seq_step_editor_inactive: 'Aktivirajte ovaj korak da biste uredili naglasak i glasnoću.',
+    drum_seq_step_selected: '{pad} • Korak {step}',
+    drum_seq_velocity: 'Glasnoća',
+    drum_seq_velocity_readout: '{percent}%',
+    drum_seq_accent_on: 'Naglasak uključen',
+    drum_seq_accent_off: 'Naglasak isključen',
     status_drum_seq_started: 'Pattern je pokrenut na {bpm} BPM.',
     status_drum_seq_stopped: 'Pattern je zaustavljen.',
     status_drum_seq_cleared: 'Pattern je očišćen.',
@@ -7520,6 +7542,12 @@ const DRUM_VOICE_LIMIT = 32;
 const DRUM_SEQUENCER_STEPS = 16;
 const DRUM_SEQUENCER_MIN_BPM = 60;
 const DRUM_SEQUENCER_MAX_BPM = 180;
+const DRUM_SEQUENCER_MIN_SWING = 0;
+const DRUM_SEQUENCER_MAX_SWING = 45;
+const DRUM_SEQUENCER_MIN_VELOCITY = 0.25;
+const DRUM_SEQUENCER_MAX_VELOCITY = 1.5;
+const DRUM_SEQUENCER_DEFAULT_VELOCITY = 1.0;
+const DRUM_SEQUENCER_ACCENT_GAIN = 1.2;
 const PAD_COLOR_KEYS = Object.freeze(['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink', 'silver']);
 const PAD_COLOR_DEFAULT_KEY = 'blue';
 const PAD_DARK_COLOR_PALETTE = Object.freeze({
@@ -7603,8 +7631,16 @@ function savePickerCollapsedSubfolders(storageKey, sourceSet) {
   try { localStorage.setItem(storageKey, JSON.stringify([...sourceSet])); } catch {}
 }
 
+function createEmptyDrumSequencerStep() {
+  return {
+    active: false,
+    accent: false,
+    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY
+  };
+}
+
 function createEmptyDrumSequencerPattern() {
-  return Array.from({ length: PAD_COUNT }, () => Array(DRUM_SEQUENCER_STEPS).fill(false));
+  return Array.from({ length: PAD_COUNT }, () => Array.from({ length: DRUM_SEQUENCER_STEPS }, () => createEmptyDrumSequencerStep()));
 }
 
 function normalizeDrumSequencerBpm(value, fallback = 120) {
@@ -7612,10 +7648,36 @@ function normalizeDrumSequencerBpm(value, fallback = 120) {
   return clamp(Number.isFinite(parsed) ? parsed : fallback, DRUM_SEQUENCER_MIN_BPM, DRUM_SEQUENCER_MAX_BPM);
 }
 
+function normalizeDrumSequencerSwing(value, fallback = 0) {
+  const parsed = Number(value);
+  return clamp(Number.isFinite(parsed) ? Math.round(parsed) : fallback, DRUM_SEQUENCER_MIN_SWING, DRUM_SEQUENCER_MAX_SWING);
+}
+
+function normalizeDrumSequencerVelocity(value, fallback = DRUM_SEQUENCER_DEFAULT_VELOCITY) {
+  const parsed = Number(value);
+  const normalized = clamp(Number.isFinite(parsed) ? parsed : fallback, DRUM_SEQUENCER_MIN_VELOCITY, DRUM_SEQUENCER_MAX_VELOCITY);
+  return Math.round(normalized * 100) / 100;
+}
+
+function normalizeDrumSequencerStep(step) {
+  if (step && typeof step === 'object' && !Array.isArray(step)) {
+    return {
+      active: !!step.active,
+      accent: !!step.accent,
+      velocity: normalizeDrumSequencerVelocity(step.velocity, DRUM_SEQUENCER_DEFAULT_VELOCITY)
+    };
+  }
+  return {
+    active: !!step,
+    accent: false,
+    velocity: DRUM_SEQUENCER_DEFAULT_VELOCITY
+  };
+}
+
 function normalizeDrumSequencerPattern(pattern) {
   return Array.from({ length: PAD_COUNT }, (_, rowIndex) => {
     const sourceRow = Array.isArray(pattern && pattern[rowIndex]) ? pattern[rowIndex] : [];
-    return Array.from({ length: DRUM_SEQUENCER_STEPS }, (_, stepIndex) => !!sourceRow[stepIndex]);
+    return Array.from({ length: DRUM_SEQUENCER_STEPS }, (_, stepIndex) => normalizeDrumSequencerStep(sourceRow[stepIndex]));
   });
 }
 
@@ -7623,18 +7685,19 @@ function normalizeDrumSequencerState(state) {
   const source = state && typeof state === 'object' ? state : {};
   return {
     bpm: normalizeDrumSequencerBpm(source && source.bpm, 120),
+    swing: normalizeDrumSequencerSwing(source && source.swing, 0),
     pattern: normalizeDrumSequencerPattern(source && source.pattern)
   };
 }
 
 function serializeDrumSequencerState(state) {
   if (arguments.length > 0) return normalizeDrumSequencerState(state);
-  return normalizeDrumSequencerState({ bpm: drumSequencerBpm, pattern: drumSequencerPattern });
+  return normalizeDrumSequencerState({ bpm: drumSequencerBpm, swing: drumSequencerSwing, pattern: drumSequencerPattern });
 }
 
 function hasDrumSequencerContent(state) {
   const normalized = arguments.length > 0 ? normalizeDrumSequencerState(state) : serializeDrumSequencerState();
-  return normalized.pattern.some((row) => row.some(Boolean));
+  return normalized.pattern.some((row) => row.some((step) => step && step.active));
 }
 
 let padAssignments = new Array(PAD_COUNT).fill(null);
@@ -7667,14 +7730,40 @@ let drumLastTriggeredIndex = -1;
 let drumLastChokedIndex = -1;
 let drumSequencerPattern = createEmptyDrumSequencerPattern();
 let drumSequencerBpm = 120;
+let drumSequencerSwing = 0;
 let drumSequencerPlaying = false;
 let drumSequencerCurrentStep = -1;
 let drumSequencerTimer = 0;
+let drumSequencerSelectedRow = -1;
+let drumSequencerSelectedStep = -1;
 let drumAssignTarget = -1;
 let drumAssignSelectedKey = '';
 let drumAssignSelectedColorKey = PAD_COLOR_DEFAULT_KEY;
 let padAssignmentClipboard = null;
 let drumAssignmentClipboard = null;
+
+function getDrumSequencerStep(rowIndex, stepIndex) {
+  if (rowIndex < 0 || rowIndex >= PAD_COUNT || stepIndex < 0 || stepIndex >= DRUM_SEQUENCER_STEPS) return null;
+  return drumSequencerPattern[rowIndex][stepIndex] || null;
+}
+
+function getSelectedDrumSequencerStep() {
+  return getDrumSequencerStep(drumSequencerSelectedRow, drumSequencerSelectedStep);
+}
+
+function selectDrumSequencerStep(rowIndex, stepIndex) {
+  if (rowIndex < 0 || rowIndex >= PAD_COUNT || stepIndex < 0 || stepIndex >= DRUM_SEQUENCER_STEPS) {
+    drumSequencerSelectedRow = -1;
+    drumSequencerSelectedStep = -1;
+    return;
+  }
+  drumSequencerSelectedRow = rowIndex;
+  drumSequencerSelectedStep = stepIndex;
+}
+
+function formatDrumSequencerVelocityPercent(value) {
+  return Math.round(normalizeDrumSequencerVelocity(value, DRUM_SEQUENCER_DEFAULT_VELOCITY) * 100);
+}
 
 function getPadPerformanceLabel(index) {
   if (index < 0 || index >= PAD_COUNT) return 'Loop Trigger';
@@ -7786,6 +7875,14 @@ function getDrumSequencerStepDurationMs() {
   return Math.max(40, Math.round((60 / normalizeDrumSequencerBpm(drumSequencerBpm, 120) / 4) * 1000));
 }
 
+function getDrumSequencerNextDelayMs() {
+  const baseDuration = getDrumSequencerStepDurationMs();
+  const swingRatio = normalizeDrumSequencerSwing(drumSequencerSwing, 0) / 100;
+  if (!swingRatio || drumSequencerCurrentStep < 0) return baseDuration;
+  const factor = drumSequencerCurrentStep % 2 === 0 ? (1 + swingRatio) : (1 - swingRatio);
+  return Math.max(24, Math.round(baseDuration * factor));
+}
+
 function saveDrumSequencerState() {
   try { localStorage.setItem(DRUM_SEQUENCER_KEY, JSON.stringify(serializeDrumSequencerState())); } catch {}
 }
@@ -7812,6 +7909,8 @@ function updateDrumSequencerControls() {
   const clearBtn = document.getElementById('drumSequencerClear');
   const bpmInput = document.getElementById('drumSequencerBpm');
   const bpmReadout = document.getElementById('drumSequencerBpmReadout');
+  const swingInput = document.getElementById('drumSequencerSwing');
+  const swingReadout = document.getElementById('drumSequencerSwingReadout');
   if (toggleBtn) {
     const label = t(drumSequencerPlaying ? 'drum_seq_toggle_stop' : 'drum_seq_toggle_start');
     toggleBtn.textContent = label;
@@ -7830,20 +7929,82 @@ function updateDrumSequencerControls() {
     bpmInput.setAttribute('aria-label', t('drum_seq_bpm'));
   }
   if (bpmReadout) bpmReadout.textContent = tf('drum_seq_bpm_readout', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) });
+  if (swingInput) {
+    swingInput.min = String(DRUM_SEQUENCER_MIN_SWING);
+    swingInput.max = String(DRUM_SEQUENCER_MAX_SWING);
+    swingInput.value = String(normalizeDrumSequencerSwing(drumSequencerSwing, 0));
+    swingInput.setAttribute('aria-label', t('drum_seq_swing'));
+  }
+  if (swingReadout) swingReadout.textContent = tf('drum_seq_swing_readout', { amount: normalizeDrumSequencerSwing(drumSequencerSwing, 0) });
+}
+
+function updateDrumSequencerStepEditor() {
+  const titleEl = document.getElementById('drumSequencerStepEditorTitle');
+  const hintEl = document.getElementById('drumSequencerStepEditorHint');
+  const selectionEl = document.getElementById('drumSequencerStepSelection');
+  const accentBtn = document.getElementById('drumSequencerAccentToggle');
+  const velocityLabel = document.getElementById('drumSequencerVelocityLabel');
+  const velocityInput = document.getElementById('drumSequencerVelocity');
+  const velocityReadout = document.getElementById('drumSequencerVelocityReadout');
+  const selectedStep = getSelectedDrumSequencerStep();
+  const hasSelection = !!selectedStep;
+  const isEditable = hasSelection && !!selectedStep.active;
+  const velocityPercent = hasSelection
+    ? formatDrumSequencerVelocityPercent(selectedStep.velocity)
+    : formatDrumSequencerVelocityPercent(DRUM_SEQUENCER_DEFAULT_VELOCITY);
+
+  if (titleEl) titleEl.textContent = t('drum_seq_step_editor_title');
+  if (velocityLabel) velocityLabel.textContent = t('drum_seq_velocity');
+  if (selectionEl) {
+    selectionEl.textContent = hasSelection
+      ? tf('drum_seq_step_selected', { pad: getDrumSequencerPadLabel(drumSequencerSelectedRow), step: drumSequencerSelectedStep + 1 })
+      : t('drum_seq_step_editor_empty');
+  }
+  if (hintEl) {
+    hintEl.textContent = hasSelection && !selectedStep.active
+      ? t('drum_seq_step_editor_inactive')
+      : t('drum_seq_step_editor_hint');
+  }
+  if (accentBtn) {
+    const label = t(hasSelection && selectedStep.accent ? 'drum_seq_accent_on' : 'drum_seq_accent_off');
+    accentBtn.textContent = label;
+    accentBtn.disabled = !isEditable;
+    accentBtn.setAttribute('aria-label', label);
+    accentBtn.setAttribute('aria-pressed', isEditable && selectedStep.accent ? 'true' : 'false');
+  }
+  if (velocityInput) {
+    velocityInput.min = String(Math.round(DRUM_SEQUENCER_MIN_VELOCITY * 100));
+    velocityInput.max = String(Math.round(DRUM_SEQUENCER_MAX_VELOCITY * 100));
+    velocityInput.value = String(velocityPercent);
+    velocityInput.disabled = !isEditable;
+    velocityInput.setAttribute('aria-label', t('drum_seq_velocity'));
+  }
+  if (velocityReadout) velocityReadout.textContent = tf('drum_seq_velocity_readout', { percent: velocityPercent });
+}
+
+function refreshDrumSequencerTimerFromTempoChange() {
+  if (!drumSequencerPlaying) return;
+  clearDrumSequencerTimer();
+  queueNextDrumSequencerTick();
 }
 
 function renderDrumSequencer() {
   const titleEl = document.getElementById('drumSequencerTitle');
   const hintEl = document.getElementById('drumSequencerHint');
   const bpmLabel = document.getElementById('drumSequencerBpmLabel');
+  const swingLabel = document.getElementById('drumSequencerSwingLabel');
   const grid = document.getElementById('drumSequencerGrid');
   if (titleEl) titleEl.textContent = t('drum_seq_title');
   if (hintEl) hintEl.textContent = t('drum_seq_hint');
   if (bpmLabel) bpmLabel.textContent = t('drum_seq_bpm');
+  if (swingLabel) swingLabel.textContent = t('drum_seq_swing');
   if (!grid) {
     updateDrumSequencerControls();
+    updateDrumSequencerStepEditor();
     return;
   }
+
+  grid.setAttribute('aria-label', t('drum_seq_title'));
 
   grid.innerHTML = '';
 
@@ -7878,14 +8039,28 @@ function renderDrumSequencer() {
     const steps = document.createElement('div');
     steps.className = 'drum-sequencer-step-strip';
     for (let stepIndex = 0; stepIndex < DRUM_SEQUENCER_STEPS; stepIndex += 1) {
+      const step = getDrumSequencerStep(rowIndex, stepIndex) || createEmptyDrumSequencerStep();
+      const velocityRatio = (step.velocity - DRUM_SEQUENCER_MIN_VELOCITY) / (DRUM_SEQUENCER_MAX_VELOCITY - DRUM_SEQUENCER_MIN_VELOCITY);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'drum-sequencer-step';
       button.setAttribute('data-drum-seq-row', String(rowIndex));
       button.setAttribute('data-drum-seq-step', String(stepIndex));
-      button.setAttribute('aria-pressed', drumSequencerPattern[rowIndex][stepIndex] ? 'true' : 'false');
-      button.setAttribute('aria-label', `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`);
-      button.classList.toggle('is-active', !!drumSequencerPattern[rowIndex][stepIndex]);
+      button.setAttribute('aria-pressed', step.active ? 'true' : 'false');
+      button.setAttribute('aria-label', [
+        `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`,
+        `${t('drum_seq_velocity')} ${formatDrumSequencerVelocityPercent(step.velocity)}%`,
+        t(step.accent ? 'drum_seq_accent_on' : 'drum_seq_accent_off')
+      ].join(' • '));
+      button.title = [
+        `${getDrumSequencerPadLabel(rowIndex)} • ${t('drum_seq_steps')} ${stepIndex + 1}`,
+        `${t('drum_seq_velocity')} ${formatDrumSequencerVelocityPercent(step.velocity)}%`,
+        t(step.accent ? 'drum_seq_accent_on' : 'drum_seq_accent_off')
+      ].join(' • ');
+      button.classList.toggle('is-active', !!step.active);
+      button.classList.toggle('is-accent', !!step.active && !!step.accent);
+      button.classList.toggle('is-selected', drumSequencerSelectedRow === rowIndex && drumSequencerSelectedStep === stepIndex);
+      button.style.setProperty('--drum-seq-velocity', String(clamp(velocityRatio, 0, 1).toFixed(3)));
       steps.appendChild(button);
     }
 
@@ -7895,12 +8070,36 @@ function renderDrumSequencer() {
   }
 
   updateDrumSequencerControls();
+  updateDrumSequencerStepEditor();
   updateDrumSequencerPlayheadUI();
 }
 
-function toggleDrumSequencerStep(rowIndex, stepIndex) {
-  if (rowIndex < 0 || rowIndex >= PAD_COUNT || stepIndex < 0 || stepIndex >= DRUM_SEQUENCER_STEPS) return;
-  drumSequencerPattern[rowIndex][stepIndex] = !drumSequencerPattern[rowIndex][stepIndex];
+function handleDrumSequencerStepClick(rowIndex, stepIndex) {
+  const step = getDrumSequencerStep(rowIndex, stepIndex);
+  if (!step) return;
+  const wasSelected = drumSequencerSelectedRow === rowIndex && drumSequencerSelectedStep === stepIndex;
+  selectDrumSequencerStep(rowIndex, stepIndex);
+  if (wasSelected) {
+    step.active = !step.active;
+  } else if (!step.active) {
+    step.active = true;
+  }
+  saveDrumSequencerState();
+  renderDrumSequencer();
+}
+
+function setSelectedDrumSequencerAccent(enabled) {
+  const step = getSelectedDrumSequencerStep();
+  if (!step || !step.active) return;
+  step.accent = !!enabled;
+  saveDrumSequencerState();
+  renderDrumSequencer();
+}
+
+function setSelectedDrumSequencerVelocity(value) {
+  const step = getSelectedDrumSequencerStep();
+  if (!step || !step.active) return;
+  step.velocity = normalizeDrumSequencerVelocity(value, step.velocity);
   saveDrumSequencerState();
   renderDrumSequencer();
 }
@@ -7909,9 +8108,14 @@ function fireDrumSequencerStep(stepIndex) {
   drumSequencerCurrentStep = stepIndex;
   updateDrumSequencerPlayheadUI();
   for (let rowIndex = 0; rowIndex < PAD_COUNT; rowIndex += 1) {
-    if (!drumSequencerPattern[rowIndex][stepIndex]) continue;
+    const step = getDrumSequencerStep(rowIndex, stepIndex);
+    if (!step || !step.active) continue;
     if (!drumAssignments[rowIndex]) continue;
-    void triggerDrumPad(rowIndex);
+    void triggerDrumPad(rowIndex, {
+      velocityMultiplier: step.velocity,
+      accent: !!step.accent,
+      updateStatus: false
+    });
   }
 }
 
@@ -7922,7 +8126,7 @@ function queueNextDrumSequencerTick() {
     const nextStep = (drumSequencerCurrentStep + 1) % DRUM_SEQUENCER_STEPS;
     fireDrumSequencerStep(nextStep);
     queueNextDrumSequencerTick();
-  }, getDrumSequencerStepDurationMs());
+  }, getDrumSequencerNextDelayMs());
 }
 
 async function startDrumSequencer() {
@@ -7965,6 +8169,7 @@ function applyDrumSequencerState(state, { save = false, stopPlayback = false } =
   if (stopPlayback) stopDrumSequencer({ resetStep: true, silent: true });
   const normalized = serializeDrumSequencerState(state);
   drumSequencerBpm = normalized.bpm;
+  drumSequencerSwing = normalized.swing;
   drumSequencerPattern = normalized.pattern;
   if (save) saveDrumSequencerState();
   renderDrumSequencer();
@@ -9287,12 +9492,12 @@ function renderDrumGrid() {
       const chokeDescriptions = [];
       if (chokeTargetIndex >= 0 && chokeTargetIndex !== i) {
         chokeDescriptions.push(tf('drum_grid_choke_source', {
-          target: formatDrumChokeOptionLabel(chokeTargetIndex, drumAssignments[chokeTargetIndex])
+            target: formatDrumChokeOptionLabel(chokeTargetIndex, getEffectiveDrumAssignment(chokeTargetIndex, assignmentPreview))
         }));
       }
       if (incomingSources.length) {
         chokeDescriptions.push(tf('drum_grid_choke_target', {
-          sources: incomingSources.map((sourceIndex) => formatDrumChokeOptionLabel(sourceIndex, drumAssignments[sourceIndex])).join(', ')
+            sources: incomingSources.map((sourceIndex) => formatDrumChokeOptionLabel(sourceIndex, getEffectiveDrumAssignment(sourceIndex, assignmentPreview))).join(', ')
         }));
       }
       el.style.background = resolvePadDisplayColor(colorKey, theme);
@@ -9407,11 +9612,11 @@ function stopDrumPlayback(immediate = false) {
   drumVoices.slice().forEach(voice => stopDrumVoice(voice, immediate));
 }
 
-async function triggerDrumPad(index) {
+async function triggerDrumPad(index, { velocityMultiplier = 1, accent = false, updateStatus = true } = {}) {
   const assignment = drumAssignments[index];
   if (!assignment) return;
   if (!isPresetKeyAvailable(assignment.presetKey)) {
-    setStatus(`Drum pad ${index + 1}: ${t('pad_missing_audio')}`);
+    if (updateStatus) setStatus(`Drum pad ${index + 1}: ${t('pad_missing_audio')}`);
     renderDrumGrid();
     return;
   }
@@ -9432,7 +9637,7 @@ async function triggerDrumPad(index) {
 
   const loaded = await loadBufferFromPresetKey(assignment.presetKey);
   if (!loaded || !loaded.buffer || !audioCtx || !master) {
-    setStatus('Drum pad: failed to load sample');
+    if (updateStatus) setStatus('Drum pad: failed to load sample');
     return;
   }
 
@@ -9453,7 +9658,14 @@ async function triggerDrumPad(index) {
   source.loop = false;
 
   const gainNode = audioCtx.createGain();
-  try { gainNode.gain.setValueAtTime(normalizeAssignmentVolume(assignment.volume, 1.0), audioCtx.currentTime); } catch {}
+  const targetGain = clamp(
+    normalizeAssignmentVolume(assignment.volume, 1.0)
+      * normalizeDrumSequencerVelocity(velocityMultiplier, DRUM_SEQUENCER_DEFAULT_VELOCITY)
+      * (accent ? DRUM_SEQUENCER_ACCENT_GAIN : 1),
+    0,
+    DRUM_SEQUENCER_MAX_VELOCITY
+  );
+  try { gainNode.gain.setValueAtTime(targetGain, audioCtx.currentTime); } catch {}
   source.connect(gainNode);
   gainNode.connect(master);
 
@@ -9483,7 +9695,7 @@ async function triggerDrumPad(index) {
   source.start(audioCtx.currentTime, startOffset, duration);
   flashDrumPad(index);
   updateDrumPerformanceUI();
-  setStatus(`Drum ${index + 1}: ${assignment.displayName || assignment.label || 'Playing'}`);
+  if (updateStatus) setStatus(`Drum ${index + 1}: ${assignment.displayName || assignment.label || 'Playing'}`);
 }
 
 function openDrumAssignModal(padIndex, { preservePickerState = false, draft = null } = {}) {
@@ -11194,13 +11406,16 @@ function bindDrumMachineUI() {
   const drumSequencerToggle = document.getElementById('drumSequencerToggle');
   const drumSequencerClear = document.getElementById('drumSequencerClear');
   const drumSequencerBpmInput = document.getElementById('drumSequencerBpm');
+  const drumSequencerSwingInput = document.getElementById('drumSequencerSwing');
+  const drumSequencerAccentToggle = document.getElementById('drumSequencerAccentToggle');
+  const drumSequencerVelocityInput = document.getElementById('drumSequencerVelocity');
   if (drumSequencerGrid) {
     drumSequencerGrid.addEventListener('click', (e) => {
       const button = e.target.closest('.drum-sequencer-step');
       if (!button) return;
       const rowIndex = parseInt(button.getAttribute('data-drum-seq-row'), 10);
       const stepIndex = parseInt(button.getAttribute('data-drum-seq-step'), 10);
-      toggleDrumSequencerStep(rowIndex, stepIndex);
+      handleDrumSequencerStepClick(rowIndex, stepIndex);
     });
   }
   if (drumSequencerToggle) {
@@ -11222,6 +11437,27 @@ function bindDrumMachineUI() {
       drumSequencerBpm = normalizeDrumSequencerBpm(drumSequencerBpmInput.value, drumSequencerBpm);
       saveDrumSequencerState();
       updateDrumSequencerControls();
+      refreshDrumSequencerTimerFromTempoChange();
+    });
+  }
+  if (drumSequencerSwingInput) {
+    drumSequencerSwingInput.addEventListener('input', () => {
+      drumSequencerSwing = normalizeDrumSequencerSwing(drumSequencerSwingInput.value, drumSequencerSwing);
+      saveDrumSequencerState();
+      updateDrumSequencerControls();
+      refreshDrumSequencerTimerFromTempoChange();
+    });
+  }
+  if (drumSequencerAccentToggle) {
+    drumSequencerAccentToggle.addEventListener('click', () => {
+      const selectedStep = getSelectedDrumSequencerStep();
+      if (!selectedStep || !selectedStep.active) return;
+      setSelectedDrumSequencerAccent(!selectedStep.accent);
+    });
+  }
+  if (drumSequencerVelocityInput) {
+    drumSequencerVelocityInput.addEventListener('input', () => {
+      setSelectedDrumSequencerVelocity((parseInt(drumSequencerVelocityInput.value, 10) || 100) / 100);
     });
   }
 
