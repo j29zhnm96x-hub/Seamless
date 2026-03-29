@@ -1460,10 +1460,11 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
 }
 
 .pad-live-bar{
-  display:flex;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
-  justify-content:space-between;
   gap:12px;
+  min-height:58px;
   margin-top:12px;
   padding:10px 12px;
   border:1px solid var(--border);
@@ -1472,15 +1473,17 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
 }
 .pad-live-text{
   margin:0;
-  flex:1 1 auto;
   min-width:0;
   color:var(--text-2);
   font-size:12px;
   line-height:1.5;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .pad-live-action{
-  flex:0 0 auto;
   min-height:36px;
+  min-width:120px;
   padding:8px 12px;
 }
 .pad-live-action.hidden{display:none}
@@ -1893,8 +1896,9 @@ html.theme-light .pad-color-swatch.selected{border-color:var(--surface)}
 /* -------- Responsive -------- */
 @media(max-width:520px){
   .controls button,.imports button{flex:1 1 auto}
-  .pad-live-bar{flex-direction:column;align-items:stretch}
-  .pad-live-action{width:100%}
+  .pad-live-bar{grid-template-columns:1fr;align-items:stretch;min-height:0}
+  .pad-live-text{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .pad-live-action{width:100%;min-width:0}
   .drum-sequencer-top{flex-direction:column}
   .drum-sequencer-actions{width:100%}
   .drum-sequencer-actions button{flex:1 1 0}
