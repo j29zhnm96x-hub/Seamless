@@ -384,6 +384,7 @@ const I18N = {
     status_drum_seq_stopped: 'Pattern stopped.',
     status_drum_seq_cleared: 'Pattern cleared.',
     status_drum_seq_empty: 'Add at least one active step before starting the pattern.',
+    status_drum_seq_ios_buffer_failed: 'Pattern could not start in iPhone-safe mode. Try fewer overlapping hits or shorter samples.',
     status_drum_seq_bank_copied: 'Pattern bank {bank} copied.',
     status_drum_seq_bank_pasted: 'Pattern bank pasted into {bank}.',
     drum_assign_save: 'Save',
@@ -732,6 +733,7 @@ const I18N = {
     status_drum_seq_stopped: 'Pattern je zaustavljen.',
     status_drum_seq_cleared: 'Pattern je očišćen.',
     status_drum_seq_empty: 'Dodajte barem jedan aktivni korak prije pokretanja patterna.',
+    status_drum_seq_ios_buffer_failed: 'Pattern se nije mogao pokrenuti u iPhone-sigurnom načinu rada. Pokušajte s manje preklapanja ili kraćim sampleovima.',
     status_drum_seq_bank_copied: 'Pattern banka {bank} je kopirana.',
     status_drum_seq_bank_pasted: 'Pattern banka je zalijepljena u {bank}.',
     drum_assign_save: 'Spremi',
@@ -2335,6 +2337,8 @@ const defaultSettings = { threshold: 1e-3, marginMs: 2, windowMs: 10 };
 let currentSettings = { ...defaultSettings };
 let lastLoopPoints = null;
 let mediaSessionHandlersSet = false;
+let audioOutRecoveryHandlersSet = false;
+let mediaPlaybackIntent = { kind: 'none', padIndex: -1 };
 let stopCleanupToken = 0;
 
 // Playlist state
@@ -3451,6 +3455,7 @@ async function playActivePlaylist(options = {}) {
   stopPlaylistPlayback();
   const token = playlistPlayToken;
   playlistIsPlaying = true;
+  rememberMediaPlaybackIntent('playlist');
 
   ensureAudio();
   if (audioCtx && audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
@@ -3548,7 +3553,7 @@ async function playActivePlaylist(options = {}) {
       setStatus(`Playlist: ${currentSourceLabel} \u00d7${reps}`);
 
       const rateNow = clamp(currentRate, RATE_MIN, RATE_MAX);
-      await startLoopFromBuffer(loaded.buffer, itemVol * 0.5, 0.03);
+      await startLoopFromBuffer(loaded.buffer, itemVol * 0.5, 0.03, null, { preserveMediaIntent: true });
 
       // Wait for repetitions of the computed loop segment.
       const totalSec = Math.max(0.02, (seg * reps) / Math.max(0.001, rateNow));
@@ -3736,7 +3741,15 @@ function ensureAudio() {
     analyser.smoothingTimeConstant = 0.86;
     try { master.connect(analyser); } catch {}
     audioOut = document.getElementById('audioOut');
-    if (audioOut) audioOut.srcObject = mediaDest.stream;
+    if (audioOut) {
+      audioOut.srcObject = mediaDest.stream;
+      audioOut.autoplay = true;
+      audioOut.preload = 'auto';
+      audioOut.playsInline = true;
+      audioOut.setAttribute('playsinline', '');
+      audioOut.setAttribute('webkit-playsinline', 'true');
+      attachAudioOutputRecoveryHandlers();
+    }
     try { void ensureSoundTouchWorkletRegistered(); } catch {}
   }
 }
@@ -3907,6 +3920,78 @@ function startOutputIfNeeded() {
   if (!audioOut) return;
   const p = audioOut.play();
   if (p && p.catch) p.catch(() => {});
+}
+
+function rememberMediaPlaybackIntent(kind, { padIndex = -1 } = {}) {
+  mediaPlaybackIntent = {
+    kind: String(kind || 'none'),
+    padIndex: Number.isInteger(padIndex) ? padIndex : -1
+  };
+}
+
+function hasManagedPlayback({ ignoreLoop = false, ignoreTrimTest = false, ignorePad = false, ignoreDrums = false, ignoreSequencer = false } = {}) {
+  const loopActive = !ignoreLoop && (!!loopSource || playlistIsPlaying);
+  const trimActive = !ignoreTrimTest && !!trimTestSource;
+  const padActive = !ignorePad && (!!padSource || (padPlaying && padActiveIndex >= 0));
+  const drumActive = !ignoreDrums && drumVoices.length > 0;
+  const sequencerActive = !ignoreSequencer && (!!drumSequencerLoopSource || drumSequencerPlaying);
+  return loopActive || trimActive || padActive || drumActive || sequencerActive;
+}
+
+function syncMasterOutputLevel({ ramp = 0.03, ignoreLoop = false, ignoreTrimTest = false, ignorePad = false, ignoreDrums = false, ignoreSequencer = false } = {}) {
+  if (!audioCtx || !master) return;
+  const target = hasManagedPlayback({ ignoreLoop, ignoreTrimTest, ignorePad, ignoreDrums, ignoreSequencer }) ? volumeVal : 0;
+  const now = audioCtx.currentTime;
+  try {
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    if (!ramp || ramp <= 0) master.gain.setValueAtTime(target, now);
+    else master.gain.linearRampToValueAtTime(target, now + Math.max(0, ramp));
+  } catch {}
+}
+
+function pauseAudioOutputIfIdle() {
+  if (!audioOut) return;
+  if (hasManagedPlayback()) {
+    startOutputIfNeeded();
+    return;
+  }
+  try { audioOut.pause(); } catch {}
+}
+
+function recoverAudioOutputIfNeeded({ resumeContext = false } = {}) {
+  if (!audioOut) return;
+  if (resumeContext && audioCtx && audioCtx.state === 'suspended') {
+    try {
+      const p = audioCtx.resume();
+      if (p && p.catch) p.catch(() => {});
+    } catch {}
+  }
+  if (hasManagedPlayback()) startOutputIfNeeded();
+}
+
+function syncMediaSessionPlaybackState() {
+  updateMediaSession(hasManagedPlayback() ? 'playing' : 'paused');
+}
+
+function scheduleAudioOutputIdleCheck(delayMs = 0) {
+  setTimeout(() => {
+    syncMasterOutputLevel({ ramp: 0.02 });
+    pauseAudioOutputIfIdle();
+    syncMediaSessionPlaybackState();
+  }, Math.max(0, delayMs || 0));
+}
+
+function attachAudioOutputRecoveryHandlers() {
+  if (audioOutRecoveryHandlersSet || !audioOut) return;
+  const recover = () => {
+    if (!hasManagedPlayback()) return;
+    recoverAudioOutputIfNeeded({ resumeContext: true });
+  };
+  ['pause', 'ended', 'stalled', 'waiting', 'suspend', 'emptied'].forEach((eventName) => {
+    audioOut.addEventListener(eventName, recover);
+  });
+  audioOutRecoveryHandlersSet = true;
 }
 
 function startDesktopViz() {
@@ -4119,10 +4204,11 @@ function computeLoopPoints(buffer, opts = currentSettings) {
   return { start: start / sr, end: end / sr };
 }
 
-async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, customTrim = null) {
+async function startLoopFromBuffer(buffer, targetVolume = 0.5, rampIn = 0.03, customTrim = null, options = {}) {
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
+  if (!(options && options.preserveMediaIntent)) rememberMediaPlaybackIntent('loop');
 
   try { stopPadPlayback(0); } catch {}
 
@@ -5936,9 +6022,7 @@ function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
   trimTestGain = null;
 
   if (!audioCtx || !src) {
-    if (pauseOutput) {
-      try { if (!loopSource && audioOut) audioOut.pause(); } catch {}
-    }
+    if (pauseOutput) scheduleAudioOutputIdleCheck(20);
     try { if (gain) gain.disconnect(); } catch {}
     return;
   }
@@ -5953,9 +6037,8 @@ function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
     try { if (gain) { try { gain.disconnect(); } catch {} } } catch {}
     try { src.stop(now); } catch {}
     try { src.disconnect(); } catch {}
-    if (pauseOutput) {
-      try { if (!loopSource && audioOut) audioOut.pause(); } catch {}
-    }
+    syncMasterOutputLevel({ ramp: 0, ignoreTrimTest: true });
+    if (pauseOutput) scheduleAudioOutputIdleCheck(20);
     return;
   }
 
@@ -5966,12 +6049,7 @@ function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
       gain.gain.linearRampToValueAtTime(0, now + rampOut);
     }
 
-    // Mirror main stop behavior: ramp master down so the stream is truly quiet.
-    try {
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(0, now + rampOut);
-    } catch {}
+    syncMasterOutputLevel({ ramp: rampOut, ignoreTrimTest: true });
 
     try { src.stop(now + rampOut + 0.001); } catch {}
   } finally {
@@ -5980,12 +6058,7 @@ function stopTrimTest(rampOut = 0.05, pauseOutput = true) {
       try { src.disconnect(); } catch {}
       try { if (gain) gain.disconnect(); } catch {}
 
-      // iOS/Safari: pausing flushes the MediaStream-><audio> buffer to prevent stutter tails.
-      if (pauseOutput) {
-        try {
-          if (!loopSource && !trimTestSource && audioOut) audioOut.pause();
-        } catch {}
-      }
+      if (pauseOutput) scheduleAudioOutputIdleCheck(20);
     }, Math.ceil((rampOut + 0.01) * 1000));
   }
 }
@@ -6780,13 +6853,10 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
   if (!sourceToStop) {
     stopWavePlayhead();
     try { updateNowPlayingNameUI(); } catch {}
-    try {
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(0, now + Math.max(0, rampOut));
-    } catch {}
+    syncMasterOutputLevel({ ramp: Math.max(0, rampOut), ignoreLoop: true });
+    if (pauseOutput) scheduleAudioOutputIdleCheck(Math.ceil((Math.max(0, rampOut) + 0.01) * 1000));
     setStatus('Stopped');
-    updateMediaSession('paused');
+    syncMediaSessionPlaybackState();
     return;
   }
 
@@ -6802,19 +6872,11 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
     try { sourceToStop.disconnect(); } catch {}
     if (loopSource === sourceToStop) loopSource = null;
     if (loopGain === gainToStop) loopGain = null;
-    try {
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(0, now);
-    } catch {}
-
-    // iOS/Safari can have a small MediaStream-><audio> buffer; pausing flushes audible tail.
-    // But during an internal switch we must NOT pause the element (it can stay silent until user gesture).
-    if (pauseOutput) {
-      try { if (audioOut) audioOut.pause(); } catch {}
-    }
+    syncMasterOutputLevel({ ramp: 0, ignoreLoop: true });
+    if (pauseOutput) scheduleAudioOutputIdleCheck(20);
 
     setStatus('Stopped');
-    updateMediaSession('paused');
+    syncMediaSessionPlaybackState();
     return;
   }
 
@@ -6828,9 +6890,7 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
       gainToStop.gain.setValueAtTime(gainToStop.gain.value, now);
       gainToStop.gain.linearRampToValueAtTime(0, now + rampOut);
     }
-    master.gain.cancelScheduledValues(now);
-    master.gain.setValueAtTime(master.gain.value, now);
-    master.gain.linearRampToValueAtTime(0, now + rampOut);
+    syncMasterOutputLevel({ ramp: rampOut, ignoreLoop: true });
     try { sourceToStop.stop(now + rampOut + 0.001); } catch {}
   } finally {
     setTimeout(() => {
@@ -6839,13 +6899,11 @@ function stopLoop(rampOut = 0.05, pauseOutput = true) {
       try { if (gainToStop) gainToStop.disconnect(); } catch {}
       if (loopSource === sourceToStop) loopSource = null;
       if (loopGain === gainToStop) loopGain = null;
-      if (pauseOutput) {
-        try { if (audioOut) audioOut.pause(); } catch {}
-      }
+      if (pauseOutput) scheduleAudioOutputIdleCheck(20);
       setStatus('Stopped');
     }, Math.ceil((rampOut + 0.01) * 1000));
   }
-  updateMediaSession('paused');
+  syncMediaSessionPlaybackState();
 }
 
 function drawWaveform() {
@@ -6911,25 +6969,101 @@ function drawWaveform() {
   updateScrollState();
 }
 
+function getMediaSessionDescriptor() {
+  if (playlistIsPlaying && playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
+    return {
+      title: playerPlaylist.name || 'Playlist',
+      artist: 'SeamlessPlayer',
+      album: 'Playlist'
+    };
+  }
+  if (drumSequencerPlaying) {
+    return {
+      title: `${t('drum_seq_title')} • ${getCurrentDrumSequencerBankLabel()}`,
+      artist: 'SeamlessPlayer',
+      album: t('drum_title')
+    };
+  }
+  if (padPlaying && padActiveIndex >= 0) {
+    return {
+      title: getPadPerformanceLabel(padActiveIndex),
+      artist: 'SeamlessPlayer',
+      album: 'Loop Trigger'
+    };
+  }
+  if (drumVoices.length > 0 && drumLastTriggeredIndex >= 0) {
+    return {
+      title: getDrumPerformanceLabel(drumLastTriggeredIndex),
+      artist: 'SeamlessPlayer',
+      album: t('drum_title')
+    };
+  }
+  return {
+    title: currentSourceLabel || 'SeamlessPlayer Loop',
+    artist: 'SeamlessPlayer',
+    album: 'Loops'
+  };
+}
+
+async function resumeLastMediaPlaybackIntent() {
+  if (mediaPlaybackIntent.kind === 'sequencer') {
+    if (hasCurrentDrumSequencerBankContent()) {
+      await startDrumSequencer({ silent: true });
+      return true;
+    }
+  } else if (mediaPlaybackIntent.kind === 'pad') {
+    if (mediaPlaybackIntent.padIndex >= 0 && mediaPlaybackIntent.padIndex < PAD_COUNT && padAssignments[mediaPlaybackIntent.padIndex]) {
+      await startPadLoop(mediaPlaybackIntent.padIndex);
+      return true;
+    }
+  } else if (mediaPlaybackIntent.kind === 'playlist') {
+    if (playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
+      await playActivePlaylist();
+      return true;
+    }
+  } else if (mediaPlaybackIntent.kind === 'loop') {
+    if (currentBuffer) {
+      await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
+      return true;
+    }
+  }
+
+  if (playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
+    await playActivePlaylist();
+    return true;
+  }
+  if (currentBuffer) {
+    await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
+    return true;
+  }
+  return false;
+}
+
+function stopAllPlaybackForMediaSession() {
+  try { stopPlaylistPlayback(); } catch {}
+  try { stopLoop(0, false); } catch {}
+  try { stopPadPlayback(0); } catch {}
+  try { stopDrumSequencer({ resetStep: true, silent: true }); } catch {}
+  try { stopDrumPlayback(true); } catch {}
+  scheduleAudioOutputIdleCheck(100);
+}
+
 function updateMediaSession(state) {
   if (!('mediaSession' in navigator)) return;
   const ms = navigator.mediaSession;
   try {
-    const title = currentSourceLabel || 'SeamlessPlayer Loop';
-    ms.metadata = new MediaMetadata({ title, artist: 'SeamlessPlayer', album: 'Loops' });
+    const descriptor = getMediaSessionDescriptor();
+    ms.metadata = new MediaMetadata(descriptor);
     if (!mediaSessionHandlersSet) {
       ms.setActionHandler('play', async () => {
-        if (!playlistIsPlaying && playerPlaylist && Array.isArray(playerPlaylist.items) && playerPlaylist.items.length) {
-          await playActivePlaylist();
-          return;
-        }
-        if (currentBuffer) await startLoopFromBuffer(currentBuffer, 0.5, 0.03);
+        recoverAudioOutputIfNeeded({ resumeContext: true });
+        await resumeLastMediaPlaybackIntent();
       });
-      ms.setActionHandler('pause', () => { try { stopPlaylistPlayback(); } catch {} stopLoop(0); });
-      ms.setActionHandler('stop', () => { try { stopPlaylistPlayback(); } catch {} stopLoop(0); });
+      ms.setActionHandler('pause', () => { stopAllPlaybackForMediaSession(); });
+      ms.setActionHandler('stop', () => { stopAllPlaybackForMediaSession(); });
       mediaSessionHandlersSet = true;
     }
-    ms.playbackState = state || (loopSource ? 'playing' : 'paused');
+    ms.playbackState = state || (hasManagedPlayback() ? 'playing' : 'paused');
   } catch {}
 }
 
@@ -8587,14 +8721,26 @@ async function startDrumSequencer({ silent = false } = {}) {
   try { warmAssignedDrumBuffers(); } catch {}
   drumSequencerPlaying = true;
   drumSequencerCurrentStep = -1;
+  rememberMediaPlaybackIntent('sequencer');
   updateDrumSequencerControls();
   const startedBuffered = await startDrumSequencerBufferedPlayback();
   if (!startedBuffered) {
+    if (isIOS()) {
+      drumSequencerPlaying = false;
+      drumSequencerPlaybackMode = 'idle';
+      drumSequencerCurrentStep = -1;
+      updateDrumSequencerControls();
+      updateDrumSequencerPlayheadUI();
+      syncMediaSessionPlaybackState();
+      setStatus(t('status_drum_seq_ios_buffer_failed'));
+      return;
+    }
     drumSequencerPlaybackMode = 'timer';
     fireDrumSequencerStep(0);
     queueNextDrumSequencerTick();
   }
   saveDrumSequencerState();
+  syncMediaSessionPlaybackState();
   if (!silent) setStatus(tf('status_drum_seq_started', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120), bank: getCurrentDrumSequencerBankLabel() }));
 }
 
@@ -8610,6 +8756,7 @@ function stopDrumSequencer({ resetStep = true, stopVoices = false, silent = fals
   if (stopVoices) stopDrumPlayback(true);
   updateDrumSequencerControls();
   updateDrumSequencerPlayheadUI();
+  scheduleAudioOutputIdleCheck(60);
   if (!silent && wasPlaying) setStatus(t('status_drum_seq_stopped'));
 }
 
@@ -10025,6 +10172,8 @@ function unregisterDrumVoice(voice) {
   const idx = drumVoices.indexOf(voice);
   if (idx >= 0) drumVoices.splice(idx, 1);
   updateDrumPerformanceUI();
+  if (!drumVoices.length) scheduleAudioOutputIdleCheck(40);
+  else syncMediaSessionPlaybackState();
 }
 
 function destroyDrumVoice(voice) {
@@ -10649,32 +10798,38 @@ function stopPadPlayback(ramp = 0.05) {
   padQueuedOneShot = false;
   padFinishing = false;
   hidePadCountdown();
-  if (padSource) {
+  const sourceToStop = padSource;
+  const gainToStop = padGainNode;
+  if (sourceToStop) {
     try {
-      if (padGainNode && audioCtx) {
+      if (gainToStop && audioCtx) {
         const now = audioCtx.currentTime;
-        padGainNode.gain.cancelScheduledValues(now);
-        padGainNode.gain.setValueAtTime(padGainNode.gain.value, now);
-        padGainNode.gain.linearRampToValueAtTime(0, now + ramp);
+        gainToStop.gain.cancelScheduledValues(now);
+        gainToStop.gain.setValueAtTime(gainToStop.gain.value, now);
+        gainToStop.gain.linearRampToValueAtTime(0, now + ramp);
       }
       setTimeout(() => {
-        try { padSource.stop(); } catch {}
-        try { padSource.disconnect(); } catch {}
-        try { disconnectPadPitchShifter(); } catch {}
-        try { if (padGainNode) padGainNode.disconnect(); } catch {}
-        padSource = null;
-        padGainNode = null;
+        if (padSource === sourceToStop) {
+          try { sourceToStop.stop(); } catch {}
+          try { sourceToStop.disconnect(); } catch {}
+          try { disconnectPadPitchShifter(); } catch {}
+          try { if (gainToStop) gainToStop.disconnect(); } catch {}
+          padSource = null;
+          if (padGainNode === gainToStop) padGainNode = null;
+        } else {
+          try { sourceToStop.disconnect(); } catch {}
+          try { if (gainToStop) gainToStop.disconnect(); } catch {}
+        }
+        syncMasterOutputLevel({ ramp: 0.02, ignorePad: true });
+        pauseAudioOutputIfIdle();
+        syncMediaSessionPlaybackState();
       }, (ramp + 0.05) * 1000);
     } catch {}
+  } else {
+    syncMasterOutputLevel({ ramp: Math.max(0, ramp), ignorePad: true });
+    pauseAudioOutputIfIdle();
+    syncMediaSessionPlaybackState();
   }
-  try {
-    if (master && audioCtx && !loopSource) {
-      const now = audioCtx.currentTime;
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(0, now + Math.max(0, ramp));
-    }
-  } catch {}
   renderPadGrid();
 }
 
@@ -10701,6 +10856,7 @@ async function startPadLoopInternal(index, oneShot = false) {
   ensureAudio();
   if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
   startOutputIfNeeded();
+  rememberMediaPlaybackIntent('pad', { padIndex: index });
 
   try { stopPlaylistPlayback(); } catch {}
   try { stopLoop(0, false); } catch {}
@@ -10803,12 +10959,14 @@ async function startPadLoopInternal(index, oneShot = false) {
       if (padGainNode === gainRef) padGainNode = null;
       setStatus(t('status_stopped'));
       renderPadGrid();
+      scheduleAudioOutputIdleCheck(50);
     };
     sourceRef.addEventListener('ended', onEnded);
   }
 
   setStatus(`Pad ${index + 1}: ${a.label || 'Playing'}${oneShot ? ' (final)' : ''}`);
   renderPadGrid();
+  syncMediaSessionPlaybackState();
 }
 
 function schedulePadSwitch(nextIndex, oneShot = false) {
@@ -12182,6 +12340,7 @@ function bindUI() {
   stopBtn && stopBtn.addEventListener('click', () => stopPadPlayback(0));
   stopBtn && stopBtn.addEventListener('click', () => stopDrumPlayback(true));
   stopBtn && stopBtn.addEventListener('click', () => stopDrumSequencer({ resetStep: true, silent: true }));
+  stopBtn && stopBtn.addEventListener('click', () => scheduleAudioOutputIdleCheck(120));
 
   // Stop should also stop playlist sequencing.
   stopBtn && stopBtn.addEventListener('click', () => {
@@ -13079,8 +13238,16 @@ function bindUI() {
   loadPreset && loadPreset.addEventListener('click', () => switchTab('loops'));
 
   document.addEventListener('visibilitychange', () => {
-    try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch {}
-    startOutputIfNeeded();
+    recoverAudioOutputIfNeeded({ resumeContext: true });
+  });
+  window.addEventListener('pageshow', () => {
+    recoverAudioOutputIfNeeded({ resumeContext: true });
+  });
+  window.addEventListener('focus', () => {
+    recoverAudioOutputIfNeeded({ resumeContext: true });
+  });
+  window.addEventListener('pagehide', () => {
+    if (hasManagedPlayback()) recoverAudioOutputIfNeeded({ resumeContext: false });
   });
 
   if (dropZone) {
