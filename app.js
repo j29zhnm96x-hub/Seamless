@@ -362,6 +362,11 @@ const I18N = {
     drum_seq_bpm: 'Tempo',
     drum_seq_steps: 'Steps',
     drum_seq_bank: 'Bank',
+    drum_seq_bpm_modal_open: 'Edit tempo',
+    drum_seq_bpm_modal_title: 'Set Tempo',
+    drum_seq_bpm_modal_text: 'Enter the BPM for this pattern.',
+    drum_seq_bpm_modal_label: 'BPM',
+    drum_seq_bpm_modal_confirm: 'Update Tempo',
     drum_seq_copy_bank: 'Copy Bank',
     drum_seq_paste_bank: 'Paste Bank',
     drum_seq_toggle_start: 'Start Pattern',
@@ -715,6 +720,11 @@ const I18N = {
     drum_seq_bpm: 'Tempo',
     drum_seq_steps: 'Koraci',
     drum_seq_bank: 'Banka',
+    drum_seq_bpm_modal_open: 'Uredi tempo',
+    drum_seq_bpm_modal_title: 'Postavi tempo',
+    drum_seq_bpm_modal_text: 'Upišite BPM za ovaj pattern.',
+    drum_seq_bpm_modal_label: 'BPM',
+    drum_seq_bpm_modal_confirm: 'Ažuriraj tempo',
     drum_seq_copy_bank: 'Kopiraj banku',
     drum_seq_paste_bank: 'Zalijepi banku',
     drum_seq_toggle_start: 'Pokreni pattern',
@@ -1328,6 +1338,18 @@ function applyLanguage(lang) {
   if (confirmDetailLoopRepsBtn) confirmDetailLoopRepsBtn.textContent = t('playlist_detail_add_title');
   const cancelDetailLoopRepsBtn = document.getElementById('cancelDetailLoopReps');
   if (cancelDetailLoopRepsBtn) cancelDetailLoopRepsBtn.textContent = t('loopinfo_back');
+  const drumSequencerBpmOverlay = document.getElementById('drumSequencerBpmOverlay');
+  if (drumSequencerBpmOverlay) drumSequencerBpmOverlay.setAttribute('aria-label', t('drum_seq_bpm_modal_title'));
+  const drumSequencerBpmOverlayTitle = document.getElementById('drumSequencerBpmOverlayTitle');
+  if (drumSequencerBpmOverlayTitle) drumSequencerBpmOverlayTitle.textContent = t('drum_seq_bpm_modal_title');
+  const drumSequencerBpmOverlayText = document.getElementById('drumSequencerBpmOverlayText');
+  if (drumSequencerBpmOverlayText) drumSequencerBpmOverlayText.textContent = t('drum_seq_bpm_modal_text');
+  const drumSequencerBpmOverlayLabel = document.getElementById('drumSequencerBpmOverlayLabel');
+  if (drumSequencerBpmOverlayLabel) drumSequencerBpmOverlayLabel.textContent = t('drum_seq_bpm_modal_label');
+  const drumSequencerBpmConfirmBtn = document.getElementById('drumSequencerBpmConfirm');
+  if (drumSequencerBpmConfirmBtn) drumSequencerBpmConfirmBtn.textContent = t('drum_seq_bpm_modal_confirm');
+  const drumSequencerBpmCancelBtn = document.getElementById('drumSequencerBpmCancel');
+  if (drumSequencerBpmCancelBtn) drumSequencerBpmCancelBtn.textContent = t('common_cancel');
 
   // If help is open, re-render it in the new language.
   try {
@@ -8739,7 +8761,12 @@ function updateDrumSequencerControls() {
     bpmInput.value = String(normalizeDrumSequencerBpm(drumSequencerBpm, 120));
     bpmInput.setAttribute('aria-label', t('drum_seq_bpm'));
   }
-  if (bpmReadout) bpmReadout.textContent = tf('drum_seq_bpm_readout', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) });
+  if (bpmReadout) {
+    const bpmText = tf('drum_seq_bpm_readout', { bpm: normalizeDrumSequencerBpm(drumSequencerBpm, 120) });
+    bpmReadout.textContent = bpmText;
+    bpmReadout.setAttribute('aria-label', `${t('drum_seq_bpm_modal_open')} (${bpmText})`);
+    bpmReadout.title = t('drum_seq_bpm_modal_open');
+  }
   if (swingInput) {
     swingInput.min = String(DRUM_SEQUENCER_MIN_SWING);
     swingInput.max = String(DRUM_SEQUENCER_MAX_SWING);
@@ -8816,6 +8843,14 @@ function refreshDrumSequencerTimerFromTempoChange() {
   }
   clearDrumSequencerTimer();
   queueNextDrumSequencerTick();
+}
+
+function setDrumSequencerBpmValue(value) {
+  drumSequencerBpm = normalizeDrumSequencerBpm(value, drumSequencerBpm);
+  saveDrumSequencerState();
+  updateDrumSequencerControls();
+  updateDrumPerformanceUI();
+  refreshDrumSequencerTimerFromTempoChange();
 }
 
 function handleDrumSequencerStateChange({ rerenderPlayback = true } = {}) {
@@ -12413,10 +12448,7 @@ function bindDrumMachineUI() {
   }
   if (drumSequencerBpmInput) {
     drumSequencerBpmInput.addEventListener('input', () => {
-      drumSequencerBpm = normalizeDrumSequencerBpm(drumSequencerBpmInput.value, drumSequencerBpm);
-      saveDrumSequencerState();
-      updateDrumSequencerControls();
-      refreshDrumSequencerTimerFromTempoChange();
+      setDrumSequencerBpmValue(drumSequencerBpmInput.value);
     });
   }
   if (drumSequencerSwingInput) {
@@ -12563,6 +12595,11 @@ function bindUI() {
   const detailLoopRepsInput = document.getElementById('detailLoopRepsInput');
   const confirmDetailLoopReps = document.getElementById('confirmDetailLoopReps');
   const cancelDetailLoopReps = document.getElementById('cancelDetailLoopReps');
+  const drumSequencerBpmOverlay = document.getElementById('drumSequencerBpmOverlay');
+  const drumSequencerBpmReadout = document.getElementById('drumSequencerBpmReadout');
+  const drumSequencerBpmModalInput = document.getElementById('drumSequencerBpmModalInput');
+  const drumSequencerBpmConfirm = document.getElementById('drumSequencerBpmConfirm');
+  const drumSequencerBpmCancel = document.getElementById('drumSequencerBpmCancel');
   const pasteBtn = document.getElementById('pasteBtn');
   const urlInput = document.getElementById('urlInput');
   const loadUrl = document.getElementById('loadUrl');
@@ -12968,6 +13005,9 @@ function bindUI() {
       case 'detailLoopRepsOverlay':
         closeDetailLoopRepsPrompt(false);
         break;
+      case 'drumSequencerBpmOverlay':
+        closeDrumSequencerBpmModal();
+        break;
       case 'playlistDeleteOverlay':
         pendingDeletePlaylistId = null;
         hideOverlay(el);
@@ -13256,6 +13296,18 @@ function bindUI() {
     }
   };
 
+
+  const closeDrumSequencerBpmModal = () => {
+    if (drumSequencerBpmOverlay) hideOverlay(drumSequencerBpmOverlay);
+  };
+
+  const openDrumSequencerBpmModal = () => {
+    if (drumSequencerBpmModalInput) {
+      drumSequencerBpmModalInput.value = String(normalizeDrumSequencerBpm(drumSequencerBpm, 120));
+    }
+    showOverlay(drumSequencerBpmOverlay);
+    focusAndSelectTextInput(drumSequencerBpmModalInput);
+  };
   const openLoopPicker = () => {
     openPlaylistLoopPicker((choice) => {
       if (!activePlaylist) return;
@@ -13274,6 +13326,7 @@ function bindUI() {
     playlistOverlay,
     loopPickerOverlay,
     detailLoopRepsOverlay,
+    drumSequencerBpmOverlay,
     playlistDeleteOverlay,
     document.getElementById('padAssignOverlay'),
     document.getElementById('drumAssignOverlay'),
@@ -13387,6 +13440,27 @@ function bindUI() {
       e.preventDefault();
     });
   }
+
+  if (drumSequencerBpmModalInput) {
+    drumSequencerBpmModalInput.addEventListener('focus', () => selectTextInputValue(drumSequencerBpmModalInput));
+    drumSequencerBpmModalInput.addEventListener('click', () => selectTextInputValue(drumSequencerBpmModalInput));
+    drumSequencerBpmModalInput.addEventListener('input', () => {
+      drumSequencerBpmModalInput.value = String(drumSequencerBpmModalInput.value || '').replace(/\D+/g, '');
+    });
+    drumSequencerBpmModalInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      drumSequencerBpmConfirm && drumSequencerBpmConfirm.click();
+      event.preventDefault();
+    });
+  }
+
+  drumSequencerBpmReadout && drumSequencerBpmReadout.addEventListener('click', openDrumSequencerBpmModal);
+  drumSequencerBpmCancel && drumSequencerBpmCancel.addEventListener('click', closeDrumSequencerBpmModal);
+  drumSequencerBpmConfirm && drumSequencerBpmConfirm.addEventListener('click', () => {
+    const rawValue = drumSequencerBpmModalInput ? String(drumSequencerBpmModalInput.value || '') : '';
+    setDrumSequencerBpmValue(rawValue);
+    closeDrumSequencerBpmModal();
+  });
 
   cancelDetailLoopReps && cancelDetailLoopReps.addEventListener('click', () => {
     pendingDetailLoopChoice = null;
