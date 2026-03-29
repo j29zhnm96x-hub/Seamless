@@ -1533,6 +1533,10 @@ html.theme-light .pad-countfront{stroke:rgba(18,24,33,0.92)}
   border-color:var(--accent-mid);
   color:var(--text);
 }
+.drum-sequencer-bank.is-queued{
+  outline:2px dashed var(--text-2);
+  outline-offset:2px;
+}
 .drum-sequencer-bank-actions{display:flex;gap:8px;flex-wrap:wrap}
 .drum-sequencer-bpm-label{
   font-size:12px;
