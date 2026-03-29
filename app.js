@@ -7987,6 +7987,7 @@ let drumSequencerBankClipboard = null;
 let drumSequencerQueuedBankIndex = -1;
 let drumSequencerQueuedBankRenderToken = 0;
 let drumSequencerQueuedBankTimer = 0;
+let drumSequencerQueuedBankCleanupTimer = 0;
 let drumSequencerPendingLoopSource = null;
 let drumSequencerPendingLoopGain = null;
 let drumSequencerPlaybackMode = 'idle';
@@ -7994,6 +7995,7 @@ let drumSequencerLoopSource = null;
 let drumSequencerLoopGain = null;
 let drumSequencerLoopStartTime = 0;
 let drumSequencerLoopDuration = 0;
+let drumSequencerLoopBarDuration = 0;
 let drumSequencerPlayheadRaf = 0;
 let drumSequencerRestartTimer = 0;
 let drumAssignTarget = -1;
@@ -8246,6 +8248,12 @@ function clearDrumSequencerQueuedBankTimer() {
   drumSequencerQueuedBankTimer = 0;
 }
 
+function clearDrumSequencerQueuedBankCleanupTimer() {
+  if (!drumSequencerQueuedBankCleanupTimer) return;
+  clearTimeout(drumSequencerQueuedBankCleanupTimer);
+  drumSequencerQueuedBankCleanupTimer = 0;
+}
+
 function clearDrumSequencerPlayheadRaf() {
   if (!drumSequencerPlayheadRaf) return;
   try { cancelAnimationFrame(drumSequencerPlayheadRaf); } catch {}
@@ -8267,18 +8275,14 @@ function clearDrumSequencerPendingLoopSource() {
 function clearDrumSequencerQueuedBankSwitch({ resetQueue = true } = {}) {
   drumSequencerQueuedBankRenderToken += 1;
   clearDrumSequencerQueuedBankTimer();
+  clearDrumSequencerQueuedBankCleanupTimer();
   clearDrumSequencerPendingLoopSource();
   if (resetQueue && drumSequencerLoopSource && drumSequencerPlaybackMode === 'buffer') {
-    try {
-      drumSequencerLoopSource.loop = true;
-      drumSequencerLoopSource.loopStart = 0;
-      drumSequencerLoopSource.loopEnd = drumSequencerLoopDuration || drumSequencerLoopSource.buffer.duration;
-    } catch {}
     if (drumSequencerLoopGain && audioCtx) {
       try {
         const now = audioCtx.currentTime;
         drumSequencerLoopGain.gain.cancelScheduledValues(now);
-        drumSequencerLoopGain.gain.setValueAtTime(drumSequencerLoopGain.gain.value, now);
+        drumSequencerLoopGain.gain.setValueAtTime(1, now);
       } catch {}
     }
   }
@@ -8297,13 +8301,14 @@ function clearDrumSequencerLoopSource() {
   }
   drumSequencerLoopStartTime = 0;
   drumSequencerLoopDuration = 0;
+  drumSequencerLoopBarDuration = 0;
 }
 
-function getDrumSequencerNextLoopBoundaryTime() {
-  if (!audioCtx || !drumSequencerLoopDuration || drumSequencerLoopStartTime <= 0) return 0;
+function getDrumSequencerNextBarBoundaryTime() {
+  if (!audioCtx || !drumSequencerLoopBarDuration || drumSequencerLoopStartTime <= 0) return 0;
   const elapsed = Math.max(0, audioCtx.currentTime - drumSequencerLoopStartTime);
-  const cyclesCompleted = Math.max(0, Math.floor(elapsed / drumSequencerLoopDuration));
-  return drumSequencerLoopStartTime + (cyclesCompleted + 1) * drumSequencerLoopDuration;
+  const barsCompleted = Math.max(0, Math.floor(elapsed / drumSequencerLoopBarDuration));
+  return drumSequencerLoopStartTime + (barsCompleted + 1) * drumSequencerLoopBarDuration;
 }
 
 function applyDrumSequencerBankSelection(index) {
@@ -8319,7 +8324,7 @@ function applyDrumSequencerBankSelection(index) {
   updateDrumPerformanceUI();
 }
 
-function finalizeDrumSequencerQueuedBankSwitch(bankIndex, source, gainNode, startTime, duration, token) {
+function finalizeDrumSequencerQueuedBankSwitch(bankIndex, source, gainNode, startTime, duration, barDuration, token) {
   if (!drumSequencerPlaying) return;
   if (token !== drumSequencerQueuedBankRenderToken) return;
   if (bankIndex !== drumSequencerQueuedBankIndex) return;
@@ -8332,6 +8337,7 @@ function finalizeDrumSequencerQueuedBankSwitch(bankIndex, source, gainNode, star
   drumSequencerLoopGain = gainNode;
   drumSequencerLoopStartTime = startTime;
   drumSequencerLoopDuration = duration;
+  drumSequencerLoopBarDuration = barDuration;
   drumSequencerPlaybackMode = 'buffer';
   drumSequencerCurrentStep = -1;
 
@@ -8354,7 +8360,7 @@ function scheduleDrumSequencerQueuedBankSwitch(rendered, snapshot, token) {
 
   const oldSource = drumSequencerLoopSource;
   const oldGainNode = drumSequencerLoopGain;
-  const startTime = Math.max(audioCtx.currentTime + 0.005, getDrumSequencerNextLoopBoundaryTime());
+  const startTime = Math.max(audioCtx.currentTime + 0.005, getDrumSequencerNextBarBoundaryTime());
   const fadeDuration = 0.03;
   const source = audioCtx.createBufferSource();
   const gainNode = audioCtx.createGain();
@@ -8379,7 +8385,6 @@ function scheduleDrumSequencerQueuedBankSwitch(rendered, snapshot, token) {
     oldGainNode.gain.linearRampToValueAtTime(0, startTime + fadeDuration);
   } catch {}
 
-  try { oldSource.loop = false; } catch {}
   source.start(startTime, 0);
 
   drumSequencerPendingLoopSource = source;
@@ -8387,12 +8392,13 @@ function scheduleDrumSequencerQueuedBankSwitch(rendered, snapshot, token) {
 
   const activateDelayMs = Math.max(0, Math.ceil(((startTime - audioCtx.currentTime) + fadeDuration + 0.02) * 1000));
   drumSequencerQueuedBankTimer = setTimeout(() => {
-    finalizeDrumSequencerQueuedBankSwitch(snapshot.bankIndex, source, gainNode, startTime, rendered.buffer.duration, token);
+    finalizeDrumSequencerQueuedBankSwitch(snapshot.bankIndex, source, gainNode, startTime, rendered.buffer.duration, rendered.timeline ? rendered.timeline.barSec : 0, token);
   }, activateDelayMs);
 
-  setTimeout(() => {
+  drumSequencerQueuedBankCleanupTimer = setTimeout(() => {
     try { oldSource.disconnect(); } catch {}
     try { oldGainNode.disconnect(); } catch {}
+    drumSequencerQueuedBankCleanupTimer = 0;
   }, Math.max(120, activateDelayMs + 120));
 
   return true;
@@ -8465,6 +8471,7 @@ function adoptRenderedDrumSequencerLoop(rendered, { crossfadeSec = 0.045 } = {})
   drumSequencerLoopGain = gainNode;
   drumSequencerLoopStartTime = startTime;
   drumSequencerLoopDuration = rendered.buffer.duration;
+  drumSequencerLoopBarDuration = rendered.timeline ? rendered.timeline.barSec : 0;
   drumSequencerPlaybackMode = 'buffer';
   drumSequencerCurrentStep = -1;
   startDrumSequencerPlayheadLoop();
